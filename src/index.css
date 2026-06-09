@@ -1,0 +1,202 @@
+@import "tailwindcss";
+
+@theme {
+  /* Base palette */
+  --color-background: hsl(42, 15%, 92%);
+  --color-foreground: hsl(240, 10%, 10%);
+  --color-card: hsl(0, 0%, 100%);
+  --color-card-foreground: hsl(240, 10%, 10%);
+  --color-popover: hsl(0, 0%, 100%);
+  --color-popover-foreground: hsl(240, 10%, 10%);
+  --color-primary: hsl(240, 55%, 42%);
+  --color-primary-foreground: hsl(0, 0%, 100%);
+  --color-secondary: hsl(240, 8%, 92%);
+  --color-secondary-foreground: hsl(240, 10%, 20%);
+  --color-muted: hsl(240, 8%, 88%);
+  --color-muted-foreground: hsl(240, 5%, 48%);
+  --color-accent: hsl(42, 50%, 90%);
+  --color-accent-foreground: hsl(240, 10%, 10%);
+  --color-destructive: hsl(0, 68%, 54%);
+  --color-destructive-foreground: hsl(0, 0%, 100%);
+  --color-border: hsl(240, 8%, 80%);
+  --color-input: hsl(240, 8%, 80%);
+  --color-ring: hsl(240, 55%, 42%);
+
+  --radius: 0.5rem;
+}
+
+/* Raw vars for components that reference them directly */
+:root {
+  --background: var(--color-background);
+  --foreground: var(--color-foreground);
+  --border: var(--color-border);
+  --input: var(--color-input);
+  --ring: var(--color-ring);
+  --primary: var(--color-primary);
+  --primary-foreground: var(--color-primary-foreground);
+  --secondary: var(--color-secondary);
+  --secondary-foreground: var(--color-secondary-foreground);
+  --muted: var(--color-muted);
+  --muted-foreground: var(--color-muted-foreground);
+  --accent: var(--color-accent);
+  --accent-foreground: var(--color-accent-foreground);
+  --destructive: var(--color-destructive);
+  --destructive-foreground: var(--color-destructive-foreground);
+  --card: var(--color-card);
+  --card-foreground: var(--color-card-foreground);
+  --popover: var(--color-popover);
+  --popover-foreground: var(--color-popover-foreground);
+  --radius: 0.5rem;
+}
+
+* { box-sizing: border-box; }
+
+body {
+  margin: 0;
+  font-family: 'Zalando Sans', system-ui, -apple-system, sans-serif;
+  background: var(--color-background);
+  color: var(--color-foreground);
+}
+
+#root {
+  width: 100vw;
+  height: 100vh;
+  overflow: hidden;
+}
+
+/* ── Markdown preview ─────────────────────────────────────────── */
+.md-preview { color: var(--color-foreground); }
+.md-preview h1, .md-preview h2, .md-preview h3 {
+  font-weight: 600;
+  line-height: 1.3;
+  margin: 1.2em 0 0.4em;
+}
+.md-preview h1 { font-size: 1.4em; }
+.md-preview h2 { font-size: 1.15em; }
+.md-preview h3 { font-size: 1em; }
+.md-preview p { margin: 0.6em 0; line-height: 1.6; }
+.md-preview ul { padding-left: 1.6em; margin: 0.5em 0; list-style-type: disc; }
+.md-preview ol { padding-left: 1.6em; margin: 0.5em 0; list-style-type: decimal; }
+.md-preview li { margin: 0.25em 0; display: list-item; }
+.md-preview code {
+  font-family: ui-monospace, monospace;
+  font-size: 0.85em;
+  background: var(--color-muted);
+  padding: 0.15em 0.4em;
+  border-radius: 3px;
+}
+.md-preview pre {
+  background: var(--color-muted);
+  padding: 0.75em 1em;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 0.75em 0;
+}
+.md-preview pre code { background: none; padding: 0; }
+.md-preview blockquote {
+  border-left: 3px solid var(--color-border);
+  padding-left: 0.8em;
+  color: var(--color-muted-foreground);
+  margin: 0.5em 0;
+  font-style: italic;
+}
+.md-preview strong { font-weight: 600; }
+.md-preview a { color: var(--color-primary); text-decoration: underline; }
+.md-preview hr { border: none; border-top: 1px solid var(--color-border); margin: 1em 0; }
+.md-preview table { border-collapse: collapse; width: 100%; margin: 0.75em 0; }
+.md-preview th, .md-preview td { border: 1px solid var(--color-border); padding: 0.4em 0.6em; text-align: left; }
+.md-preview th { background: var(--color-muted); font-weight: 600; }
+
+
+/* ── React Flow tweaks ─────────────────────────────────────────── */
+.react-flow__node { font-family: inherit; }
+
+/* Wider invisible hit area makes edges easier to click */
+.react-flow__edge-interaction { stroke-width: 16; }
+
+/* Lift edge layer above nodes so reconnect handles are never obscured */
+.react-flow__edges { z-index: 1000; }
+
+/* Edge reconnect handles — only visible on selected edges, hidden while dragging */
+.react-flow__edgeupdater {
+  opacity: 0;
+  r: 3;
+  fill: white;
+  stroke-width: 1.5;
+  cursor: crosshair;
+  pointer-events: none;
+  transition: opacity 0.1s;
+}
+.react-flow__edge.selected .react-flow__edgeupdater {
+  opacity: 1;
+  pointer-events: all;
+}
+.edge-dragging .react-flow__edgeupdater {
+  opacity: 0 !important;
+  pointer-events: none !important;
+}
+
+/* Color each relation's handles to match its connector */
+.edge-rel-questions .react-flow__edgeupdater { stroke: #38bdf8; }
+.edge-rel-answers   .react-flow__edgeupdater { stroke: #34d399; }
+.edge-rel-argues    .react-flow__edgeupdater { stroke: #f87171; }
+.edge-rel-fixes     .react-flow__edgeupdater { stroke: #a78bfa; }
+.edge-rel-expands   .react-flow__edgeupdater { stroke: #94a3b8; }
+.edge-rel-spawns    .react-flow__edgeupdater { stroke: #f59e0b; }
+
+/* Hide connection handles; reveal on node hover or when space is held */
+.react-flow__handle {
+  opacity: 0;
+  transition: opacity 0.12s;
+}
+.react-flow__node:hover .react-flow__handle,
+.space-held .react-flow__handle {
+  opacity: 1;
+}
+
+.react-flow__edge-path {
+  stroke: var(--color-border);
+  stroke-width: 1.5;
+}
+.react-flow__edge.selected .react-flow__edge-path,
+.react-flow__edge:hover .react-flow__edge-path {
+  stroke: var(--color-primary);
+}
+
+/* ── Pan / drag optimisations ──────────────────────────────────── */
+.is-panning .react-flow__edges { shape-rendering: optimizeSpeed; }
+.is-panning .react-flow__node > div { box-shadow: none !important; }
+.react-flow__node.dragging > div { box-shadow: none !important; }
+.react-flow__node.dragging .react-flow__handle { opacity: 0 !important; }
+
+.react-flow__controls {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+  overflow: hidden;
+  box-shadow: 0 2px 8px rgba(0,0,0,.08);
+}
+.react-flow__controls button {
+  background: var(--color-card);
+  border: none;
+  border-bottom: 1px solid var(--color-border);
+  color: var(--color-foreground);
+  width: 36px;
+  height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+.react-flow__controls button svg,
+.react-flow__controls-button svg {
+  width: 18px !important;
+  height: 18px !important;
+  max-width: 18px !important;
+  max-height: 18px !important;
+  fill: none !important;
+}
+.react-flow__controls button:hover { background: var(--color-muted); }
+
+.react-flow__minimap {
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius);
+}
