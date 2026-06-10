@@ -1,4 +1,4 @@
-import type { GroundingChunk } from '@/store/types'
+import type { GroundingChunk, ThonkGraph } from '@/store/types'
 
 const MODEL_LITE  = 'gemini-3.1-flash-lite'
 const MODEL_SMART = 'gemini-3.5-flash'
@@ -77,7 +77,7 @@ async function callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResul
   if (!key) throw new Error('No Gemini API key set. Add your key in the top bar.')
 
   const makeBody = (withSearch: boolean) => ({
-    systemInstruction: { parts: [{ text: req.systemInstruction }] },
+    systemInstruction: { parts: [{ text: withSearch ? req.systemInstruction : req.systemInstruction + '\nDo not include any URLs or links in your response.' }] },
     contents: [{ role: 'user', parts: [{ text: req.userPrompt }] }],
     ...(withSearch ? { tools: [{ googleSearch: {} }] } : {}),
   })
@@ -437,8 +437,7 @@ const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
 Answer the question directly and accurately in 2–3 sentences.
 Use web search when the question benefits from current or factual information.
 Be specific. No preamble, no filler.
-Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.
-If you mention a specific website, tool, product, or resource by name, always include its full URL so the user can click through.`
+Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
   const result = await callGeminiWithSearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
@@ -450,6 +449,82 @@ export async function answerQuestion(contextPrompt: string): Promise<{ answer: s
 const CORRECT_ANSWER_SYSTEM = `You are a sharp colleague revising a quick answer after a correction.
 One or two short sentences. Casual and direct — incorporate the correction, nothing else.
 No preamble, no meta-commentary, no "you're right", no summaries.`
+
+// ── Brief generation ─────────────────────────────────────────────────────────
+
+const BRIEF_SYSTEM = `You are arranging, not writing. Use the actual words from the nodes as much as possible — quote them, combine them, trim them. Do not rewrite in your own voice.
+Your only job is to order the ideas so they flow and cut what's redundant. Add a word or two of connective tissue only when something would be incomprehensible without it.
+The output should read like the person's own words put in order, not a paraphrase.
+No intro sentence, no outro, no meta-commentary. Just the ideas.
+No top-level title — return that separately.`
+
+export async function generateBrief(
+  graph: ThonkGraph,
+  apiKey: string,
+): Promise<{ title: string; markdown: string }> {
+  const sourceNodes = graph.nodes.filter(n => n.type === 'core' || n.type === 'idea')
+
+  if (!apiKey || !sourceNodes.length) {
+    const fallback = sourceNodes
+      .map(n => `## ${n.title}\n\n${n.body || '*No content yet.*'}`)
+      .join('\n\n---\n\n')
+    return {
+      title: sourceNodes[0]?.title || 'Untitled',
+      markdown: fallback,
+    }
+  }
+
+  const nodeLines = sourceNodes
+    .map(n => `[${n.type}] "${n.title}"\n${n.body || ''}`)
+    .join('\n\n')
+
+  const sourceIds = new Set(sourceNodes.map(n => n.id))
+  const edgeLines = graph.edges
+    .filter(e => sourceIds.has(e.source) && sourceIds.has(e.target))
+    .map(e => {
+      const src = sourceNodes.find(n => n.id === e.source)?.title ?? e.source
+      const tgt = sourceNodes.find(n => n.id === e.target)?.title ?? e.target
+      return `"${src}" --${e.relation}--> "${tgt}"`
+    })
+    .join('\n')
+
+  const userPrompt = `NODES:\n${nodeLines}${edgeLines ? `\n\nCONNECTIONS:\n${edgeLines}` : ''}`
+
+  const key = apiKey
+  const model = getHighIQ() ? MODEL_SMART : MODEL_LITE
+  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
+
+  const body = {
+    systemInstruction: { parts: [{ text: BRIEF_SYSTEM }] },
+    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
+    generationConfig: {
+      responseMimeType: 'application/json',
+      responseSchema: {
+        type: 'object',
+        properties: {
+          title:    { type: 'string' },
+          markdown: { type: 'string' },
+        },
+        required: ['title', 'markdown'],
+      },
+    },
+  }
+
+  const res = await fetch(url, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(body),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Gemini error ${res.status}: ${err}`)
+  }
+
+  const data = await res.json()
+  const text: string = data.candidates[0].content.parts[0].text
+  return JSON.parse(text) as { title: string; markdown: string }
+}
 
 export async function correctAnswer(
   contextPrompt: string,

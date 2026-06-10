@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, FilePlus, Download, Upload, BookCheck } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, FilePlus, Save, FolderOpen, Sparkles } from 'lucide-react'
 import thonkLogo from '@/assets/thonk.webp'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -7,6 +7,8 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, Dialog
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from './ui/dropdown-menu'
 import { getApiKey, setApiKey, getHighIQ, setHighIQ } from '@/ai/gemini'
+import { SummarizeModal, type SummarizeCache } from './SummarizeModal'
+import type { ThonkGraph } from '@/store/types'
 
 interface TopBarProps {
   onAddCore: () => void
@@ -20,15 +22,20 @@ interface TopBarProps {
   onToggleLegend: () => void
   onExport: () => void
   onImport: (file: File) => void
+  graph: ThonkGraph
 }
 
-export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hideResolved, onToggleHideResolved, onReset, showLegend, onToggleLegend, onExport, onImport }: TopBarProps) {
+export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hideResolved, onToggleHideResolved, onReset, showLegend, onToggleLegend, onExport, onImport, graph }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [keyOpen, setKeyOpen] = useState(() => !getApiKey())
   const [key, setKey] = useState(getApiKey)
   const [saved, setSaved] = useState(false)
   const [highIQ, setHighIQState] = useState(getHighIQ)
+  const [summarizeOpen, setSummarizeOpen] = useState(false)
+  const summarizeCache = useRef<SummarizeCache | null>(null)
+
+  const hasContent = graph.nodes.some(n => n.type === 'core' || n.type === 'idea')
 
   const toggleHighIQ = () => {
     const next = !highIQ
@@ -59,14 +66,14 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onExport}>
-            <Download className="w-4 h-4 text-muted-foreground" /> Save board
+            <Save className="w-4 h-4 text-muted-foreground" /> Save board
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
-            <Upload className="w-4 h-4 text-muted-foreground" /> Load board
+            <FolderOpen className="w-4 h-4 text-muted-foreground" /> Load board
           </DropdownMenuItem>
           <DropdownMenuSeparator />
-          <DropdownMenuItem disabled>
-            <BookCheck className="w-4 h-4 text-muted-foreground" /> Summarize
+          <DropdownMenuItem disabled={!hasContent} onClick={() => setSummarizeOpen(true)}>
+            <Sparkles className="w-4 h-4 text-muted-foreground" /> Summarize
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
@@ -103,6 +110,15 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Button
+        size="sm" variant="outline"
+        className="h-9 text-sm gap-1.5 cursor-pointer bg-white"
+        disabled={!hasContent}
+        onClick={() => setSummarizeOpen(true)}
+      >
+        <Sparkles className="w-4 h-4" /> Summarize
+      </Button>
 
       <div className="ml-auto flex items-center gap-2">
         <Tooltip>
@@ -217,6 +233,13 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           </DialogContent>
         </Dialog>
       </div>
+
+      <SummarizeModal
+        open={summarizeOpen}
+        onClose={() => setSummarizeOpen(false)}
+        graph={graph}
+        cache={summarizeCache}
+      />
 
       {/* New board confirm dialog — controlled via resetOpen state */}
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>

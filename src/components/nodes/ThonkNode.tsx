@@ -525,6 +525,10 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'dismissed' })
   }, [thonk.id, d, graphRef])
 
+  const handleDismissProblem = useCallback(() => {
+    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'dismissed' })
+  }, [thonk.id, d])
+
   const handleReopenAndAnswer = useCallback(() => {
     const aEdge = graphRef.current.edges.find(e => e.source === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
     if (aEdge) d.onUpdate(aEdge.target, { resolved: false })
@@ -549,18 +553,18 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
 
           {thonk.resolved ? (
-            /* Resolved: edit, details, reopen (+ answer shortcut for questions), delete */
+            /* Resolved: edit, details, reopen (+ answer shortcut for questions only), delete */
             <>
-              {showEdit         && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
+              {showEdit && thonk.type !== 'problem' && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
               {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
               <Sep />
-              {(thonk.type === 'question' || thonk.type === 'problem') && (
+              {thonk.type === 'question' && (
                 <button
                   onClick={handleReopenAndAnswer}
                   className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
                 >
                   <MessageCircleReply className="w-5 h-5" />
-                  {thonk.type === 'problem' ? 'Reply' : 'Answer'}
+                  Answer
                 </button>
               )}
               <ToolBtn icon={<RotateCcw className="w-5 h-5" />} label="Reopen" onClick={handleReopen} />
@@ -633,6 +637,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                     <ToolBtn icon={<CheckCheck className="w-5 h-5" />} label={`Resolve All & Sync (${approveAllCount})`} onClick={handleApproveAll} className="text-green-400" />
                   )}
                   <ToolBtn icon={<CircleX className="w-5 h-5" />} label="Dismiss" onClick={handleDismiss} />
+                </>
+              )}
+              {thonk.type === 'problem' && (
+                <>
+                  <Sep />
+                  <ToolBtn icon={<CircleX className="w-5 h-5" />} label="Dismiss problem" onClick={handleDismissProblem} />
                 </>
               )}
 
@@ -708,7 +718,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 if (e.key === 'Escape') { setEditTitle(thonk.title); setEditing(false) }
               }}
               placeholder={
-                thonk.type === 'core'     ? 'What\'s the core idea?' :
+                thonk.type === 'core'     ? 'Your idea, core problem, topic, plan…' :
                 thonk.type === 'idea'     ? 'Describe the idea…' :
                 thonk.type === 'problem'  ? 'What\'s the problem?' :
                 thonk.type === 'question' ? 'Ask a question…' :
@@ -728,7 +738,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               )}
               onDoubleClick={thonk.type === 'question' ? () => setActionState('answering') : enterEdit}
             >
-              {thonk.title ? linkifyText(thonk.title) : <span className="opacity-40 italic">Untitled</span>}
+              {thonk.title ? linkifyText(thonk.title) : <span className="opacity-40">{thonk.type === 'core' ? 'Your idea, core problem, topic, plan…' : 'Untitled'}</span>}
             </p>
           )}
 

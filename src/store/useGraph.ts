@@ -198,7 +198,9 @@ export function useGraph() {
   )
 
   const resetGraph = useCallback(() => {
-    setGraph(makeInitialGraph())
+    const initial = makeInitialGraph()
+    setGraph(initial)
+    return initial.nodes[0].id
   }, [setGraph])
 
   const canUndo = historyIdx.current > 0

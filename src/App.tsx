@@ -492,11 +492,12 @@ export default function App() {
           onAddQuestion={handleAddQuestion}
           hideResolved={hideResolved}
           onToggleHideResolved={() => setHideResolved(v => !v)}
-          onReset={() => { resetGraph(); saveViewport({ x: 0, y: 0, zoom: 1 }); rfInstance.current?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 300 }) }}
+          onReset={() => { const coreId = resetGraph(); setAutoEditId(coreId); saveViewport({ x: 0, y: 0, zoom: 1 }); rfInstance.current?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 300 }) }}
           showLegend={showLegend}
           onToggleLegend={() => setShowLegend(v => !v)}
           onExport={() => exportGraphToFile(graph)}
           onImport={handleImport}
+          graph={graph}
         />
         <div style={{ width: '100%', height: '100%', paddingTop: 44 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
           <ReactFlow

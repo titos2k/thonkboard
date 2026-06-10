@@ -32,7 +32,7 @@ export function makeInitialGraph(): ThonkGraph {
       {
         id: coreId,
         type: 'core',
-        title: 'Name your core idea',
+        title: '',
         body: '',
         summary: '',
         resolved: false,
