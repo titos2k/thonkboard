@@ -434,13 +434,25 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
 // ── AI-generated answer ───────────────────────────────────────────────────────
 
 const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
-Answer the question directly and accurately in 2–3 sentences.
+Answer the question directly and accurately in 1–3 sentences.
 Use web search when the question benefits from current or factual information.
 Be specific. No preamble, no filler.
-Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.`
+Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.
+If existing answers are already connected to this question (visible in context), provide a different angle or perspective — do not repeat what's already there.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
   const result = await callGeminiWithSearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
+  return { answer: result.text, sources: result.sources }
+}
+
+const SOLUTION_SYSTEM = `You are a direct, practical colleague in a brainstorming session.
+Propose one concrete solution or next step in 1–2 sentences.
+No analysis, no restating the problem, no preamble.
+Match the tone of the content — casual stays casual.
+If existing solutions are already connected to this problem (visible in context), provide a different approach — do not repeat what's already there.`
+
+export async function generateSolution(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
+  const result = await callGeminiWithSearch({ systemInstruction: SOLUTION_SYSTEM, userPrompt: contextPrompt })
   return { answer: result.text, sources: result.sources }
 }
 

@@ -11,6 +11,7 @@ interface NodeShellProps {
   aiGenerated?: boolean
   className?: string
   handles?: boolean
+  onPointerDown?: (e: React.PointerEvent) => void
 }
 
 const TYPE_STYLES: Record<NodeType, string> = {
@@ -29,7 +30,7 @@ const TYPE_SELECTED: Record<NodeType, string> = {
   answer:   'ring-2 ring-emerald-300 ring-offset-1',
 }
 
-function NodeShellBase({ nodeType, children, selected, resolved, aiGenerated, className, handles = true }: NodeShellProps) {
+function NodeShellBase({ nodeType, children, selected, resolved, aiGenerated, className, handles = true, onPointerDown }: NodeShellProps) {
   const isLight = nodeType === 'question' || nodeType === 'idea'
   const handleClass = isLight
     ? '!bg-sky-300 !border-sky-400 !w-2 !h-2'
@@ -41,6 +42,7 @@ function NodeShellBase({ nodeType, children, selected, resolved, aiGenerated, cl
 
   return (
     <div
+      onPointerDown={onPointerDown}
       className={cn(
         'rounded-lg text-sm relative cursor-grab active:cursor-grabbing transition-opacity',
         resolved && 'opacity-40',

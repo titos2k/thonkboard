@@ -1,4 +1,16 @@
-import React, { useState, useCallback, useRef, useEffect, useLayoutEffect } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
+import { flushSync } from 'react-dom'
+
+// Module-level store: tracks which node was most recently touched.
+// useSyncExternalStore ensures ALL node instances re-render synchronously
+// in the same commit when it changes — no batching gaps.
+let _touchId: string | null = null
+const _listeners = new Set<() => void>()
+const touchStore = {
+  subscribe:   (cb: () => void) => { _listeners.add(cb); return () => _listeners.delete(cb) },
+  getSnapshot: () => _touchId,
+  set: (id: string | null) => { _touchId = id; _listeners.forEach(l => l()) },
+}
 import { NodeToolbar, Position, useReactFlow, type NodeProps } from '@xyflow/react'
 import {
   Angry,
@@ -29,7 +41,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigge
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
 import { assembleContext, contextToPrompt } from '@/ai/context'
-import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, detectConflicts, findRelatedNodes, answerQuestion, correctAnswer } from '@/ai/gemini'
+import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, detectConflicts, findRelatedNodes, answerQuestion, generateSolution, correctAnswer } from '@/ai/gemini'
 import type { ThonkGraph, ConflictEntry } from '@/store/types'
 import { showToast } from '@/lib/toast'
 
@@ -174,6 +186,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const [editing, setEditing] = useState(() => !!d.autoEdit)
   const [editTitle, setEditTitle] = useState(thonk.title)
   const [actionState, setActionState] = useState<ActionState>('idle')
+  const activeTouchId = useSyncExternalStore(touchStore.subscribe, touchStore.getSnapshot)
+
+  // Once React Flow propagates selection for THIS node, release the touch lock.
+  useEffect(() => {
+    if (touchStore.getSnapshot() === thonk.id) touchStore.set(null)
+  }, [selected, thonk.id])
   const [answerText, setAnswerText] = useState('')
   const [correctionText, setCorrectionText] = useState('')
 
@@ -275,12 +293,14 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   }, [editTitle, thonk.title, thonk.id, thonk.meta.aiGenerated, thonk.meta.yesNo, d])
 
   const enterEdit = () => {
-    setEditTitle(thonk.title)
-    setEditing(true)
-    requestAnimationFrame(() => {
-      titleInputRef.current?.focus()
-      titleInputRef.current?.select()
+    // flushSync renders the textarea into the DOM synchronously so focus() is
+    // called within the same user-gesture stack — required for iOS keyboard.
+    flushSync(() => {
+      setEditTitle(thonk.title)
+      setEditing(true)
     })
+    titleInputRef.current?.focus()
+    titleInputRef.current?.select()
   }
 
   const handleArgue = () =>
@@ -363,7 +383,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const handleGenerateFix = () =>
     withLoading(async () => {
-      const { answer, sources } = await answerQuestion(ctx())
+      const { answer, sources } = await generateSolution(ctx())
       const aNode = d.onAddNode('answer', answer, answer, spawnPos(0, nodeH()), {
         aiGenerated: true,
         sources: sources.length > 0 ? sources : undefined,
@@ -547,9 +567,9 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const showExpandDetail = thonk.type !== 'question' && thonk.type !== 'answer'
 
   return (
-    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated}>
+    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
-      <NodeToolbar isVisible={selected && !dragging && !isLoading && !isAnswering && !isCorrecting && !editing} position={Position.Top} offset={8}>
+      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !dragging && !isLoading && !isAnswering && !isCorrecting && !editing} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
 
           {thonk.resolved ? (
@@ -625,16 +645,14 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               {showEdit         && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
               {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
               <AddDropdown nodeType={thonk.type} onAddQuestion={handleAddQuestion} onAddIdea={handleAddIdea} onAddProblem={handleAddProblem} />
-              {thonk.type === 'answer' && thonk.meta.aiGenerated && (
-                <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This" onClick={() => setActionState('correcting')} disabled={!hasContent} />
-              )}
               <TransformBtn currentType={thonk.type} onTransform={handleTransform} />
               {thonk.type === 'answer' && (
                 <>
                   <Sep />
+                  {thonk.meta.aiGenerated && <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This" onClick={() => setActionState('correcting')} disabled={!hasContent} />}
                   <ToolBtn icon={<CircleCheckBig className="w-5 h-5" />} label="Resolve & Sync Ideas" onClick={handleApprove} />
                   {approveAllCount > 1 && (
-                    <ToolBtn icon={<CheckCheck className="w-5 h-5" />} label={`Resolve All & Sync (${approveAllCount})`} onClick={handleApproveAll} className="text-green-400" />
+                    <ToolBtn icon={<CheckCheck className="w-5 h-5" />} label={`Resolve All & Sync (${approveAllCount})`} onClick={handleApproveAll} />
                   )}
                   <ToolBtn icon={<CircleX className="w-5 h-5" />} label="Dismiss" onClick={handleDismiss} />
                 </>

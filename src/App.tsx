@@ -24,6 +24,7 @@ import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2 } from 'l
 import '@xyflow/react/dist/style.css'
 
 import { useGraph } from '@/store/useGraph'
+import { useIsMobile } from '@/hooks/useIsMobile'
 import { exportGraphToFile, parseImportedGraph } from '@/store/graph'
 import type { ThonkNode, ThonkEdge, ThonkGraph } from '@/store/types'
 import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
@@ -87,7 +88,7 @@ const UndoButton = React.memo(function UndoButton({ onClick, disabled }: { onCli
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <ControlButton onClick={onClick} style={disabled ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+        <ControlButton onClick={onClick} style={disabled ? { color: 'var(--color-border)', pointerEvents: 'none' } : undefined}>
           <Undo2 className="w-[18px] h-[18px]" />
         </ControlButton>
       </TooltipTrigger>
@@ -100,7 +101,7 @@ const RedoButton = React.memo(function RedoButton({ onClick, disabled }: { onCli
   return (
     <Tooltip>
       <TooltipTrigger asChild>
-        <ControlButton onClick={onClick} style={disabled ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+        <ControlButton onClick={onClick} style={disabled ? { color: 'var(--color-border)', pointerEvents: 'none' } : undefined}>
           <Redo2 className="w-[18px] h-[18px]" />
         </ControlButton>
       </TooltipTrigger>
@@ -226,6 +227,7 @@ export default function App() {
   const [spaceHeld, setSpaceHeld] = useState(false)
   const savedViewport = useMemo(() => loadViewport(), [])
 
+  const isMobile = useIsMobile()
   const rfInstance = useRef<ReactFlowInstance | null>(null)
 
   // Stable ref to current graph — passed to nodes instead of graph itself so
@@ -484,7 +486,7 @@ export default function App() {
 
   return (
     <TooltipProvider delayDuration={0}>
-      <div style={{ width: '100vw', height: '100vh', position: 'relative' }}>
+      <div style={{ width: '100vw', height: '100dvh', position: 'relative' }}>
         <TopBar
           onAddCore={handleAddCore}
           onAddIdea={handleAddIdea}
@@ -524,7 +526,7 @@ export default function App() {
             proOptions={{ hideAttribution: false }}
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
-            <Controls showZoom={false} showFitView={false} showInteractive={false}>
+            <Controls showZoom={false} showFitView={false} showInteractive={false} style={isMobile ? { bottom: 4, left: 4 } : { bottom: 24, left: 16 }}>
               <UndoButton onClick={undo} disabled={!canUndo} />
               <RedoButton onClick={redo} disabled={!canRedo} />
               <ZoomInButton />
@@ -533,10 +535,12 @@ export default function App() {
               <LockButton />
               <ZoomDisplay />
             </Controls>
-            <MiniMap
-              nodeColor={miniMapNodeColor}
-              maskColor="rgba(200,195,190,0.3)"
-            />
+            {!isMobile && (
+              <MiniMap
+                nodeColor={miniMapNodeColor}
+                maskColor="rgba(200,195,190,0.3)"
+              />
+            )}
           </ReactFlow>
         </div>
 
@@ -550,7 +554,7 @@ export default function App() {
           />
         )}
 
-        {showLegend && <div
+        {showLegend && !isMobile && <div
           className="absolute bg-white border border-border rounded-lg px-4 py-3 text-sm shadow-sm pointer-events-none z-10"
           style={{ top: 44 + 16, right: panelNode ? 576 + 16 : 16 }}
         >

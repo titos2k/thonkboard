@@ -1,14 +1,15 @@
 import { useRef, useState } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, FilePlus, Save, FolderOpen, Sparkles } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, FilePlus, Save, FolderOpen, Sparkles, Zap, EyeOff } from 'lucide-react'
 import thonkLogo from '@/assets/thonk.webp'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
-import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from './ui/dropdown-menu'
 import { getApiKey, setApiKey, getHighIQ, setHighIQ } from '@/ai/gemini'
 import { SummarizeModal, type SummarizeCache } from './SummarizeModal'
 import type { ThonkGraph } from '@/store/types'
+import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface TopBarProps {
   onAddCore: () => void
@@ -25,6 +26,14 @@ interface TopBarProps {
   graph: ThonkGraph
 }
 
+function MiniToggle({ on }: { on: boolean }) {
+  return (
+    <div className={`relative w-7 h-3.5 rounded-full ml-2 shrink-0 transition-colors ${on ? 'bg-gray-700' : 'bg-gray-300'}`}>
+      <div className={`absolute top-0.5 w-2.5 h-2.5 bg-white rounded-full shadow transition-transform ${on ? 'translate-x-4' : 'translate-x-0.5'}`} />
+    </div>
+  )
+}
+
 export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hideResolved, onToggleHideResolved, onReset, showLegend, onToggleLegend, onExport, onImport, graph }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [resetOpen, setResetOpen] = useState(false)
@@ -33,7 +42,9 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
   const [saved, setSaved] = useState(false)
   const [highIQ, setHighIQState] = useState(getHighIQ)
   const [summarizeOpen, setSummarizeOpen] = useState(false)
+  const [helpOpen, setHelpOpen] = useState(false)
   const summarizeCache = useRef<SummarizeCache | null>(null)
+  const isMobile = useIsMobile()
 
   const hasContent = graph.nodes.some(n => n.type === 'core' || n.type === 'idea')
 
@@ -75,6 +86,32 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           <DropdownMenuItem disabled={!hasContent} onClick={() => setSummarizeOpen(true)}>
             <Sparkles className="w-4 h-4 text-muted-foreground" /> Summarize
           </DropdownMenuItem>
+
+          {isMobile && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={toggleHighIQ} className="justify-between">
+                <span className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-muted-foreground" /> Turbo Thonking
+                </span>
+                <MiniToggle on={highIQ} />
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onToggleHideResolved} className="justify-between">
+                <span className="flex items-center gap-2">
+                  <EyeOff className="w-4 h-4 text-muted-foreground" /> Hide resolved
+                </span>
+                <MiniToggle on={hideResolved} />
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => setKeyOpen(true)}>
+                <Astroid className="w-4 h-4 text-muted-foreground" />
+                {getApiKey() ? 'API Key ✓' : 'Set API Key'}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setHelpOpen(true)}>
+                <HelpCircle className="w-4 h-4 text-muted-foreground" /> Help
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -111,16 +148,19 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
         </DropdownMenuContent>
       </DropdownMenu>
 
-      <Button
-        size="sm" variant="outline"
-        className="h-9 text-sm gap-1.5 cursor-pointer bg-white"
-        disabled={!hasContent}
-        onClick={() => setSummarizeOpen(true)}
-      >
-        <Sparkles className="w-4 h-4" /> Summarize
-      </Button>
+      {!isMobile && (
+        <Button
+          size="sm" variant="outline"
+          className="h-9 text-sm gap-1.5 cursor-pointer bg-white"
+          disabled={!hasContent}
+          onClick={() => setSummarizeOpen(true)}
+        >
+          <Sparkles className="w-4 h-4" /> Summarize
+        </Button>
+      )}
 
-      <div className="ml-auto flex items-center gap-2">
+      {/* Right-side controls — hidden on mobile */}
+      <div className={`ml-auto items-center gap-2 ${isMobile ? 'hidden' : 'flex'}`}>
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -157,46 +197,14 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           </TooltipContent>
         </Tooltip>
 
-        <Dialog open={keyOpen} onOpenChange={setKeyOpen}>
-          <DialogTrigger asChild>
-            <Button
-              size="sm" variant="ghost"
-              className={`h-9 text-sm gap-2 ${!getApiKey() ? 'text-red-500 hover:text-red-600' : ''}`}
-            >
-              <Astroid className="w-5 h-5" />
-              {getApiKey() ? 'API Key ✓' : 'Set API Key'}
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="pb-2">Gemini API Key</DialogTitle>
-              <DialogDescription>
-                For THONK to think, it needs a Gemini API key. It's free and takes 30 seconds to get. Your key is stored only in your browser. We never see it or send it anywhere.
-              </DialogDescription>
-            </DialogHeader>
-            <form onSubmit={e => { e.preventDefault(); handleSave() }} className="flex gap-2">
-              <Input
-                type="password"
-                placeholder="Paste your API key…"
-                autoComplete="off"
-                value={key}
-                onChange={e => setKey(e.target.value)}
-                className="text-sm"
-              />
-              <Button type="submit" size="sm" disabled={!key.trim()} className="shrink-0 h-9 text-sm cursor-pointer">
-                {saved ? 'Saved!' : 'Save'}
-              </Button>
-            </form>
-            <a
-              href="https://aistudio.google.com/app/apikey"
-              target="_blank"
-              rel="noopener noreferrer"
-              className="text-sm text-primary underline hover:opacity-70 transition-opacity"
-            >
-              Get a free API key from Google AI Studio →
-            </a>
-          </DialogContent>
-        </Dialog>
+        <Button
+          size="sm" variant="ghost"
+          className={`h-9 text-sm gap-2 ${!getApiKey() ? 'text-red-500 hover:text-red-600' : ''}`}
+          onClick={() => setKeyOpen(true)}
+        >
+          <Astroid className="w-5 h-5" />
+          {getApiKey() ? 'API Key ✓' : 'Set API Key'}
+        </Button>
 
         <Tooltip>
           <TooltipTrigger asChild>
@@ -211,28 +219,61 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           <TooltipContent side="bottom">{showLegend ? 'Hide legend' : 'Show legend'}</TooltipContent>
         </Tooltip>
 
-        <Dialog>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="ghost" className="h-9 w-9 p-0">
-              <HelpCircle className="w-5 h-5" />
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="max-w-sm" aria-describedby={undefined}>
-            <DialogHeader>
-              <DialogTitle>How to use THONK</DialogTitle>
-            </DialogHeader>
-            <div className="text-sm text-muted-foreground space-y-2">
-              <p><strong>Click a node</strong> to select it and reveal its actions.</p>
-              <p><strong>Argue</strong> — AI critique pass. Finds real problems with severity scoring.</p>
-              <p><strong>Question</strong> — Generates one sharp question. Answer it to refine your idea.</p>
-              <p><strong>Expand</strong> — Generates child ideas that build on the target.</p>
-              <p><strong>Ideate</strong> — Generates sibling ideas in the same domain.</p>
-              <p><strong>Approve</strong> — On an Answer node: merges it back into the Core as a new version.</p>
-              <p className="pt-1"><strong>Drag</strong> to move nodes. <strong>Scroll</strong> to zoom. <strong>Drag background</strong> to pan.</p>
-            </div>
-          </DialogContent>
-        </Dialog>
+        <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={() => setHelpOpen(true)}>
+          <HelpCircle className="w-5 h-5" />
+        </Button>
       </div>
+
+      {/* API Key dialog (controlled) */}
+      <Dialog open={keyOpen} onOpenChange={setKeyOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="pb-2">Gemini API Key</DialogTitle>
+            <DialogDescription>
+              For THONK to think, it needs a Gemini API key. It's free and takes 30 seconds to get. Your key is stored only in your browser. We never see it or send it anywhere.
+            </DialogDescription>
+          </DialogHeader>
+          <form onSubmit={e => { e.preventDefault(); handleSave() }} className="flex gap-2">
+            <Input
+              type="password"
+              placeholder="Paste your API key…"
+              autoComplete="off"
+              value={key}
+              onChange={e => setKey(e.target.value)}
+              className="text-sm"
+            />
+            <Button type="submit" size="sm" disabled={!key.trim()} className="shrink-0 h-9 text-sm cursor-pointer">
+              {saved ? 'Saved!' : 'Save'}
+            </Button>
+          </form>
+          <a
+            href="https://aistudio.google.com/app/apikey"
+            target="_blank"
+            rel="noopener noreferrer"
+            className="text-sm text-primary underline hover:opacity-70 transition-opacity"
+          >
+            Get a free API key from Google AI Studio →
+          </a>
+        </DialogContent>
+      </Dialog>
+
+      {/* Help dialog (controlled) */}
+      <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle>How to use THONK</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground space-y-2">
+            <p><strong>Click a node</strong> to select it and reveal its actions.</p>
+            <p><strong>Argue</strong> — AI critique pass. Finds real problems with severity scoring.</p>
+            <p><strong>Question</strong> — Generates one sharp question. Answer it to refine your idea.</p>
+            <p><strong>Expand</strong> — Generates child ideas that build on the target.</p>
+            <p><strong>Ideate</strong> — Generates sibling ideas in the same domain.</p>
+            <p><strong>Approve</strong> — On an Answer node: merges it back into the Core as a new version.</p>
+            <p className="pt-1"><strong>Drag</strong> to move nodes. <strong>Scroll</strong> to zoom. <strong>Drag background</strong> to pan.</p>
+          </div>
+        </DialogContent>
+      </Dialog>
 
       <SummarizeModal
         open={summarizeOpen}
@@ -241,7 +282,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
         cache={summarizeCache}
       />
 
-      {/* New board confirm dialog — controlled via resetOpen state */}
+      {/* New board confirm dialog */}
       <Dialog open={resetOpen} onOpenChange={setResetOpen}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
