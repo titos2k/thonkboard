@@ -1,6 +1,28 @@
 import { v4 as uuidv4 } from 'uuid'
 import type { ThonkGraph, ThonkNode, ThonkEdge, NodeType, EdgeRelation } from './types'
 
+export function exportGraphToFile(graph: ThonkGraph): void {
+  const core = graph.nodes.find(n => n.type === 'core')
+  const slug = (core?.title ?? 'board').replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 40)
+  const date = new Date().toISOString().slice(0, 10)
+  const blob = new Blob([JSON.stringify(graph, null, 2)], { type: 'application/json' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `thonk-${slug}-${date}.json`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
+export function parseImportedGraph(json: string): ThonkGraph {
+  const g = JSON.parse(json) as ThonkGraph
+  g.nodes = g.nodes.map(n => ({
+    ...(n.summary == null ? { ...n, summary: '' } : n),
+    resolved: (n as ThonkNode & { resolved?: boolean }).resolved ?? false,
+    conflicts: (n as ThonkNode & { conflicts?: ThonkNode['conflicts'] }).conflicts ?? [],
+  }))
+  return g
+}
+
 const STORAGE_KEY = 'thonk.graph'
 
 export function makeInitialGraph(): ThonkGraph {

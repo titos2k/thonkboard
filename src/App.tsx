@@ -24,6 +24,7 @@ import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2 } from 'l
 import '@xyflow/react/dist/style.css'
 
 import { useGraph } from '@/store/useGraph'
+import { exportGraphToFile, parseImportedGraph } from '@/store/graph'
 import type { ThonkNode, ThonkEdge, ThonkGraph } from '@/store/types'
 import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
 import { EditorPanel } from '@/components/EditorPanel'
@@ -199,6 +200,7 @@ function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
 export default function App() {
   const {
     graph,
+    setGraph,
     addNode,
     addEdge: addGraphEdge,
     updateNode,
@@ -465,6 +467,19 @@ export default function App() {
   const handleAddProblem  = () => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 });     setAutoEditId(n.id) }
   const handleAddQuestion = () => { const n = addNode('question', '', '', viewCenter());                        setAutoEditId(n.id) }
 
+  const handleImport = useCallback((file: File) => {
+    const reader = new FileReader()
+    reader.onload = e => {
+      try {
+        const imported = parseImportedGraph(e.target!.result as string)
+        setGraph(imported)
+      } catch {
+        // malformed file — ignore
+      }
+    }
+    reader.readAsText(file)
+  }, [setGraph])
+
   const panelNode = panelNodeId ? graph.nodes.find(n => n.id === panelNodeId) : null
 
   return (
@@ -480,6 +495,8 @@ export default function App() {
           onReset={() => { resetGraph(); saveViewport({ x: 0, y: 0, zoom: 1 }); rfInstance.current?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 300 }) }}
           showLegend={showLegend}
           onToggleLegend={() => setShowLegend(v => !v)}
+          onExport={() => exportGraphToFile(graph)}
+          onImport={handleImport}
         />
         <div style={{ width: '100%', height: '100%', paddingTop: 44 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
           <ReactFlow

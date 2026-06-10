@@ -1,11 +1,11 @@
-import { useState } from 'react'
-import { Astroid, HelpCircle, FilePlus, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus } from 'lucide-react'
+import { useRef, useState } from 'react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, FilePlus, Download, Upload, BookCheck } from 'lucide-react'
 import thonkLogo from '@/assets/thonk.webp'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from './ui/dropdown-menu'
 import { getApiKey, setApiKey, getHighIQ, setHighIQ } from '@/ai/gemini'
 
 interface TopBarProps {
@@ -18,9 +18,12 @@ interface TopBarProps {
   onReset: () => void
   showLegend: boolean
   onToggleLegend: () => void
+  onExport: () => void
+  onImport: (file: File) => void
 }
 
-export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hideResolved, onToggleHideResolved, onReset, showLegend, onToggleLegend }: TopBarProps) {
+export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hideResolved, onToggleHideResolved, onReset, showLegend, onToggleLegend, onExport, onImport }: TopBarProps) {
+  const fileInputRef = useRef<HTMLInputElement>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [keyOpen, setKeyOpen] = useState(() => !getApiKey())
   const [key, setKey] = useState(getApiKey)
@@ -43,6 +46,38 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
     <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-white border-b border-border" style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
       <img src={thonkLogo} alt="Thonk" className="h-7 w-auto mr-1" />
 
+      {/* Hamburger menu */}
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="ghost" className="h-9 w-9 p-0 cursor-pointer">
+            <Menu className="w-5 h-5" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" onCloseAutoFocus={e => e.preventDefault()}>
+          <DropdownMenuItem onClick={() => setResetOpen(true)}>
+            <FilePlus className="w-4 h-4 text-muted-foreground" /> New board
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onExport}>
+            <Download className="w-4 h-4 text-muted-foreground" /> Save board
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
+            <Upload className="w-4 h-4 text-muted-foreground" /> Load board
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem disabled>
+            <BookCheck className="w-4 h-4 text-muted-foreground" /> Summarize
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+
+      <input
+        ref={fileInputRef}
+        type="file" accept=".json" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) onImport(f); e.target.value = '' }}
+      />
+
+      {/* Add Node dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
           <Button size="sm" variant="outline" className="h-9 text-sm gap-1.5 cursor-pointer bg-white">
@@ -160,31 +195,6 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           <TooltipContent side="bottom">{showLegend ? 'Hide legend' : 'Show legend'}</TooltipContent>
         </Tooltip>
 
-        <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-          <Tooltip>
-            <DialogTrigger asChild>
-              <TooltipTrigger asChild>
-                <Button size="sm" variant="ghost" className="h-9 w-9 p-0">
-                  <FilePlus className="w-5 h-5" />
-                </Button>
-              </TooltipTrigger>
-            </DialogTrigger>
-            <TooltipContent side="bottom">New Board</TooltipContent>
-          </Tooltip>
-          <DialogContent className="max-w-sm">
-            <DialogHeader>
-              <DialogTitle className="pb-2">Reset board?</DialogTitle>
-              <DialogDescription>
-                This will delete all nodes and edges. This cannot be undone.
-              </DialogDescription>
-            </DialogHeader>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setResetOpen(false)}>Cancel</Button>
-              <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { onReset(); setResetOpen(false) }}>Reset</Button>
-            </div>
-          </DialogContent>
-        </Dialog>
-
         <Dialog>
           <DialogTrigger asChild>
             <Button size="sm" variant="ghost" className="h-9 w-9 p-0">
@@ -207,6 +217,22 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           </DialogContent>
         </Dialog>
       </div>
+
+      {/* New board confirm dialog — controlled via resetOpen state */}
+      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="pb-2">Reset board?</DialogTitle>
+            <DialogDescription>
+              This will delete all nodes and edges. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setResetOpen(false)}>Cancel</Button>
+            <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { onReset(); setResetOpen(false) }}>Reset</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </div>
   )
 }
