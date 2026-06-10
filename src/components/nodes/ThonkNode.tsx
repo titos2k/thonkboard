@@ -33,6 +33,7 @@ import {
   Brain,
   RotateCcw,
   CircleX,
+  Sparkles,
 } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
@@ -68,7 +69,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
   onBatchEnd: () => void
 }
 
-type ActionState = 'idle' | 'loading' | 'answering' | 'correcting'
+type ActionState = 'idle' | 'loading' | 'answering' | 'correcting' | 'asking'
 
 type QAPair = { qNode: import('@/store/types').ThonkNode; aNode: import('@/store/types').ThonkNode }
 
@@ -125,6 +126,30 @@ function findChainRoot(graph: ThonkGraph, nodeId: string): import('@/store/types
   return findChainRoot(graph, qEdge.source)
 }
 
+
+// Walk DOWN from a node and collect all Q&A descendant IDs
+// (follow-up questions their answers, recursively — used for cascade dismissal)
+function collectQADescendants(graph: ThonkGraph, nodeId: string): string[] {
+  const result: string[] = []
+  const visited = new Set<string>()
+  function walk(id: string) {
+    if (visited.has(id)) return
+    visited.add(id)
+    for (const e of graph.edges) {
+      if (e.source === id && e.relation === 'questions') {
+        result.push(e.target)
+        for (const ae of graph.edges) {
+          if (ae.source === e.target && ae.relation === 'answers') {
+            result.push(ae.target)
+            walk(ae.target)
+          }
+        }
+      }
+    }
+  }
+  walk(nodeId)
+  return result
+}
 
 function stopDeletePropagation(e: React.KeyboardEvent) {
   if (e.key === 'Delete' || e.key === 'Backspace') e.stopPropagation()
@@ -195,9 +220,27 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const [answerText, setAnswerText] = useState('')
   const [correctionText, setCorrectionText] = useState('')
 
+  const [askText, setAskText] = useState('')
+
+  // Close answer/correction input on outside tap/click
+  useEffect(() => {
+    if (actionState !== 'answering' && actionState !== 'correcting') return
+    const handler = (e: PointerEvent) => {
+      const nodeEl = document.querySelector(`[data-id="${thonk.id}"]`)
+      if (nodeEl && !nodeEl.contains(e.target as Node)) {
+        setAnswerText('')
+        setCorrectionText('')
+        setActionState('idle')
+      }
+    }
+    window.addEventListener('pointerdown', handler)
+    return () => window.removeEventListener('pointerdown', handler)
+  }, [actionState, thonk.id])
+
   const titleInputRef = useRef<HTMLTextAreaElement>(null)
   const answerRef = useRef<HTMLTextAreaElement>(null)
   const correctionRef = useRef<HTMLTextAreaElement>(null)
+  const askRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (editing) {
@@ -229,6 +272,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const isAnswering  = actionState === 'answering'
   const isCorrecting = actionState === 'correcting'
+  const isAsking     = actionState === 'asking'
 
   useEffect(() => {
     if (isAnswering) requestAnimationFrame(() => answerRef.current?.focus())
@@ -237,6 +281,10 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   useEffect(() => {
     if (isCorrecting) requestAnimationFrame(() => correctionRef.current?.focus())
   }, [isCorrecting])
+
+  useEffect(() => {
+    if (isAsking) requestAnimationFrame(() => askRef.current?.focus())
+  }, [isAsking])
 
   const hasContent = thonk.body.trim().length > 0 || thonk.title.trim().length > 0
 
@@ -355,6 +403,26 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         i++
       }
     })
+
+  const handleAskAndAnswer = () => {
+    const question = askText.trim()
+    if (!question) return
+    setAskText('')
+    withLoading(async () => {
+      const c = assembleContext(graphRef.current, thonk.id)
+      if (!c) return
+      const { answer, sources } = await answerQuestion(`${contextToPrompt(c)}\n\nQUESTION: ${question}`)
+      const qPos = findFreePos(graphRef.current.nodes, livePos(), 0, nodeH())
+      const qNode = d.onAddNode('question', question, question, qPos)
+      d.onAddEdge(thonk.id, qNode.id, 'questions')
+      const aPos = findFreePos(graphRef.current.nodes, { x: qPos.x, y: qPos.y + 140 }, 0, 120)
+      const aNode = d.onAddNode('answer', answer, answer, aPos, {
+        aiGenerated: true,
+        sources: sources.length > 0 ? sources : undefined,
+      })
+      d.onAddEdge(qNode.id, aNode.id, 'answers')
+    })
+  }
 
   const handleAnswer = () => {
     if (!answerText.trim()) return
@@ -540,14 +608,27 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   }, [thonk.id, d, graphRef])
 
   const handleDismiss = useCallback(() => {
-    const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
+    const graph = graphRef.current
+    const qEdge = graph.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
     if (qEdge) d.onUpdate(qEdge.source, { resolved: true, resolvedAs: 'dismissed' })
     d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'dismissed' })
+    collectQADescendants(graph, thonk.id).forEach(childId =>
+      d.onUpdate(childId, { resolved: true, resolvedAs: 'dismissed' })
+    )
   }, [thonk.id, d, graphRef])
 
   const handleDismissProblem = useCallback(() => {
+    const graph = graphRef.current
     d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'dismissed' })
-  }, [thonk.id, d])
+    graph.edges
+      .filter(e => e.source === thonk.id && e.relation === 'fixes')
+      .forEach(e => {
+        d.onUpdate(e.target, { resolved: true, resolvedAs: 'dismissed' })
+        collectQADescendants(graph, e.target).forEach(childId =>
+          d.onUpdate(childId, { resolved: true, resolvedAs: 'dismissed' })
+        )
+      })
+  }, [thonk.id, d, graphRef])
 
   const handleReopenAndAnswer = useCallback(() => {
     const aEdge = graphRef.current.edges.find(e => e.source === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
@@ -569,7 +650,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   return (
     <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
-      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !dragging && !isLoading && !isAnswering && !isCorrecting && !editing} position={Position.Top} offset={8}>
+      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !editing} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
 
           {thonk.resolved ? (
@@ -597,7 +678,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               {(thonk.type === 'question' || thonk.type === 'problem') && (
                 <>
                   <button
-                    onClick={() => setActionState('answering')}
+                    onClick={() => thonk.title.trim() ? setActionState('answering') : enterEdit()}
                     className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
                   >
                     <MessageCircleReply className="w-5 h-5" />
@@ -623,12 +704,13 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               {(thonk.type === 'core' || thonk.type === 'idea') && (
                 <>
                   <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} className="text-green-400" />
+                  <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Answer me" onClick={() => setActionState('asking')} disabled={!hasContent} className="text-blue-300" />
                   <ToolBtn icon={<Angry className="w-5 h-5" />} label="Find Problems" onClick={handleArgue} disabled={!hasContent} className="text-red-400" />
                   <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} className="text-yellow-400" />
                 </>
               )}
               {thonk.type === 'problem' && (
-                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Solution" onClick={handleGenerateFix} disabled={!hasContent} className="text-green-400" />
+                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Suggest Solution" onClick={handleGenerateFix} disabled={!hasContent} className="text-green-400" />
               )}
               {thonk.type === 'question' && (
                 <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} className="text-emerald-300" />
@@ -636,6 +718,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               {thonk.type === 'answer' && (
                 <>
                   <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} className="text-green-400" />
+                  <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Answer me" onClick={() => setActionState('asking')} disabled={!hasContent} className="text-blue-300" />
                   <ToolBtn icon={<Angry className="w-5 h-5" />} label="Find Problems" onClick={handleArgue} disabled={!hasContent} className="text-red-400" />
                 </>
               )}
@@ -754,7 +837,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 'select-none font-medium text-sm leading-snug cursor-grab active:cursor-grabbing text-pretty',
                 thonk.type === 'core' && 'text-[17.5px]',
               )}
-              onDoubleClick={thonk.type === 'question' ? () => setActionState('answering') : enterEdit}
+              onDoubleClick={thonk.type === 'question' ? (thonk.title.trim() ? () => setActionState('answering') : enterEdit) : enterEdit}
             >
               {thonk.title ? linkifyText(thonk.title) : <span className="opacity-40">{thonk.type === 'core' ? 'Your idea, core problem, topic, plan…' : 'Untitled'}</span>}
             </p>
@@ -834,6 +917,40 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               </button>
               <button
                 onClick={() => { setCorrectionText(''); setActionState('idle') }}
+                className="text-sm px-2 py-1 rounded-sm bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Ask & Answer input */}
+        {(thonk.type === 'core' || thonk.type === 'idea' || thonk.type === 'answer') && isAsking && (
+          <div className="nodrag px-3 pb-2">
+            <Textarea
+              ref={askRef}
+              placeholder="Type your question…"
+              value={askText}
+              onChange={e => setAskText(e.target.value)}
+              onKeyDown={e => {
+                stopDeletePropagation(e)
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAskAndAnswer() }
+                if (e.key === 'Escape') { setAskText(''); setActionState('idle') }
+              }}
+              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 py-1 rounded-sm shadow-none"
+              rows={3}
+            />
+            <div className="mt-1 flex gap-1">
+              <button
+                onClick={handleAskAndAnswer}
+                disabled={!askText.trim()}
+                className="flex-1 text-sm px-2 py-1 rounded-sm bg-blue-600 hover:bg-blue-500 text-white disabled:opacity-30 transition-colors"
+              >
+                Get AI Answer
+              </button>
+              <button
+                onClick={() => { setAskText(''); setActionState('idle') }}
                 className="text-sm px-2 py-1 rounded-sm bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
               >
                 Cancel
