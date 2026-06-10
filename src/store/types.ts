@@ -35,6 +35,7 @@ export interface ThonkNode {
     aiGenerated?: boolean     // true for AI-proposed answers
     yesNo?: boolean           // true when AI classified this as a yes/no question
     sources?: GroundingChunk[] // web sources when Gemini used search grounding
+    aiDepth?: number          // AI generation depth; absent/0 = human-authored
   }
 }
 

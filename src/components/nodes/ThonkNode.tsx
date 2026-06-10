@@ -46,6 +46,8 @@ import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, 
 import type { ThonkGraph, ConflictEntry } from '@/store/types'
 import { showToast } from '@/lib/toast'
 
+const MAX_AI_DEPTH = 2
+
 export interface ThonkNodeData extends Record<string, unknown> {
   thonk: TNode
   graphRef: React.MutableRefObject<import('@/store/types').ThonkGraph>
@@ -354,9 +356,10 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const handleArgue = () =>
     withLoading(async () => {
       const problems = await critiqueNode(ctx())
+      const childDepth = (thonk.meta.aiDepth ?? 0) + 1
       let i = 0
       for (const p of problems) {
-        const node = d.onAddNode('problem', p.content, p.content, spawnPos(280 + i * 20, -40 + i * 80), { severity: p.severity })
+        const node = d.onAddNode('problem', p.content, p.content, spawnPos(280 + i * 20, -40 + i * 80), { severity: p.severity, aiGenerated: true, aiDepth: childDepth })
         d.onAddEdge(thonk.id, node.id, 'argues')
         i++
       }
@@ -454,6 +457,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const { answer, sources } = await generateSolution(ctx())
       const aNode = d.onAddNode('answer', answer, answer, spawnPos(0, nodeH()), {
         aiGenerated: true,
+        aiDepth: (thonk.meta.aiDepth ?? 0) + 1,
         sources: sources.length > 0 ? sources : undefined,
       })
       d.onAddEdge(thonk.id, aNode.id, 'fixes')
@@ -644,6 +648,11 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const isLoading = actionState === 'loading'
   const isLight = thonk.type === 'question' || thonk.type === 'idea'
 
+  const aiDepth = thonk.meta.aiDepth ?? 0
+  const depthHeat = aiDepth > 0 ? Math.min(aiDepth / MAX_AI_DEPTH, 1) : 0
+  const argueLabel = depthHeat >= 1 ? 'Find Problems (AI Loop Block)' : depthHeat > 0 ? 'Find Problems (AI Loop Warning)' : 'Find Problems'
+  const fixLabel   = depthHeat >= 1 ? 'Suggest Solution (AI Loop Block)' : depthHeat > 0 ? 'Suggest Solution (AI Loop Warning)' : 'Suggest Solution'
+
   const showEdit         = !editing
   const showExpandDetail = thonk.type !== 'question' && thonk.type !== 'answer'
 
@@ -705,12 +714,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 <>
                   <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} className="text-green-400" />
                   <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Answer me" onClick={() => setActionState('asking')} disabled={!hasContent} className="text-blue-300" />
-                  <ToolBtn icon={<Angry className="w-5 h-5" />} label="Find Problems" onClick={handleArgue} disabled={!hasContent} className="text-red-400" />
+                  <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} className="text-red-400" heat={depthHeat} />
                   <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} className="text-yellow-400" />
                 </>
               )}
               {thonk.type === 'problem' && (
-                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Suggest Solution" onClick={handleGenerateFix} disabled={!hasContent} className="text-green-400" />
+                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} className="text-green-400" heat={depthHeat} />
               )}
               {thonk.type === 'question' && (
                 <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} className="text-emerald-300" />
@@ -719,7 +728,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 <>
                   <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} className="text-green-400" />
                   <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Answer me" onClick={() => setActionState('asking')} disabled={!hasContent} className="text-blue-300" />
-                  <ToolBtn icon={<Angry className="w-5 h-5" />} label="Find Problems" onClick={handleArgue} disabled={!hasContent} className="text-red-400" />
+                  <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} className="text-red-400" heat={depthHeat} />
                 </>
               )}
 
@@ -1082,7 +1091,7 @@ function TransformBtn({ currentType, onTransform }: { currentType: string; onTra
 }
 
 function ToolBtn({
-  icon, label, onClick, disabled, active, className,
+  icon, label, onClick, disabled, active, className, heat,
 }: {
   icon: React.ReactNode
   label: string
@@ -1090,21 +1099,33 @@ function ToolBtn({
   disabled?: boolean
   active?: boolean
   className?: string
+  heat?: number   // 0–1; >= 1 hard-disables the button and shows a red dot
 }) {
+  const isHeatBlocked = !!heat && heat >= 1
+  const dotColor =
+    !heat || heat <= 0 ? undefined :
+    heat < 1           ? 'text-yellow-400' :
+                         'text-red-500'
+
+  const isDisabled = disabled || isHeatBlocked
+
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
-          disabled={disabled}
+          disabled={isDisabled}
           className={cn(
-            'w-8 h-8 flex items-center justify-center rounded text-white/80 transition-colors',
-            disabled ? 'opacity-25 cursor-not-allowed' : 'hover:bg-white/15 hover:text-white cursor-pointer',
+            'w-8 h-8 flex items-center justify-center rounded text-white/80 transition-colors relative',
+            isDisabled ? 'opacity-25 cursor-not-allowed' : 'hover:bg-white/15 hover:text-white cursor-pointer',
             active && 'bg-white/20 text-white',
             className,
           )}
         >
           {icon}
+          {dotColor && (
+            <span className={cn('absolute top-0 right-0.5 text-[9px] font-bold leading-none', dotColor)}>!</span>
+          )}
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={10} className="text-sm">

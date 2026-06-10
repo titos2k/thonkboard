@@ -37,7 +37,8 @@ function NodeShellBase({ nodeType, children, selected, resolved, aiGenerated, cl
     : '!bg-white/60 !border-white/40 !w-2 !h-2'
 
   const baseStyle =
-    aiGenerated && nodeType === 'answer' ? 'border border-black/10 bg-[#00836d] text-white shadow' :
+    aiGenerated && nodeType === 'answer'   ? 'border border-black/10 bg-[#00836d] text-white shadow' :
+    aiGenerated && nodeType === 'question' ? 'border border-dashed border-black/20 bg-[#f4f6f6] text-gray-900 shadow-md' :
     TYPE_STYLES[nodeType]
 
   return (
