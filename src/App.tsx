@@ -20,7 +20,7 @@ import {
   type Viewport,
   type ReactFlowInstance,
 } from '@xyflow/react'
-import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen } from 'lucide-react'
+import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2 } from 'lucide-react'
 import '@xyflow/react/dist/style.css'
 
 import { useGraph } from '@/store/useGraph'
@@ -29,23 +29,38 @@ import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/Thonk
 import { EditorPanel } from '@/components/EditorPanel'
 import { TopBar } from '@/components/TopBar'
 import { Toaster } from '@/components/Toaster'
-import { TooltipProvider } from '@/components/ui/tooltip'
+import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
 const NODE_TYPES = { thonk: ThonkNodeComponent }
 
 const ZoomInButton = React.memo(function ZoomInButton() {
   const { zoomIn } = useReactFlow()
-  return <ControlButton onClick={() => zoomIn({ duration: 200 })} title="Zoom in"><Plus className="w-[18px] h-[18px]" /></ControlButton>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild><ControlButton onClick={() => zoomIn({ duration: 200 })}><Plus className="w-[18px] h-[18px]" /></ControlButton></TooltipTrigger>
+      <TooltipContent side="right">Zoom in</TooltipContent>
+    </Tooltip>
+  )
 })
 
 const ZoomOutButton = React.memo(function ZoomOutButton() {
   const { zoomOut } = useReactFlow()
-  return <ControlButton onClick={() => zoomOut({ duration: 200 })} title="Zoom out"><Minus className="w-[18px] h-[18px]" /></ControlButton>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild><ControlButton onClick={() => zoomOut({ duration: 200 })}><Minus className="w-[18px] h-[18px]" /></ControlButton></TooltipTrigger>
+      <TooltipContent side="right">Zoom out</TooltipContent>
+    </Tooltip>
+  )
 })
 
 const FitViewButton = React.memo(function FitViewButton() {
   const { fitView } = useReactFlow()
-  return <ControlButton onClick={() => fitView({ padding: 0.5, duration: 400 })} title="Fit view"><Scan className="w-[18px] h-[18px]" /></ControlButton>
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild><ControlButton onClick={() => fitView({ padding: 0.5, duration: 400 })}><Scan className="w-[18px] h-[18px]" /></ControlButton></TooltipTrigger>
+      <TooltipContent side="right">Fit view</TooltipContent>
+    </Tooltip>
+  )
 })
 
 const LockButton = React.memo(function LockButton() {
@@ -56,9 +71,40 @@ const LockButton = React.memo(function LockButton() {
     store.setState({ nodesDraggable: next, nodesConnectable: next, elementsSelectable: next })
   }
   return (
-    <ControlButton onClick={toggle} title={nodesDraggable ? 'Lock canvas' : 'Unlock canvas'}>
-      {nodesDraggable ? <LockKeyholeOpen className="w-[18px] h-[18px]" /> : <LockKeyhole className="w-[18px] h-[18px]" />}
-    </ControlButton>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <ControlButton onClick={toggle}>
+          {nodesDraggable ? <LockKeyholeOpen className="w-[18px] h-[18px]" /> : <LockKeyhole className="w-[18px] h-[18px]" />}
+        </ControlButton>
+      </TooltipTrigger>
+      <TooltipContent side="right">{nodesDraggable ? 'Lock canvas' : 'Unlock canvas'}</TooltipContent>
+    </Tooltip>
+  )
+})
+
+const UndoButton = React.memo(function UndoButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <ControlButton onClick={onClick} style={disabled ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+          <Undo2 className="w-[18px] h-[18px]" />
+        </ControlButton>
+      </TooltipTrigger>
+      <TooltipContent side="right">Undo (Ctrl+Z)</TooltipContent>
+    </Tooltip>
+  )
+})
+
+const RedoButton = React.memo(function RedoButton({ onClick, disabled }: { onClick: () => void; disabled: boolean }) {
+  return (
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <ControlButton onClick={onClick} style={disabled ? { opacity: 0.35, pointerEvents: 'none' } : undefined}>
+          <Redo2 className="w-[18px] h-[18px]" />
+        </ControlButton>
+      </TooltipTrigger>
+      <TooltipContent side="right">Redo (Ctrl+Y)</TooltipContent>
+    </Tooltip>
   )
 })
 
@@ -66,11 +112,16 @@ const ZoomDisplay = React.memo(function ZoomDisplay() {
   const { zoom } = useViewport()
   const { zoomTo } = useReactFlow()
   return (
-    <ControlButton onClick={() => zoomTo(1, { duration: 300 })} title="Reset to 100%">
-      <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'system-ui', letterSpacing: '-0.02em' }}>
-        {Math.round(zoom * 100)}%
-      </span>
-    </ControlButton>
+    <Tooltip>
+      <TooltipTrigger asChild>
+        <ControlButton onClick={() => zoomTo(1, { duration: 300 })}>
+          <span style={{ fontSize: 11, fontWeight: 700, fontFamily: 'system-ui', letterSpacing: '-0.02em' }}>
+            {Math.round(zoom * 100)}%
+          </span>
+        </ControlButton>
+      </TooltipTrigger>
+      <TooltipContent side="right">Reset zoom to 100%</TooltipContent>
+    </Tooltip>
   )
 })
 
@@ -88,13 +139,12 @@ function saveViewport(vp: Viewport) {
   localStorage.setItem(VIEWPORT_KEY, JSON.stringify(vp))
 }
 
-const EDGE_STYLES: Record<string, { stroke: string; strokeDasharray: string; strokeWidth: number }> = {
-  spawns:    { stroke: '#f59e0b', strokeDasharray: '0',   strokeWidth: 1.5 },
-  questions: { stroke: '#858783', strokeDasharray: '4 3', strokeWidth: 1.5 },
-  answers:   { stroke: '#34d399', strokeDasharray: '0',   strokeWidth: 1.5 },
-  argues:    { stroke: '#f87171', strokeDasharray: '5 3', strokeWidth: 1.5 },
-  fixes:     { stroke: '#858783', strokeDasharray: '0',   strokeWidth: 1.5 },
-  expands:   { stroke: '#94a3b8', strokeDasharray: '3 3', strokeWidth: 1.5 },
+const NODE_EDGE_COLOR: Record<string, string> = {
+  core:     '#392946',
+  idea:     '#f5c44a',
+  problem:  '#e95a32',
+  question: '#858783',
+  answer:   '#00ae60',
 }
 
 type GraphCallbacks = {
@@ -105,12 +155,15 @@ type GraphCallbacks = {
   onVersionCore: ThonkNodeData['onVersionCore']
   onOpenPanel:   ThonkNodeData['onOpenPanel']
   onAutoEdit:    ThonkNodeData['onAutoEdit']
+  onBatchStart:  ThonkNodeData['onBatchStart']
+  onBatchEnd:    ThonkNodeData['onBatchEnd']
 }
 
 function toRFNode(
   n: ThonkNode,
   selected: boolean,
   autoEdit: boolean,
+  panelOpen: boolean,
   graphRef: React.MutableRefObject<ThonkGraph>,
   cb: GraphCallbacks,
 ): Node {
@@ -119,18 +172,23 @@ function toRFNode(
     type: 'thonk',
     position: n.position,
     selected,
-    data: { thonk: n, graphRef, autoEdit, ...cb } as ThonkNodeData,
+    data: { thonk: n, graphRef, autoEdit, panelOpen, ...cb } as ThonkNodeData,
   }
 }
 
-function toRFEdge(e: ThonkEdge): Edge {
+function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
+  const target   = nodes.find(n => n.id === e.target)
+  const source   = nodes.find(n => n.id === e.source)
+  const resolved = target?.resolved || source?.resolved
+  const stroke   = NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8'
+  const dash     = target?.meta.aiGenerated ? '5 3' : undefined
   return {
     id: e.id,
     source: e.source,
     target: e.target,
     sourceHandle: e.sourceHandle ?? undefined,
     targetHandle: e.targetHandle ?? undefined,
-    style: EDGE_STYLES[e.relation] ?? {},
+    style: { stroke, strokeDasharray: dash, strokeWidth: 1.5, opacity: resolved ? 0.25 : 1 },
     className: `edge-rel-${e.relation}`,
     data: { relation: e.relation },
     reconnectable: true,
@@ -149,6 +207,12 @@ export default function App() {
     reconnectEdge,
     versionCore,
     resetGraph,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    onBatchStart,
+    onBatchEnd,
   } = useGraph()
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
@@ -179,6 +243,13 @@ export default function App() {
     }
   }, [graph.nodes, panelNodeId])
 
+  // Follow selection: if panel is already open, switch it to the newly selected node
+  useEffect(() => {
+    if (panelNodeId !== null && selectedIds.size === 1) {
+      setPanelNodeId([...selectedIds][0])
+    }
+  }, [selectedIds]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Clear autoEditId after one render cycle
   useEffect(() => {
     if (autoEditId) {
@@ -195,7 +266,18 @@ export default function App() {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [])
 
-  const openPanel = useCallback((id: string) => setPanelNodeId(id), [])
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo() }
+      if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo() }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [undo, redo])
+
+  const openPanel = useCallback((id: string | null) => setPanelNodeId(id), [])
 
   const miniMapNodeColor = useCallback((n: Node) => {
     const t = (n.data as ThonkNodeData)?.thonk?.type
@@ -207,8 +289,9 @@ export default function App() {
   }, [])
 
   const navigateToNode = useCallback((nodeId: string) => {
-    if (!rfInstance.current) return
-    rfInstance.current.fitView({
+    setPanelNodeId(nodeId)
+    setSelectedIds(new Set([nodeId]))
+    rfInstance.current?.fitView({
       nodes: [{ id: nodeId }],
       duration: 600,
       padding: 0.6,
@@ -225,8 +308,10 @@ export default function App() {
       onVersionCore: versionCore,
       onOpenPanel:   openPanel,
       onAutoEdit:    setAutoEditId,
+      onBatchStart,
+      onBatchEnd,
     }),
-    [addNode, addGraphEdge, updateNode, deleteNode, versionCore, openPanel],
+    [addNode, addGraphEdge, updateNode, deleteNode, versionCore, openPanel, onBatchStart, onBatchEnd],
   )
 
   // Compute nodes from store (used to sync into rfNodes when not dragging)
@@ -261,8 +346,8 @@ export default function App() {
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map(n => n.id)), [visibleNodes])
 
   const storeNodes = useMemo(
-    () => visibleNodes.map(n => toRFNode(n, selectedIds.has(n.id), n.id === autoEditId, graphRef, callbacks)),
-    [visibleNodes, selectedIds, autoEditId, callbacks],
+    () => visibleNodes.map(n => toRFNode(n, selectedIds.has(n.id), n.id === autoEditId, n.id === panelNodeId, graphRef, callbacks)),
+    [visibleNodes, selectedIds, autoEditId, panelNodeId, callbacks],
   )
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
@@ -284,7 +369,7 @@ export default function App() {
         .filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
         .map(e => {
           const existing = prevById.get(e.id)
-          return { ...toRFEdge(e), selected: existing?.selected ?? false }
+          return { ...toRFEdge(e, graph.nodes), selected: existing?.selected ?? false }
         })
     })
   }, [graph.edges, visibleNodeIds])
@@ -417,6 +502,8 @@ export default function App() {
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
             <Controls showZoom={false} showFitView={false} showInteractive={false}>
+              <UndoButton onClick={undo} disabled={!canUndo} />
+              <RedoButton onClick={redo} disabled={!canRedo} />
               <ZoomInButton />
               <ZoomOutButton />
               <FitViewButton />
@@ -441,23 +528,42 @@ export default function App() {
         )}
 
         {showLegend && <div
-          className="absolute bg-white border border-border rounded-lg px-4 py-3 text-sm space-y-1.5 shadow-sm pointer-events-none z-10"
+          className="absolute bg-white border border-border rounded-lg px-4 py-3 text-sm shadow-sm pointer-events-none z-10"
           style={{ top: 44 + 16, right: panelNode ? 576 + 16 : 16 }}
         >
-          <div className="font-semibold text-sm mb-2">Legend</div>
-          {[
-            { color: 'bg-[#392946]',                          label: 'Core'         },
-            { color: 'bg-[#f5c44a]',                          label: 'Idea'         },
-            { color: 'bg-[#e95a32]',                          label: 'Problem'      },
-            { color: 'bg-[#f4f6f6] border border-black/10',   label: 'Question'     },
-            { color: 'bg-[#00ae60]',                          label: 'Answer'       },
-            { color: 'bg-[#00836d]',                          label: 'Answer AI'    },
-          ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-2.5">
-              <span className={`inline-block w-3 h-3 rounded shrink-0 ${color}`} />
-              <span>{label}</span>
-            </div>
-          ))}
+          <div className="font-semibold text-sm mb-2">Nodes</div>
+          <div className="space-y-1.5 mb-4">
+            {[
+              { color: 'bg-[#392946]',                          label: 'Core'         },
+              { color: 'bg-[#f5c44a]',                          label: 'Idea'         },
+              { color: 'bg-[#e95a32]',                          label: 'Problem'      },
+              { color: 'bg-[#f4f6f6] border border-black/10',   label: 'Question'     },
+              { color: 'bg-[#00ae60]',                          label: 'Answer'       },
+              { color: 'bg-[#00836d]',                          label: 'Answer AI'    },
+            ].map(({ color, label }) => (
+              <div key={label} className="flex items-center gap-2.5">
+                <span className={`inline-block w-3 h-3 rounded shrink-0 ${color}`} />
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
+          <div className="font-semibold text-sm mb-2">Connections</div>
+          <div className="space-y-1.5">
+            {[
+              { dash: false, label: 'Manual' },
+              { dash: true,  label: 'AI'     },
+            ].map(({ dash, label }) => (
+              <div key={label} className="flex items-center gap-2.5">
+                <svg width="24" height="10" className="shrink-0">
+                  <line x1="0" y1="5" x2="24" y2="5"
+                    stroke="#94a3b8" strokeWidth="1.5"
+                    strokeDasharray={dash ? '5 3' : undefined}
+                  />
+                </svg>
+                <span>{label}</span>
+              </div>
+            ))}
+          </div>
         </div>}
       </div>
       <Toaster />

@@ -11,8 +11,22 @@ function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number)
   }
 }
 
+const MAX_HISTORY = 21 // 20 undo steps
+
 export function useGraph() {
+  // useState(loadGraph) calls loadGraph only once (lazy initializer)
   const [graph, setGraphRaw] = useState<ThonkGraph>(loadGraph)
+
+  // Eager-sync ref — useRef(graph) uses the initial value on first render only
+  const graphRef = useRef<ThonkGraph>(graph)
+
+  // History stack — seeded with the initial graph
+  const historyRef = useRef<ThonkGraph[]>([graph])
+  const historyIdx = useRef(0)
+  const [histVer, setHistVer] = useState(0) // bumped to trigger canUndo/canRedo recompute
+
+  // Batch mode: multiple setGraph calls collapse into one history entry
+  const isBatching = useRef(false)
 
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const persist = useCallback(
@@ -20,16 +34,54 @@ export function useGraph() {
     [],
   )
 
+  const pushHistory = useCallback((next: ThonkGraph) => {
+    const h = historyRef.current
+    h.splice(historyIdx.current + 1) // truncate redo branch
+    h.push(next)
+    if (h.length > MAX_HISTORY) h.shift()
+    else historyIdx.current = h.length - 1
+    setHistVer(v => v + 1)
+  }, [])
+
   const setGraph = useCallback(
     (updater: ThonkGraph | ((prev: ThonkGraph) => ThonkGraph)) => {
-      setGraphRaw(prev => {
-        const next = typeof updater === 'function' ? updater(prev) : updater
-        persist(next)
-        return next
-      })
+      const next = typeof updater === 'function' ? updater(graphRef.current) : updater
+      graphRef.current = next
+      setGraphRaw(next)
+      persist(next)
+      if (!isBatching.current) pushHistory(next)
     },
-    [persist],
+    [persist, pushHistory],
   )
+
+  const onBatchStart = useCallback(() => {
+    isBatching.current = true
+  }, [])
+
+  const onBatchEnd = useCallback(() => {
+    isBatching.current = false
+    pushHistory(graphRef.current)
+  }, [pushHistory])
+
+  const undo = useCallback(() => {
+    if (historyIdx.current <= 0) return
+    historyIdx.current--
+    const prev = historyRef.current[historyIdx.current]
+    graphRef.current = prev
+    setGraphRaw(prev)
+    saveGraph(prev)
+    setHistVer(v => v + 1)
+  }, [])
+
+  const redo = useCallback(() => {
+    if (historyIdx.current >= historyRef.current.length - 1) return
+    historyIdx.current++
+    const next = historyRef.current[historyIdx.current]
+    graphRef.current = next
+    setGraphRaw(next)
+    saveGraph(next)
+    setHistVer(v => v + 1)
+  }, [])
 
   const addNode = useCallback(
     (
@@ -149,6 +201,12 @@ export function useGraph() {
     setGraph(makeInitialGraph())
   }, [setGraph])
 
+  const canUndo = historyIdx.current > 0
+  const canRedo = historyIdx.current < historyRef.current.length - 1
+
+  // histVer is read here only to ensure this hook re-renders when history changes
+  void histVer
+
   return {
     graph,
     setGraph,
@@ -161,6 +219,12 @@ export function useGraph() {
     reconnectEdge,
     versionCore,
     resetGraph,
+    undo,
+    redo,
+    canUndo,
+    canRedo,
+    onBatchStart,
+    onBatchEnd,
   }
 }
 

@@ -170,6 +170,7 @@ const QUESTION_SYSTEM = `You are someone who just read a note and immediately th
 Write the single most obvious follow-up question — the thing a curious person would actually say out loud.
 Short. Direct. Conversational. No jargon. Think "How?" not "How will the system ensure...?"
 Often the best questions are just one or two words: "How exactly?", "Why not X?", "What's the catch?", "Compared to what?"
+Do not ask about anything already answered or addressed in the node body.
 Return only the question. No preamble.`
 
 export async function questionNode(contextPrompt: string): Promise<QuestionItem> {
@@ -199,17 +200,26 @@ const IDEA_SCHEMA = {
   },
 }
 
-const EXPAND_SYSTEM = `You are a creative strategist helping develop ideas on an ideation board.
+const IDEA_TONE = `
+TONE — this is critical:
+- Match the voice and register of the existing content exactly.
+- If the notes are casual and personal, write casually. If they're technical or formal, match that.
+- Never impose a tone that doesn't match the source — don't formalize casual content or casualize formal content.
+- Write like the person who wrote the original notes — same vocabulary, same energy.`
+
+const EXPAND_SYSTEM = `You are helping develop ideas on an ideation board.
 The BOARD SKELETON shows ALL ideas that already exist — do not duplicate or paraphrase any of them.
 Generate 3 new, concrete ideas that genuinely extend or build upon the TARGET NODE.
 Each idea must be distinct from everything in the skeleton. Avoid generic brainstorming platitudes.
-Keep titles under 60 characters. Bodies should be 1-2 sentences.`
+Keep titles under 60 characters. Bodies should be 1-2 sentences.
+${IDEA_TONE}`
 
-const PROPOSE_SYSTEM = `You are a creative strategist helping find new ideas related to a concept.
+const PROPOSE_SYSTEM = `You are helping find new ideas related to a concept on an ideation board.
 The BOARD SKELETON shows ALL ideas that already exist — do not duplicate or paraphrase any of them.
 Generate 3 concrete sibling ideas — related to the TARGET NODE's domain but approaching it from different angles.
 Each idea must be distinct from everything in the skeleton.
-Keep titles under 60 characters. Bodies should be 1-2 sentences.`
+Keep titles under 60 characters. Bodies should be 1-2 sentences.
+${IDEA_TONE}`
 
 export async function expandNode(contextPrompt: string): Promise<IdeaItem[]> {
   return callGemini<IdeaItem[]>({
@@ -424,7 +434,9 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
 const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
 Answer the question directly and accurately in 2–3 sentences.
 Use web search when the question benefits from current or factual information.
-Be specific. No preamble, no filler.`
+Be specific. No preamble, no filler.
+Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.
+If you mention a specific website, tool, product, or resource by name, always include its full URL so the user can click through.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
   const result = await callGeminiWithSearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
