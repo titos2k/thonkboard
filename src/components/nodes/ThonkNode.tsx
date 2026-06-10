@@ -49,6 +49,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
   onDelete: (id: string) => void
   onVersionCore: (oldId: string, newTitle: string, newBody: string, pos: { x: number; y: number }) => TNode
   panelOpen: boolean
+  hasAnswer: boolean
   onOpenPanel: (id: string | null) => void
   onAutoEdit: (id: string) => void
   onBatchStart: () => void
@@ -266,12 +267,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const newTitle = editTitle.trim() || thonk.title
       // For question nodes body mirrors the title (no sidebar to edit it separately)
       const bodyPatch = thonk.type === 'question' ? { body: newTitle } : {}
-      d.onUpdate(thonk.id, { title: newTitle, ...bodyPatch, meta: { aiGenerated: false } })
-    } else if (thonk.meta.aiGenerated) {
-      d.onUpdate(thonk.id, { meta: { aiGenerated: false } })
+      d.onUpdate(thonk.id, { title: newTitle, ...bodyPatch, meta: { aiGenerated: false, yesNo: false } })
+    } else if (thonk.meta.aiGenerated || thonk.meta.yesNo) {
+      d.onUpdate(thonk.id, { meta: { aiGenerated: false, yesNo: false } })
     }
     setEditing(false)
-  }, [editTitle, thonk.title, thonk.id, thonk.meta.aiGenerated, d])
+  }, [editTitle, thonk.title, thonk.id, thonk.meta.aiGenerated, thonk.meta.yesNo, d])
 
   const enterEdit = () => {
     setEditTitle(thonk.title)
@@ -310,9 +311,9 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const prompt = existingQs.length > 0
         ? `${contextToPrompt(c)}\n\nALREADY ASKED (do not repeat or rephrase): ${existingQs.join(' / ')}`
         : contextToPrompt(c)
-      const { question } = await questionNode(prompt)
+      const result = await questionNode(prompt)
       const pos = findFreePos(graphRef.current.nodes, livePos(), 0, nodeH())
-      const qNode = d.onAddNode('question', question, question, pos, { aiGenerated: true })
+      const qNode = d.onAddNode('question', result.question, result.question, pos, { aiGenerated: true, yesNo: result.yesNo === true })
       d.onAddEdge(thonk.id, qNode.id, 'questions')
       setActionState('answering')
     })
@@ -343,6 +344,11 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     d.onAddEdge(thonk.id, aNode.id, relation)
     setAnswerText('')
     setActionState('idle')
+  }
+
+  const handleQuickAnswer = (text: 'Yes' | 'No') => {
+    const aNode = d.onAddNode('answer', text, text, spawnPos(0, nodeH()))
+    d.onAddEdge(thonk.id, aNode.id, 'answers')
   }
 
   const handleIdeateAnswer = () =>
@@ -573,6 +579,18 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                     <MessageCircleReply className="w-5 h-5" />
                     {thonk.type === 'problem' ? 'Reply' : 'Answer'}
                   </button>
+                  {thonk.type === 'question' && thonk.meta.yesNo && !d.hasAnswer && (
+                    <>
+                      <button onClick={() => handleQuickAnswer('Yes')}
+                        className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer">
+                        Yes
+                      </button>
+                      <button onClick={() => handleQuickAnswer('No')}
+                        className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer">
+                        No
+                      </button>
+                    </>
+                  )}
                   <Sep />
                 </>
               )}
@@ -821,6 +839,7 @@ export const ThonkNodeComponent = React.memo(
       pd.onVersionCore === nd.onVersionCore &&
       pd.onOpenPanel === nd.onOpenPanel &&
       pd.panelOpen === nd.panelOpen &&
+      pd.hasAnswer === nd.hasAnswer &&
       prev.selected === next.selected &&
       prev.dragging === next.dragging
     )

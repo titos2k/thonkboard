@@ -33,6 +33,7 @@ export interface ThonkNode {
     severity: number | null   // 0–1, only on problem nodes
     revisionOf: string | null // id of prior core this replaces
     aiGenerated?: boolean     // true for AI-proposed answers
+    yesNo?: boolean           // true when AI classified this as a yes/no question
     sources?: GroundingChunk[] // web sources when Gemini used search grounding
   }
 }

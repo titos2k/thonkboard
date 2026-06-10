@@ -164,6 +164,7 @@ function toRFNode(
   selected: boolean,
   autoEdit: boolean,
   panelOpen: boolean,
+  hasAnswer: boolean,
   graphRef: React.MutableRefObject<ThonkGraph>,
   cb: GraphCallbacks,
 ): Node {
@@ -172,7 +173,7 @@ function toRFNode(
     type: 'thonk',
     position: n.position,
     selected,
-    data: { thonk: n, graphRef, autoEdit, panelOpen, ...cb } as ThonkNodeData,
+    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, ...cb } as ThonkNodeData,
   }
 }
 
@@ -346,8 +347,12 @@ export default function App() {
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map(n => n.id)), [visibleNodes])
 
   const storeNodes = useMemo(
-    () => visibleNodes.map(n => toRFNode(n, selectedIds.has(n.id), n.id === autoEditId, n.id === panelNodeId, graphRef, callbacks)),
-    [visibleNodes, selectedIds, autoEditId, panelNodeId, callbacks],
+    () => visibleNodes.map(n => toRFNode(
+      n, selectedIds.has(n.id), n.id === autoEditId, n.id === panelNodeId,
+      graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
+      graphRef, callbacks,
+    )),
+    [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks],
   )
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.

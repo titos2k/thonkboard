@@ -156,14 +156,16 @@ export async function critiqueNode(contextPrompt: string): Promise<CritiqueItem[
 
 export interface QuestionItem {
   question: string
+  yesNo: boolean
 }
 
 const QUESTION_SCHEMA = {
   type: 'object',
   properties: {
     question: { type: 'string' },
+    yesNo:    { type: 'boolean', description: 'true if the question can be answered with Yes or No' },
   },
-  required: ['question'],
+  required: ['question', 'yesNo'],
 }
 
 const QUESTION_SYSTEM = `You are someone who just read a note and immediately thought of a question.
