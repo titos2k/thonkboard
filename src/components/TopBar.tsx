@@ -1,10 +1,11 @@
 import { useState } from 'react'
-import { Astroid, HelpCircle, Trash2, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion } from 'lucide-react'
+import { Astroid, HelpCircle, FilePlus, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus } from 'lucide-react'
 import thonkLogo from '@/assets/thonk.webp'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger, DialogDescription } from './ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from './ui/dropdown-menu'
 import { getApiKey, setApiKey, getHighIQ, setHighIQ } from '@/ai/gemini'
 
 interface TopBarProps {
@@ -39,23 +40,34 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
   }
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-white border-b border-border shadow-sm">
+    <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-white border-b border-border" style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
       <img src={thonkLogo} alt="Thonk" className="h-7 w-auto mr-1" />
 
-      <div className="flex items-center gap-1">
-        <Button size="sm" onClick={onAddCore} className="h-9 text-sm gap-2 bg-[#392946] hover:bg-[#2a1d37] text-white border-0 cursor-pointer">
-          <Brain className="w-5 h-5" /> Core
-        </Button>
-        <Button size="sm" onClick={onAddIdea} className="h-9 text-sm gap-2 bg-[#f5c44a] hover:bg-[#e6b33b] text-gray-900 border-0 cursor-pointer">
-          <Lightbulb className="w-5 h-5" /> Idea
-        </Button>
-        <Button size="sm" onClick={onAddProblem} className="h-9 text-sm gap-2 bg-[#e95a32] hover:bg-[#d44a23] text-white border-0 cursor-pointer">
-          <TriangleAlert className="w-5 h-5" /> Problem
-        </Button>
-        <Button size="sm" onClick={onAddQuestion} className="h-9 text-sm gap-2 bg-[#f4f6f6] hover:bg-[#e4e6e6] text-gray-900 border border-black/10 cursor-pointer">
-          <MessageCircleQuestion className="w-5 h-5" /> Question
-        </Button>
-      </div>
+      <DropdownMenu>
+        <DropdownMenuTrigger asChild>
+          <Button size="sm" variant="outline" className="h-9 text-sm gap-1.5 cursor-pointer bg-white">
+            <Plus className="w-4 h-4" /> Add Node <ChevronDown className="w-4 h-4 opacity-50" />
+          </Button>
+        </DropdownMenuTrigger>
+        <DropdownMenuContent align="start" onCloseAutoFocus={e => e.preventDefault()}>
+          <DropdownMenuItem onClick={onAddCore}>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#392946]" />
+            <Brain className="w-4 h-4 text-muted-foreground" /> Core
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAddIdea}>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" />
+            <Lightbulb className="w-4 h-4 text-muted-foreground" /> Idea
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAddProblem}>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" />
+            <TriangleAlert className="w-4 h-4 text-muted-foreground" /> Problem
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onAddQuestion}>
+            <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" />
+            <MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /> Question
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
 
       <div className="ml-auto flex items-center gap-2">
         <Tooltip>
@@ -82,7 +94,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
               className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 transition-colors"
             >
               <span className="text-sm font-medium text-muted-foreground select-none">Turbo Thonking</span>
-              <div className={`relative w-8 h-4 rounded-full transition-colors ${highIQ ? 'bg-violet-600' : 'bg-gray-300'}`}>
+              <div className={`relative w-8 h-4 rounded-full transition-colors ${highIQ ? 'bg-gray-700' : 'bg-gray-300'}`}>
                 <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${highIQ ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </div>
             </button>
@@ -96,7 +108,10 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
 
         <Dialog open={keyOpen} onOpenChange={setKeyOpen}>
           <DialogTrigger asChild>
-            <Button size="sm" variant="ghost" className="h-9 text-sm gap-2">
+            <Button
+              size="sm" variant="ghost"
+              className={`h-9 text-sm gap-2 ${!getApiKey() ? 'text-red-500 hover:text-red-600' : ''}`}
+            >
               <Astroid className="w-5 h-5" />
               {getApiKey() ? 'API Key ✓' : 'Set API Key'}
             </Button>
@@ -105,7 +120,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
             <DialogHeader>
               <DialogTitle className="pb-2">Gemini API Key</DialogTitle>
               <DialogDescription>
-                For THONK to think, it needs a Gemini API key. It's free, takes 30 seconds to get, and never leaves your browser.
+                For THONK to think, it needs a Gemini API key. It's free and takes 30 seconds to get. Your key is stored only in your browser. We never see it or send it anywhere.
               </DialogDescription>
             </DialogHeader>
             <form onSubmit={e => { e.preventDefault(); handleSave() }} className="flex gap-2">
@@ -117,7 +132,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
                 onChange={e => setKey(e.target.value)}
                 className="text-sm"
               />
-              <Button type="submit" size="sm" className="shrink-0 h-9 text-sm cursor-pointer">
+              <Button type="submit" size="sm" disabled={!key.trim()} className="shrink-0 h-9 text-sm cursor-pointer">
                 {saved ? 'Saved!' : 'Save'}
               </Button>
             </form>
@@ -136,7 +151,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           <TooltipTrigger asChild>
             <Button
               size="sm" variant="ghost"
-              className={`h-9 w-9 p-0 ${showLegend ? 'text-primary' : 'text-muted-foreground'}`}
+              className={`h-9 w-9 p-0 ${showLegend ? '' : 'text-gray-400'}`}
               onClick={onToggleLegend}
             >
               <Map className="w-5 h-5" />
@@ -146,21 +161,26 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
         </Tooltip>
 
         <Dialog open={resetOpen} onOpenChange={setResetOpen}>
-          <DialogTrigger asChild>
-            <Button size="sm" variant="ghost" className="h-9 w-9 p-0 text-muted-foreground hover:text-destructive">
-              <Trash2 className="w-5 h-5" />
-            </Button>
-          </DialogTrigger>
+          <Tooltip>
+            <DialogTrigger asChild>
+              <TooltipTrigger asChild>
+                <Button size="sm" variant="ghost" className="h-9 w-9 p-0">
+                  <FilePlus className="w-5 h-5" />
+                </Button>
+              </TooltipTrigger>
+            </DialogTrigger>
+            <TooltipContent side="bottom">New Board</TooltipContent>
+          </Tooltip>
           <DialogContent className="max-w-sm">
             <DialogHeader>
-              <DialogTitle>Reset board?</DialogTitle>
+              <DialogTitle className="pb-2">Reset board?</DialogTitle>
               <DialogDescription>
                 This will delete all nodes and edges. This cannot be undone.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex justify-end gap-2 mt-2">
-              <Button variant="outline" size="sm" onClick={() => setResetOpen(false)}>Cancel</Button>
-              <Button variant="destructive" size="sm" onClick={() => { onReset(); setResetOpen(false) }}>Reset</Button>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setResetOpen(false)}>Cancel</Button>
+              <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { onReset(); setResetOpen(false) }}>Reset</Button>
             </div>
           </DialogContent>
         </Dialog>

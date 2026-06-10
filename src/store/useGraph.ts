@@ -1,7 +1,7 @@
 import { useState, useCallback, useRef } from 'react'
 import { v4 as uuidv4 } from 'uuid'
 import type { ThonkGraph, ThonkNode, ThonkEdge, NodeType, EdgeRelation } from './types'
-import { loadGraph, saveGraph } from './graph'
+import { loadGraph, saveGraph, makeInitialGraph } from './graph'
 
 function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number) {
   let timer: ReturnType<typeof setTimeout>
@@ -71,7 +71,7 @@ export function useGraph() {
   )
 
   const updateNode = useCallback(
-    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'conflicts'>> & { meta?: Partial<ThonkNode['meta']> }) => {
+    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type'>> & { meta?: Partial<ThonkNode['meta']> }) => {
       setGraph(g => ({
         ...g,
         nodes: g.nodes.map(n => {
@@ -146,7 +146,7 @@ export function useGraph() {
   )
 
   const resetGraph = useCallback(() => {
-    setGraph({ nodes: [], edges: [] })
+    setGraph(makeInitialGraph())
   }, [setGraph])
 
   return {

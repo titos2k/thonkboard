@@ -5,19 +5,27 @@ import {
   MessageCircleQuestionMark,
   MessageCirclePlus,
   Lightbulb,
+  CircleCheckBig,
   Check,
   CheckCheck,
   MessageCircle,
+  MessageCircleReply,
   Trash2,
-  Edit3,
+  Pencil,
   Loader2,
   FileText,
   TriangleAlert,
+  Globe,
+  ArrowDownUp,
+  CirclePlus,
+  Brain,
+  RotateCcw,
+  CircleX,
 } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
-import { Input } from '@/components/ui/input'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
 import { assembleContext, contextToPrompt } from '@/ai/context'
@@ -37,13 +45,14 @@ export interface ThonkNodeData extends Record<string, unknown> {
     meta?: Partial<TNode['meta']>,
   ) => TNode
   onAddEdge: (source: string, target: string, relation: import('@/store/types').EdgeRelation) => void
-  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'conflicts'>> & { meta?: Partial<TNode['meta']> }) => void
+  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type'>> & { meta?: Partial<TNode['meta']> }) => void
   onDelete: (id: string) => void
   onVersionCore: (oldId: string, newTitle: string, newBody: string, pos: { x: number; y: number }) => TNode
   onOpenPanel: (id: string) => void
+  onAutoEdit: (id: string) => void
 }
 
-type ActionState = 'idle' | 'loading' | 'answering' | 'questioning' | 'correcting'
+type ActionState = 'idle' | 'loading' | 'answering' | 'correcting'
 
 type QAPair = { qNode: import('@/store/types').ThonkNode; aNode: import('@/store/types').ThonkNode }
 
@@ -140,20 +149,21 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const [editTitle, setEditTitle] = useState(thonk.title)
   const [actionState, setActionState] = useState<ActionState>('idle')
   const [answerText, setAnswerText] = useState('')
-  const [questionText, setQuestionText] = useState('')
   const [correctionText, setCorrectionText] = useState('')
 
   const titleInputRef = useRef<HTMLTextAreaElement>(null)
   const answerRef = useRef<HTMLTextAreaElement>(null)
-  const questionInputRef = useRef<HTMLInputElement>(null)
   const correctionRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (editing) {
-      requestAnimationFrame(() => {
+      // setTimeout instead of rAF so we run after Radix dropdown's onCloseAutoFocus
+      // focus-restore, which fires asynchronously and would steal focus back.
+      const id = setTimeout(() => {
         titleInputRef.current?.focus()
         titleInputRef.current?.select()
-      })
+      }, 0)
+      return () => clearTimeout(id)
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])
@@ -173,17 +183,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     if (!editing) setEditTitle(thonk.title)
   }, [thonk.title])
 
-  const isAnswering   = actionState === 'answering'
-  const isQuestioning = actionState === 'questioning'
-  const isCorrecting  = actionState === 'correcting'
+  const isAnswering  = actionState === 'answering'
+  const isCorrecting = actionState === 'correcting'
 
   useEffect(() => {
     if (isAnswering) requestAnimationFrame(() => answerRef.current?.focus())
   }, [isAnswering])
-
-  useEffect(() => {
-    if (isQuestioning) requestAnimationFrame(() => questionInputRef.current?.focus())
-  }, [isQuestioning])
 
   useEffect(() => {
     if (isCorrecting) requestAnimationFrame(() => correctionRef.current?.focus())
@@ -191,9 +196,15 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const hasContent = thonk.body.trim().length > 0 || thonk.title.trim().length > 0
 
+  // Read position from graphRef (always reflects latest store) rather than thonk.position
+  // (data prop), which can lag after a drag due to the positionUpdateRef skip in App.tsx.
+  const livePos = useCallback(
+    () => graphRef.current.nodes.find(n => n.id === thonk.id)?.position ?? thonk.position,
+    [thonk.id, thonk.position, graphRef],
+  )
   const spawnPos = useCallback(
-    (dx: number, dy: number) => ({ x: thonk.position.x + dx, y: thonk.position.y + dy }),
-    [thonk.position],
+    (dx: number, dy: number) => { const p = livePos(); return { x: p.x + dx, y: p.y + dy } },
+    [livePos],
   )
 
   const withLoading = useCallback(async (fn: () => Promise<void>) => {
@@ -261,20 +272,17 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         ? `${contextToPrompt(c)}\n\nALREADY ASKED (do not repeat or rephrase): ${existingQs.join(' / ')}`
         : contextToPrompt(c)
       const { question } = await questionNode(prompt)
-      const pos = findFreePos(graphRef.current.nodes, thonk.position)
+      const pos = findFreePos(graphRef.current.nodes, livePos())
       const qNode = d.onAddNode('question', question, question, pos, { aiGenerated: true })
       d.onAddEdge(thonk.id, qNode.id, 'questions')
       setActionState('answering')
     })
 
   const handleAddQuestion = () => {
-    const text = questionText.trim()
-    if (!text) return
-    const pos = findFreePos(graphRef.current.nodes, thonk.position)
-    const qNode = d.onAddNode('question', text, text, pos)
+    const pos = findFreePos(graphRef.current.nodes, livePos())
+    const qNode = d.onAddNode('question', '', '', pos)
     d.onAddEdge(thonk.id, qNode.id, 'questions')
-    setQuestionText('')
-    setActionState('idle')
+    d.onAutoEdit(qNode.id)
   }
 
   const handleExpand = () =>
@@ -311,8 +319,11 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const handleIdeateAnswer = () =>
     withLoading(async () => {
-      const { answer } = await answerQuestion(ctx())
-      const aNode = d.onAddNode('answer', answer, answer, spawnPos(0, 220), { aiGenerated: true })
+      const { answer, sources } = await answerQuestion(ctx())
+      const aNode = d.onAddNode('answer', answer, answer, spawnPos(0, 220), {
+        aiGenerated: true,
+        sources: sources.length > 0 ? sources : undefined,
+      })
       d.onAddEdge(thonk.id, aNode.id, 'answers')
     })
 
@@ -324,6 +335,24 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const { answer } = await correctAnswer(ctx(), thonk.title, text)
       d.onUpdate(thonk.id, { title: answer, body: answer })
     })
+  }
+
+  const handleAddIdea = () => {
+    const pos = findFreePos(graphRef.current.nodes, livePos(), -200, 220)
+    const node = d.onAddNode('idea', '', '', pos)
+    d.onAddEdge(thonk.id, node.id, 'spawns')
+    d.onAutoEdit(node.id)
+  }
+
+  const handleAddProblem = () => {
+    const pos = findFreePos(graphRef.current.nodes, livePos(), 280, -40)
+    const node = d.onAddNode('problem', '', '', pos, { severity: 0.5 })
+    d.onAddEdge(thonk.id, node.id, 'argues')
+    d.onAutoEdit(node.id)
+  }
+
+  const handleTransform = (newType: TNode['type']) => {
+    d.onUpdate(thonk.id, { type: newType })
   }
 
   const handleApprove = () =>
@@ -364,8 +393,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         }
       }
 
-      d.onUpdate(qNode.id,   { resolved: true })
-      d.onUpdate(thonk.id,   { resolved: true })
+      d.onUpdate(qNode.id,   { resolved: true, resolvedAs: 'approved' })
+      d.onUpdate(thonk.id,   { resolved: true, resolvedAs: 'approved' })
 
       // Background: scan other nodes for contradictions and related updates
       const targetId   = (rootNode ?? parentNode).id
@@ -412,8 +441,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       )
       d.onUpdate(anchor.id, { body, ...(title?.trim() && (anchor.type === 'core' || anchor.type === 'idea') ? { title: title.trim() } : {}), conflicts: [] })
       for (const { qNode: q, aNode: a } of pairs) {
-        d.onUpdate(q.id, { resolved: true })
-        d.onUpdate(a.id, { resolved: true })
+        d.onUpdate(q.id, { resolved: true, resolvedAs: 'approved' })
+        d.onUpdate(a.id, { resolved: true, resolvedAs: 'approved' })
       }
 
       // Background conflict detection
@@ -432,6 +461,25 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       }).catch(() => {})
     })
 
+  const handleReopen = useCallback(() => {
+    const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
+    if (qEdge) d.onUpdate(qEdge.source, { resolved: false })
+    d.onUpdate(thonk.id, { resolved: false })
+  }, [thonk.id, d, graphRef])
+
+  const handleDismiss = useCallback(() => {
+    const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
+    if (qEdge) d.onUpdate(qEdge.source, { resolved: true, resolvedAs: 'dismissed' })
+    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'dismissed' })
+  }, [thonk.id, d, graphRef])
+
+  const handleReopenAndAnswer = useCallback(() => {
+    const aEdge = graphRef.current.edges.find(e => e.source === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
+    if (aEdge) d.onUpdate(aEdge.target, { resolved: false })
+    d.onUpdate(thonk.id, { resolved: false })
+    setActionState('answering')
+  }, [thonk.id, d, graphRef])
+
   const approveAllCount = thonk.type === 'answer'
     ? collectChainPairs(graphRef.current, thonk.id).pairs.length
     : 0
@@ -441,64 +489,94 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const showEdit         = !editing
   const showExpandDetail = thonk.type !== 'question' && thonk.type !== 'answer'
-  const hasUtilityBtns   = showEdit || showExpandDetail
-  const hasAiBtns =
-    thonk.type === 'core' || thonk.type === 'idea' || thonk.type === 'problem' ||
-    (thonk.type === 'question' && !isAnswering) || thonk.type === 'answer'
 
   return (
     <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
-      <NodeToolbar isVisible={selected && !dragging && !isLoading && !isAnswering && !isQuestioning && !isCorrecting && !editing} position={Position.Top} offset={8}>
+      <NodeToolbar isVisible={selected && !dragging && !isLoading && !isAnswering && !isCorrecting && !editing} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
 
-          {showEdit         && <ToolBtn icon={<Edit3 className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
-          {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label="Expand Details" onClick={() => d.onOpenPanel(thonk.id)} />}
-          {showExpandDetail && <ToolBtn icon={<MessageCirclePlus className="w-5 h-5" />} label="Add Question" onClick={() => setActionState('questioning')} />}
-
-          {(thonk.type === 'core' || thonk.type === 'idea') && (
+          {thonk.resolved ? (
+            /* Resolved: edit, details, reopen (+ answer shortcut for questions), delete */
             <>
-              {hasUtilityBtns && <Sep />}
-              <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Question It" onClick={handleQuestion} disabled={!hasContent} className="text-yellow-400" />
-              <ToolBtn icon={<Angry className="w-5 h-5" />} label="Argue" onClick={handleArgue} disabled={!hasContent} className="text-red-400" />
-              <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Ideate" onClick={handlePropose} disabled={!hasContent} className="text-green-400" />
-            </>
-          )}
-          {thonk.type === 'problem' && !isAnswering && (
-            <>
-              {hasUtilityBtns && <Sep />}
-              <ToolBtn icon={<MessageCircle className="w-5 h-5" />} label="My Answer" onClick={() => setActionState('answering')} disabled={!hasContent} className="text-yellow-400" />
-              <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Propose Fix" onClick={handleExpand} disabled={!hasContent} className="text-green-400" />
-            </>
-          )}
-          {thonk.type === 'question' && !isAnswering && (
-            <>
-              {hasUtilityBtns && <Sep />}
-              <ToolBtn icon={<MessageCircle className="w-5 h-5" />} label="My Answer" onClick={() => setActionState('answering')} className="text-yellow-400" />
-              <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Ideate" onClick={handleIdeateAnswer} className="text-emerald-300" />
-            </>
-          )}
-          {thonk.type === 'answer' && (
-            <>
-              {hasUtilityBtns && <Sep />}
-              <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Question It" onClick={handleQuestion} disabled={!hasContent} className="text-yellow-400" />
-              <ToolBtn icon={<Angry className="w-5 h-5" />} label="Argue" onClick={handleArgue} disabled={!hasContent} className="text-red-400" />
-              {thonk.meta.aiGenerated && (
-                <><Sep /><ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Point Mistake" onClick={() => setActionState('correcting')} disabled={!hasContent} /></>
+              {showEdit         && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
+              {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label="Open Details" onClick={() => d.onOpenPanel(thonk.id)} />}
+              <Sep />
+              {(thonk.type === 'question' || thonk.type === 'problem') && (
+                <button
+                  onClick={handleReopenAndAnswer}
+                  className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
+                >
+                  <MessageCircleReply className="w-5 h-5" />
+                  {thonk.type === 'problem' ? 'Reply' : 'Answer'}
+                </button>
               )}
-              <ToolBtn icon={<Check className="w-5 h-5" />} label="Approve" onClick={handleApprove} />
-              {approveAllCount > 1 && (
-                <ToolBtn icon={<CheckCheck className="w-5 h-5" />} label={`Approve All (${approveAllCount})`} onClick={handleApproveAll} />
+              <ToolBtn icon={<RotateCcw className="w-5 h-5" />} label="Reopen" onClick={handleReopen} />
+              <Sep />
+              <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
+            </>
+          ) : (
+            <>
+              {/* Primary action button — Answer for questions, Reply for problems */}
+              {(thonk.type === 'question' || thonk.type === 'problem') && (
+                <>
+                  <button
+                    onClick={() => setActionState('answering')}
+                    className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
+                  >
+                    <MessageCircleReply className="w-5 h-5" />
+                    {thonk.type === 'problem' ? 'Reply' : 'Answer'}
+                  </button>
+                  <Sep />
+                </>
               )}
+
+              {/* Section 1: AI */}
+              {(thonk.type === 'core' || thonk.type === 'idea') && (
+                <>
+                  <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} className="text-green-400" />
+                  <ToolBtn icon={<Angry className="w-5 h-5" />} label="Find Problems" onClick={handleArgue} disabled={!hasContent} className="text-red-400" />
+                  <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} className="text-yellow-400" />
+                </>
+              )}
+              {thonk.type === 'problem' && (
+                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Solution" onClick={handleExpand} disabled={!hasContent} className="text-green-400" />
+              )}
+              {thonk.type === 'question' && (
+                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} className="text-emerald-300" />
+              )}
+              {thonk.type === 'answer' && (
+                <>
+                  <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} className="text-green-400" />
+                  <ToolBtn icon={<Angry className="w-5 h-5" />} label="Find Problems" onClick={handleArgue} disabled={!hasContent} className="text-red-400" />
+                </>
+              )}
+
+              {/* Section 2: Human actions */}
+              <Sep />
+              {showEdit         && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
+              {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label="Open Details" onClick={() => d.onOpenPanel(thonk.id)} />}
+              <AddDropdown nodeType={thonk.type} onAddQuestion={handleAddQuestion} onAddIdea={handleAddIdea} onAddProblem={handleAddProblem} />
+              {thonk.type === 'answer' && thonk.meta.aiGenerated && (
+                <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This" onClick={() => setActionState('correcting')} disabled={!hasContent} />
+              )}
+              <TransformBtn currentType={thonk.type} onTransform={handleTransform} />
+              {thonk.type === 'answer' && (
+                <>
+                  <Sep />
+                  <ToolBtn icon={<CircleCheckBig className="w-5 h-5" />} label="Resolve & Sync Ideas" onClick={handleApprove} />
+                  {approveAllCount > 1 && (
+                    <ToolBtn icon={<CheckCheck className="w-5 h-5" />} label={`Resolve All & Sync (${approveAllCount})`} onClick={handleApproveAll} className="text-green-400" />
+                  )}
+                  <ToolBtn icon={<CircleX className="w-5 h-5" />} label="Dismiss" onClick={handleDismiss} />
+                </>
+              )}
+
+              {/* Section 3: Delete */}
+              <Sep />
+              <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
             </>
           )}
-
-          {(hasUtilityBtns || hasAiBtns) && <Sep />}
-          <ToolBtn
-            icon={<Trash2 className="w-5 h-5" />}
-            label="Delete"
-            onClick={() => d.onDelete(thonk.id)}
-          />
         </div>
       </NodeToolbar>
 
@@ -506,11 +584,15 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       {thonk.resolved && (
         <Tooltip>
           <TooltipTrigger asChild>
-            <div className="absolute -bottom-2.5 -right-2.5 w-6 h-6 bg-gray-400 rounded-full flex items-center justify-center z-10 shadow-sm ring-1 ring-white/50">
-              <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+            <div className={`absolute -bottom-2.5 -right-2.5 w-6 h-6 rounded-full flex items-center justify-center z-10 shadow-sm ring-1 ring-white/50 ${thonk.resolvedAs === 'dismissed' ? 'bg-red-400' : 'bg-green-500'}`}>
+              {thonk.resolvedAs === 'dismissed'
+                ? <CircleX className="w-3.5 h-3.5 text-white" strokeWidth={3} />
+                : <Check className="w-3.5 h-3.5 text-white" strokeWidth={3} />}
             </div>
           </TooltipTrigger>
-          <TooltipContent side="right" className="z-[9999] text-sm">Resolved</TooltipContent>
+          <TooltipContent side="right" className="z-[9999] text-sm">
+            {thonk.resolvedAs === 'dismissed' ? 'Dismissed' : 'Approved'}
+          </TooltipContent>
         </Tooltip>
       )}
 
@@ -561,7 +643,13 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 if (e.key === 'Enter') { e.preventDefault(); saveTitle() }
                 if (e.key === 'Escape') { setEditTitle(thonk.title); setEditing(false) }
               }}
-              placeholder="Title…"
+              placeholder={
+                thonk.type === 'core'     ? 'What\'s the core idea?' :
+                thonk.type === 'idea'     ? 'Describe the idea…' :
+                thonk.type === 'problem'  ? 'What\'s the problem?' :
+                thonk.type === 'question' ? 'Ask a question…' :
+                                            'Write your answer…'
+              }
               className={cn(
                 'nodrag w-full bg-transparent outline-none border-none font-medium text-sm leading-snug text-inherit p-0 m-0 resize-none overflow-hidden',
                 thonk.type === 'core' && 'text-[17.5px]',
@@ -578,6 +666,25 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             >
               {thonk.title || <span className="opacity-40 italic">Untitled</span>}
             </p>
+          )}
+
+          {thonk.type === 'answer' && (thonk.meta.sources ?? []).length > 0 && (
+            <div className="pt-1 flex flex-wrap gap-1">
+              {(thonk.meta.sources ?? []).map((s, i) => (
+                <a
+                  key={i}
+                  href={s.uri}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  title={s.title}
+                  className="nodrag inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/60 transition-colors max-w-[160px] overflow-hidden"
+                  onClick={e => e.stopPropagation()}
+                >
+                  <Globe className="w-3 h-3 shrink-0" />
+                  <span className="truncate">{s.title || (() => { try { return new URL(s.uri).hostname } catch { return s.uri } })()}</span>
+                </a>
+              ))}
+            </div>
           )}
 
         </div>
@@ -643,41 +750,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
           </div>
         )}
 
-        {/* Manual question input */}
-        {isQuestioning && (
-          <div className="nodrag px-3 pb-2">
-            <Input
-              ref={questionInputRef}
-              placeholder="Your question…"
-              value={questionText}
-              onChange={e => setQuestionText(e.target.value)}
-              onKeyDown={e => {
-                stopDeletePropagation(e)
-                if (e.key === 'Enter') handleAddQuestion()
-                if (e.key === 'Escape') { setQuestionText(''); setActionState('idle') }
-              }}
-              className="nodrag text-sm h-9 text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 rounded-sm shadow-none"
-            />
-            <div className="mt-1 flex gap-1">
-              <button
-                onClick={handleAddQuestion}
-                disabled={!questionText.trim()}
-                className="flex-1 text-sm px-2 py-1 rounded-sm bg-gray-800 hover:bg-gray-700 text-white disabled:opacity-30 transition-colors"
-              >
-                Add Question
-              </button>
-              <button
-                onClick={() => { setQuestionText(''); setActionState('idle') }}
-                className="text-sm px-2 py-1 rounded-sm bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
-              >
-                Cancel
-              </button>
-            </div>
-          </div>
-        )}
-
-
-
         {isLoading && (
           <div className="flex items-center gap-1.5 px-3 pb-2 text-sm opacity-60">
             <Loader2 className="w-5 h-5 animate-spin" /> Thinking…
@@ -712,6 +784,92 @@ function Sep() {
   return <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
 }
 
+type AddAction = { label: string; icon: React.ReactNode; onClick: () => void }
+
+function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
+  nodeType: string
+  onAddQuestion: () => void
+  onAddIdea: () => void
+  onAddProblem: () => void
+}) {
+  const items: AddAction[] = []
+
+  if (nodeType === 'core' || nodeType === 'idea' || nodeType === 'answer') {
+    items.push(
+      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion },
+      { label: 'Add Idea',     icon: <Lightbulb className="w-4 h-4 text-yellow-400" />,       onClick: onAddIdea },
+      { label: 'Add Problem',  icon: <TriangleAlert className="w-4 h-4 text-red-400" />,      onClick: onAddProblem },
+    )
+  }
+  if (nodeType === 'problem' || nodeType === 'question') {
+    items.push(
+      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion },
+    )
+  }
+
+  if (items.length === 0) return null
+
+  return (
+    <Tooltip>
+      <DropdownMenu>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
+              <CirclePlus className="w-5 h-5" />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={10} className="text-sm">Add Node</TooltipContent>
+        <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[130px]" onCloseAutoFocus={e => e.preventDefault()}>
+          {items.map(item => (
+            <DropdownMenuItem key={item.label} onClick={item.onClick}>
+              {item.icon}
+              {item.label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </Tooltip>
+  )
+}
+
+const NODE_TYPE_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
+  core:     { label: 'Core',     color: '#392946', icon: <Brain className="w-4 h-4" /> },
+  idea:     { label: 'Idea',     color: '#f5c44a', icon: <Lightbulb className="w-4 h-4 text-yellow-400" /> },
+  problem:  { label: 'Problem',  color: '#e95a32', icon: <TriangleAlert className="w-4 h-4 text-red-400" /> },
+  question: { label: 'Question', color: '#c8cac8', icon: <MessageCircleQuestionMark className="w-4 h-4 text-gray-400" /> },
+  answer:   { label: 'Answer',   color: '#00ae60', icon: <MessageCircle className="w-4 h-4 text-emerald-400" /> },
+}
+
+function TransformBtn({ currentType, onTransform }: { currentType: string; onTransform: (t: import('@/store/types').NodeType) => void }) {
+  return (
+    <Tooltip>
+      <DropdownMenu>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
+              <ArrowDownUp className="w-5 h-5" />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={10} className="text-sm">Convert to…</TooltipContent>
+        <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[120px]">
+          {(Object.keys(NODE_TYPE_LABELS) as import('@/store/types').NodeType[]).map(type => (
+            <DropdownMenuItem
+              key={type}
+              onClick={() => onTransform(type)}
+              className={type === currentType ? 'opacity-30 pointer-events-none' : ''}
+            >
+              {NODE_TYPE_LABELS[type].icon}
+              {NODE_TYPE_LABELS[type].label}
+            </DropdownMenuItem>
+          ))}
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </Tooltip>
+  )
+}
+
 function ToolBtn({
   icon, label, onClick, disabled, className,
 }: {
@@ -729,14 +887,14 @@ function ToolBtn({
           disabled={disabled}
           className={cn(
             'w-8 h-8 flex items-center justify-center rounded text-white/80 transition-colors',
-            disabled ? 'opacity-25 cursor-not-allowed' : 'hover:bg-white/15 hover:text-white',
+            disabled ? 'opacity-25 cursor-not-allowed' : 'hover:bg-white/15 hover:text-white cursor-pointer',
             className,
           )}
         >
           {icon}
         </button>
       </TooltipTrigger>
-      <TooltipContent side="top" className="text-sm">
+      <TooltipContent side="top" sideOffset={10} className="text-sm">
         {disabled ? `${label} — add content first` : label}
       </TooltipContent>
     </Tooltip>

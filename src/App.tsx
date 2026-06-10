@@ -1,4 +1,4 @@
-import React, { lazy, Suspense, useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect } from 'react'
+import React, { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -26,7 +26,7 @@ import '@xyflow/react/dist/style.css'
 import { useGraph } from '@/store/useGraph'
 import type { ThonkNode, ThonkEdge, ThonkGraph } from '@/store/types'
 import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
-const EditorPanel = lazy(() => import('@/components/EditorPanel').then(m => ({ default: m.EditorPanel })))
+import { EditorPanel } from '@/components/EditorPanel'
 import { TopBar } from '@/components/TopBar'
 import { Toaster } from '@/components/Toaster'
 import { TooltipProvider } from '@/components/ui/tooltip'
@@ -104,6 +104,7 @@ type GraphCallbacks = {
   onDelete:      ThonkNodeData['onDelete']
   onVersionCore: ThonkNodeData['onVersionCore']
   onOpenPanel:   ThonkNodeData['onOpenPanel']
+  onAutoEdit:    ThonkNodeData['onAutoEdit']
 }
 
 function toRFNode(
@@ -154,7 +155,7 @@ export default function App() {
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
   const [panelNodeId, setPanelNodeId] = useState<string | null>(null)
   const [hideResolved, setHideResolved] = useState(false)
-  const [showLegend, setShowLegend] = useState(false)
+  const [showLegend, setShowLegend] = useState(true)
   const [spaceHeld, setSpaceHeld] = useState(false)
   const savedViewport = useMemo(() => loadViewport(), [])
 
@@ -170,7 +171,6 @@ export default function App() {
   const [rfEdges, setRfEdges] = useState<Edge[]>([])
   const isDraggingRef = useRef(false)
   const positionUpdateRef = useRef(false)
-  const [isDragging, setIsDragging] = useState(false)
 
   // Close panel if its node is deleted
   useEffect(() => {
@@ -224,15 +224,40 @@ export default function App() {
       onDelete:      deleteNode,
       onVersionCore: versionCore,
       onOpenPanel:   openPanel,
+      onAutoEdit:    setAutoEditId,
     }),
     [addNode, addGraphEdge, updateNode, deleteNode, versionCore, openPanel],
   )
 
   // Compute nodes from store (used to sync into rfNodes when not dragging)
-  const visibleNodes = useMemo(
-    () => hideResolved ? graph.nodes.filter(n => !n.resolved) : graph.nodes,
-    [graph.nodes, hideResolved],
-  )
+  const visibleNodes = useMemo(() => {
+    if (!hideResolved) return graph.nodes
+
+    // Build undirected adjacency map
+    const adj = new Map<string, string[]>(graph.nodes.map(n => [n.id, []]))
+    graph.edges.forEach(e => {
+      adj.get(e.source)?.push(e.target)
+      adj.get(e.target)?.push(e.source)
+    })
+
+    const hidden = new Set(graph.nodes.filter(n => n.resolved).map(n => n.id))
+
+    // Cascade: hide unresolved nodes whose every neighbor is already hidden
+    let changed = true
+    while (changed) {
+      changed = false
+      for (const node of graph.nodes) {
+        if (hidden.has(node.id)) continue
+        const neighbors = adj.get(node.id) ?? []
+        if (neighbors.length > 0 && neighbors.every(id => hidden.has(id))) {
+          hidden.add(node.id)
+          changed = true
+        }
+      }
+    }
+
+    return graph.nodes.filter(n => !hidden.has(n.id))
+  }, [graph.nodes, graph.edges, hideResolved])
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map(n => n.id)), [visibleNodes])
 
   const storeNodes = useMemo(
@@ -266,15 +291,9 @@ export default function App() {
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // Track drag state — update ref every change, update state only on transitions
+      // Track drag state
       for (const c of changes) {
-        if (c.type === 'position') {
-          const dragging = c.dragging ?? false
-          if (dragging !== isDraggingRef.current) {
-            isDraggingRef.current = dragging
-            setIsDragging(dragging)
-          }
-        }
+        if (c.type === 'position') isDraggingRef.current = c.dragging ?? false
       }
 
       // Apply to local RF state immediately — smooth drag with no store re-renders
@@ -368,7 +387,7 @@ export default function App() {
           onAddQuestion={handleAddQuestion}
           hideResolved={hideResolved}
           onToggleHideResolved={() => setHideResolved(v => !v)}
-          onReset={resetGraph}
+          onReset={() => { resetGraph(); saveViewport({ x: 0, y: 0, zoom: 1 }); rfInstance.current?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 300 }) }}
           showLegend={showLegend}
           onToggleLegend={() => setShowLegend(v => !v)}
         />
@@ -384,9 +403,9 @@ export default function App() {
             onReconnectStart={() => document.getElementById('rf-wrap')?.classList.add('edge-dragging')}
             onReconnectEnd={() => document.getElementById('rf-wrap')?.classList.remove('edge-dragging')}
             onInit={inst => { rfInstance.current = inst }}
-            fitView={!savedViewport}
-            fitViewOptions={{ padding: 0.5, maxZoom: 0.65 }}
-            defaultViewport={savedViewport ?? undefined}
+            fitView={!savedViewport && graph.nodes.length > 0}
+            fitViewOptions={{ padding: 0.5, maxZoom: 1 }}
+            defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
             onMoveStart={() => document.getElementById('rf-wrap')?.classList.add('is-panning')}
             onMoveEnd={(_e, vp) => { document.getElementById('rf-wrap')?.classList.remove('is-panning'); saveViewport(vp) }}
             panOnDrag={[1, 2]}
@@ -404,32 +423,28 @@ export default function App() {
               <LockButton />
               <ZoomDisplay />
             </Controls>
-            {!isDragging && (
-              <MiniMap
-                nodeColor={miniMapNodeColor}
-                maskColor="rgba(200,195,190,0.3)"
-              />
-            )}
+            <MiniMap
+              nodeColor={miniMapNodeColor}
+              maskColor="rgba(200,195,190,0.3)"
+            />
           </ReactFlow>
         </div>
 
         {panelNode && (
-          <Suspense fallback={null}>
-            <EditorPanel
-              node={panelNode}
-              nodes={graph.nodes}
-              onSave={(id, patch) => updateNode(id, { ...patch, meta: { aiGenerated: false } })}
-              onClose={() => setPanelNodeId(null)}
-              onNavigateToNode={navigateToNode}
-            />
-          </Suspense>
+          <EditorPanel
+            node={panelNode}
+            nodes={graph.nodes}
+            onSave={(id, patch) => updateNode(id, { ...patch, meta: { aiGenerated: false } })}
+            onClose={() => setPanelNodeId(null)}
+            onNavigateToNode={navigateToNode}
+          />
         )}
 
         {showLegend && <div
-          className="absolute top-14 bg-white border border-border rounded-lg px-3 py-2 text-[10px] space-y-1 shadow-sm pointer-events-none z-10"
-          style={{ right: panelNode ? 576 : 16 }}
+          className="absolute bg-white border border-border rounded-lg px-4 py-3 text-sm space-y-1.5 shadow-sm pointer-events-none z-10"
+          style={{ top: 44 + 16, right: panelNode ? 576 + 16 : 16 }}
         >
-          <div className="font-semibold text-xs mb-1">Legend</div>
+          <div className="font-semibold text-sm mb-2">Legend</div>
           {[
             { color: 'bg-[#392946]',                          label: 'Core'         },
             { color: 'bg-[#f5c44a]',                          label: 'Idea'         },
@@ -438,7 +453,7 @@ export default function App() {
             { color: 'bg-[#00ae60]',                          label: 'Answer'       },
             { color: 'bg-[#00836d]',                          label: 'Answer AI'    },
           ].map(({ color, label }) => (
-            <div key={label} className="flex items-center gap-2">
+            <div key={label} className="flex items-center gap-2.5">
               <span className={`inline-block w-3 h-3 rounded shrink-0 ${color}`} />
               <span>{label}</span>
             </div>

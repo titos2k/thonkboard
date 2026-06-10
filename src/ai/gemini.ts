@@ -1,3 +1,5 @@
+import type { GroundingChunk } from '@/store/types'
+
 const MODEL_LITE  = 'gemini-3.1-flash-lite'
 const MODEL_SMART = 'gemini-3.5-flash'
 
@@ -58,6 +60,57 @@ async function callGemini<T>(req: GeminiRequest): Promise<T> {
   const data = await res.json()
   const text: string = data.candidates[0].content.parts[0].text
   return JSON.parse(text) as T
+}
+
+interface SearchCallRequest {
+  systemInstruction: string
+  userPrompt: string
+}
+
+interface SearchResult {
+  text: string
+  sources: GroundingChunk[]
+}
+
+async function callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResult> {
+  const key = getApiKey()
+  if (!key) throw new Error('No Gemini API key set. Add your key in the top bar.')
+
+  const makeBody = (withSearch: boolean) => ({
+    systemInstruction: { parts: [{ text: req.systemInstruction }] },
+    contents: [{ role: 'user', parts: [{ text: req.userPrompt }] }],
+    ...(withSearch ? { tools: [{ googleSearch: {} }] } : {}),
+  })
+
+  let res = await fetch(`${getApiBase()}?key=${key}`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(makeBody(true)),
+  })
+
+  // Grounded search has a separate quota — fall back to plain prompt on 429
+  if (res.status === 429) {
+    res = await fetch(`${getApiBase()}?key=${key}`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(makeBody(false)),
+    })
+  }
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Gemini error ${res.status}: ${err}`)
+  }
+
+  const data = await res.json()
+  const text: string = data.candidates[0].content.parts[0].text
+  const chunks: Array<{ web?: { title?: string; uri?: string } }> =
+    data.candidates[0].groundingMetadata?.groundingChunks ?? []
+  const sources: GroundingChunk[] = chunks
+    .filter(c => c.web?.uri)
+    .map(c => ({ title: c.web!.title ?? c.web!.uri!, uri: c.web!.uri! }))
+    .slice(0, 5)
+  return { text, sources }
 }
 
 // ── Critique pass ─────────────────────────────────────────────────────────────
@@ -196,16 +249,23 @@ export async function generateSummary(title: string, body: string): Promise<stri
 
 // ── Integrate Q&A into node body ──────────────────────────────────────────────
 
-const INTEGRATE_SYSTEM = `You are a documentation writer for an ideation mind map.
+const INTEGRATE_SYSTEM = `You are updating a personal note on an ideation board.
 Receive: a node (title + body), a question asked about it, and the answer given.
 Task: rewrite the body incorporating the new knowledge.
 
-FORMAT — follow strictly:
-- Bullet points only. No prose paragraphs.
-- Each bullet = one concrete fact, constraint, or insight.
-- Nested bullets for supporting detail.
-- 4–8 top-level bullets maximum. Be terse.
-- Never start with filler phrases ("This idea...", "Note that...", "It is worth...").
+TONE — this is critical:
+- Match the voice and register of the existing content exactly.
+- If the note is casual and personal ("thinking about moving", "not sure yet"), write casually.
+- If it's technical or formal, match that. Never impose a formal, corporate, or robotic tone onto casual content.
+- Write like the person who wrote the original note would write it — same vocabulary, same energy.
+
+FORMAT — proper markdown:
+- Bullet lists for facts, thoughts, constraints. Each bullet on its own line starting with "- ".
+- NEVER put multiple bullets on one line separated by " - ". Every bullet must start on a new line.
+- Use ## headings only when content naturally falls into distinct sections — not for a single topic.
+- Each bullet = 1–2 sentences max. Be terse.
+- No filler openers ("This idea...", "Note that...", "It is worth...").
+- No top-level title — the node already has one.
 
 CROSS-REFERENCES:
 - When referencing another node from the BOARD SKELETON, link it: [Node Title](node:NODE_ID)
@@ -361,21 +421,14 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
 
 // ── AI-generated answer ───────────────────────────────────────────────────────
 
-const ANSWER_SYSTEM = `You are a sharp colleague giving a quick, honest take on a question.
-One or two short sentences. Casual, direct — like a Slack message, not a report.
-Leave room for follow-up. Don't wrap it up, just answer the core of what was asked.
-No hedging, no filler, no summaries, no "in conclusion".`
+const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
+Answer the question directly and accurately in 2–3 sentences.
+Use web search when the question benefits from current or factual information.
+Be specific. No preamble, no filler.`
 
-export async function answerQuestion(contextPrompt: string): Promise<{ answer: string }> {
-  return callGemini<{ answer: string }>({
-    systemInstruction: ANSWER_SYSTEM,
-    userPrompt: contextPrompt,
-    responseSchema: {
-      type: 'object',
-      properties: { answer: { type: 'string' } },
-      required: ['answer'],
-    },
-  })
+export async function answerQuestion(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
+  const result = await callGeminiWithSearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
+  return { answer: result.text, sources: result.sources }
 }
 
 // ── Correct an answer based on user-pointed mistakes ─────────────────────────

@@ -3,14 +3,14 @@ import type { ThonkGraph, ThonkNode, ThonkEdge, NodeType, EdgeRelation } from '.
 
 const STORAGE_KEY = 'thonk.graph'
 
-function makeInitialGraph(): ThonkGraph {
+export function makeInitialGraph(): ThonkGraph {
   const coreId = uuidv4()
   return {
     nodes: [
       {
         id: coreId,
         type: 'core',
-        title: 'My Core Idea',
+        title: 'Name your core idea',
         body: '',
         summary: '',
         resolved: false,

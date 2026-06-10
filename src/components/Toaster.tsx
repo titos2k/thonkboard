@@ -10,7 +10,7 @@ export function Toaster() {
       const message = (e as CustomEvent<string>).detail
       const id = Date.now()
       setToasts(prev => [...prev, { id, message }])
-      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 4000)
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 10000)
     }
     window.addEventListener('thonk:toast', handler)
     return () => window.removeEventListener('thonk:toast', handler)
@@ -21,7 +21,11 @@ export function Toaster() {
   return (
     <div className="fixed top-16 right-4 z-[9999] flex flex-col gap-2 pointer-events-none">
       {toasts.map(t => (
-        <div key={t.id} className="bg-red-600 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-xs leading-snug">
+        <div
+          key={t.id}
+          onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
+          className="bg-red-600 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-xs leading-snug pointer-events-auto cursor-pointer"
+        >
           {t.message}
         </div>
       ))}
