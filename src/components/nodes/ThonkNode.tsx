@@ -43,8 +43,10 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
 import { assembleContext, contextToPrompt } from '@/ai/context'
-import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, findRelatedNodes, answerQuestion, generateSolution, correctAnswer } from '@/ai/gemini'
+import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, resolveConflict, findRelatedNodes, answerQuestion, generateSolution, correctAnswer } from '@/ai/gemini'
+import type { ConflictOption } from '@/ai/gemini'
 import type { ThonkGraph, ConflictEntry } from '@/store/types'
+import { MergeConflictModal } from './MergeConflictModal'
 import { showToast } from '@/lib/toast'
 
 const MAX_AI_DEPTH = 3
@@ -317,6 +319,11 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const [editing, setEditing] = useState(() => !!d.autoEdit)
   const [editTitle, setEditTitle] = useState(thonk.title)
   const [actionState, setActionState] = useState<ActionState>('idle')
+  const [mergeConflict, setMergeConflict] = useState<{
+    description: string
+    options: [ConflictOption, ConflictOption]
+    onApply: (body: string, title?: string) => void
+  } | null>(null)
   const activeTouchId = useSyncExternalStore(touchStore.subscribe, touchStore.getSnapshot)
 
   // Once React Flow propagates selection for THIS node, release the touch lock.
@@ -654,28 +661,62 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
       if (syncTarget) {
         const ctx = assembleContext(graphRef.current, syncTarget.id)
-        if (ctx) {
-          const res = await integrateQA(contextToPrompt(ctx), qNode.title, thonk.title)
-          const integratedTitle = res.title?.trim() || undefined
-          d.onUpdate(syncTarget.id, {
-            body: res.body,
-            ...(integratedTitle ? { title: integratedTitle } : {}),
-            conflicts: [],
-            unread: true,
+        if (!ctx) return
+
+        // Pre-check: does this answer conflict with the target's current content?
+        const pre = await detectConflicts(qNode.title, thonk.title, [{
+          id: syncTarget.id, type: syncTarget.type, title: syncTarget.title, body: syncTarget.body, summary: syncTarget.summary,
+        }])
+        const targetConflict = pre.find(c => c.nodeId === syncTarget.id)
+        if (targetConflict) {
+          const result = await resolveConflict(contextToPrompt(ctx), qNode.title, thonk.title)
+          const opts = result.options as [ConflictOption, ConflictOption]
+          const snapQNode = qNode
+          const snapTarget = syncTarget
+          setMergeConflict({
+            description: targetConflict.description,
+            options: opts,
+            onApply: (body, title) => {
+              const mergeTitle = title?.trim() || undefined
+              const graph = graphRef.current
+              d.onUpdate(snapTarget.id, { body, ...(mergeTitle ? { title: mergeTitle } : {}), conflicts: [], unread: true })
+              d.onUpdate(snapQNode.id, { resolved: true, resolvedAs: 'merged' })
+              d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
+              const cands = graph.nodes.filter(n =>
+                n.id !== snapTarget.id && n.id !== snapQNode.id && n.id !== thonk.id &&
+                (n.resolvedAs === 'merged' || !n.resolved) && (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
+              )
+              detectConflicts(mergeTitle ?? snapTarget.title, body, cands.map(n => ({
+                id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
+              }))).then(cs => {
+                for (const c of cs)
+                  if (cands.some(n => n.id === c.nodeId))
+                    d.onUpdate(c.nodeId, { conflicts: [{ nodeId: snapTarget.id, description: c.description }] })
+              }).catch(() => {})
+            },
           })
-          // Background conflict detection
-          const candidates = graphRef.current.nodes.filter(n =>
-            n.id !== syncTarget.id && n.id !== qNode.id && n.id !== thonk.id &&
-            (n.resolvedAs === 'merged' || !n.resolved) && (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-          )
-          detectConflicts(integratedTitle ?? syncTarget.title, res.body, candidates.map(n => ({
-            id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-          }))).then(conflicts => {
-            for (const c of conflicts)
-              if (candidates.some(n => n.id === c.nodeId))
-                d.onUpdate(c.nodeId, { conflicts: [{ nodeId: syncTarget.id, description: c.description }] })
-          }).catch(() => {})
+          return
         }
+
+        const res = await integrateQA(contextToPrompt(ctx), qNode.title, thonk.title)
+        const integratedTitle = res.title?.trim() || undefined
+        d.onUpdate(syncTarget.id, {
+          body: res.body,
+          ...(integratedTitle ? { title: integratedTitle } : {}),
+          conflicts: [],
+          unread: true,
+        })
+        const candidates = graphRef.current.nodes.filter(n =>
+          n.id !== syncTarget.id && n.id !== qNode.id && n.id !== thonk.id &&
+          (n.resolvedAs === 'merged' || !n.resolved) && (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
+        )
+        detectConflicts(integratedTitle ?? syncTarget.title, res.body, candidates.map(n => ({
+          id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
+        }))).then(conflicts => {
+          for (const c of conflicts)
+            if (candidates.some(n => n.id === c.nodeId))
+              d.onUpdate(c.nodeId, { conflicts: [{ nodeId: syncTarget.id, description: c.description }] })
+        }).catch(() => {})
       }
 
       d.onUpdate(qNode.id,  { resolved: true, resolvedAs: 'merged' })
@@ -707,6 +748,48 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       }
       const c = assembleContext(graphRef.current, anchor.id)
       if (!c) return
+
+      // Pre-check: does the combined Q&A content conflict with the anchor?
+      const combinedBody = pairs.map(p => `Q: ${p.qNode.title}\nA: ${p.aNode.title}`).join('\n\n')
+      const pre = await detectConflicts(
+        pairs.map(p => p.qNode.title).join(' / '),
+        combinedBody,
+        [{ id: anchor.id, type: anchor.type, title: anchor.title, body: anchor.body, summary: anchor.summary }],
+      )
+      const anchorConflict = pre.find(cf => cf.nodeId === anchor.id)
+      if (anchorConflict) {
+        const result = await resolveConflict(contextToPrompt(c), pairs.map(p => p.qNode.title).join(', '), combinedBody)
+        const opts = result.options as [ConflictOption, ConflictOption]
+        const snapAnchor = anchor
+        const snapPairs = pairs
+        setMergeConflict({
+          description: anchorConflict.description,
+          options: opts,
+          onApply: (body, title) => {
+            const mergeTitle = title?.trim() || undefined
+            const graph = graphRef.current
+            d.onUpdate(snapAnchor.id, { body, ...(mergeTitle ? { title: mergeTitle } : {}), conflicts: [], unread: true })
+            for (const { qNode: q, aNode: a } of snapPairs) {
+              d.onUpdate(q.id, { resolved: true, resolvedAs: 'merged' })
+              d.onUpdate(a.id, { resolved: true, resolvedAs: 'merged' })
+            }
+            const pairIds = new Set(snapPairs.flatMap(p => [p.qNode.id, p.aNode.id]))
+            const cands = graph.nodes.filter(n =>
+              n.id !== snapAnchor.id && !pairIds.has(n.id) &&
+              (n.resolvedAs === 'merged' || !n.resolved) && (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
+            )
+            detectConflicts(mergeTitle ?? snapAnchor.title, body, cands.map(n => ({
+              id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
+            }))).then(cs => {
+              for (const cf of cs)
+                if (cands.some(n => n.id === cf.nodeId))
+                  d.onUpdate(cf.nodeId, { conflicts: [{ nodeId: snapAnchor.id, description: cf.description }] })
+            }).catch(() => {})
+          },
+        })
+        return
+      }
+
       const { body, title } = await integrateAllQA(
         contextToPrompt(c),
         pairs.map(p => ({ question: p.qNode.title, answer: p.aNode.title })),
@@ -852,35 +935,25 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const graph = graphRef.current
       const parentNode = findSpawnParent(graph, thonk.id)
       if (!parentNode) return
+      // Pre-check: does this idea conflict with the target's current content?
+      const pre = await detectConflicts(thonk.title, thonk.body, [{
+        id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
+      }])
+      const parentConflict = pre.find(c => c.nodeId === parentNode.id)
+      if (parentConflict) {
+        // Generate resolution options and show modal
+        const ctx = assembleContext(graph, parentNode.id)
+        if (!ctx) return
+        const result = await resolveConflict(contextToPrompt(ctx), thonk.title, thonk.body)
+        const opts = result.options as [ConflictOption, ConflictOption]
+        setMergeConflict({ description: parentConflict.description, options: opts, onApply: (body, title) => applyIdeaResult(parentNode, body, title, false) })
+        return
+      }
+      // No conflict — apply directly
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await integrateIdea(contextToPrompt(ctx), thonk.title, thonk.body)
-      const mergeTitle = res.title?.trim() || undefined
-      d.onUpdate(parentNode.id, { body: res.body, ...(mergeTitle ? { title: mergeTitle } : {}), unread: true })
-      d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-      const candidates = graph.nodes.filter(n =>
-        n.id !== parentNode.id && n.id !== thonk.id &&
-        (n.resolvedAs === 'merged' || !n.resolved) &&
-        (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-      )
-      // When re-applying a previously-merged idea, check if it contradicts the pre-existing target content
-      if (thonk.resolvedAs === 'merged') {
-        detectConflicts(thonk.title, thonk.body, [{
-          id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
-        }]).then(pre => {
-          for (const c of pre)
-            if (c.nodeId === parentNode.id)
-              d.onUpdate(parentNode.id, { conflicts: [{ nodeId: thonk.id, description: c.description }] })
-        }).catch(() => {})
-      }
-      // Check if new body conflicts with other nodes
-      detectConflicts(mergeTitle ?? parentNode.title, res.body, candidates.map(n => ({
-        id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-      }))).then(conflicts => {
-        for (const c of conflicts)
-          if (candidates.some(n => n.id === c.nodeId))
-            d.onUpdate(c.nodeId, { conflicts: [{ nodeId: parentNode.id, description: c.description }] })
-      }).catch(() => {})
+      applyIdeaResult(parentNode, res.body, res.title, false)
     })
 
   const handleApplyIdeaBranch = () =>
@@ -888,39 +961,45 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const graph = graphRef.current
       const parentNode = findSpawnParent(graph, thonk.id)
       if (!parentNode) return
+      const pre = await detectConflicts(thonk.title, thonk.body, [{
+        id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
+      }])
+      const parentConflict = pre.find(c => c.nodeId === parentNode.id)
+      if (parentConflict) {
+        const ctx = assembleContext(graph, parentNode.id)
+        if (!ctx) return
+        const result = await resolveConflict(contextToPrompt(ctx), thonk.title, thonk.body)
+        const opts = result.options as [ConflictOption, ConflictOption]
+        setMergeConflict({ description: parentConflict.description, options: opts, onApply: (body, title) => applyIdeaResult(parentNode, body, title, true) })
+        return
+      }
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await integrateIdea(contextToPrompt(ctx), thonk.title, thonk.body)
-      const mergeTitle = res.title?.trim() || undefined
-      d.onUpdate(parentNode.id, { body: res.body, ...(mergeTitle ? { title: mergeTitle } : {}), unread: true })
-      d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-      const descendantIds = collectQADescendants(graph, thonk.id)
-      descendantIds.forEach(id => d.onUpdate(id, { resolved: true, resolvedAs: 'merged' }))
-      const branchIds = new Set([thonk.id, ...descendantIds])
-      const candidates = graph.nodes.filter(n =>
-        n.id !== parentNode.id && !branchIds.has(n.id) &&
-        (n.resolvedAs === 'merged' || !n.resolved) &&
-        (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-      )
-      // When re-applying, check if the idea contradicts the pre-existing target content
-      if (thonk.resolvedAs === 'merged') {
-        detectConflicts(thonk.title, thonk.body, [{
-          id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
-        }]).then(pre => {
-          for (const c of pre)
-            if (c.nodeId === parentNode.id)
-              d.onUpdate(parentNode.id, { conflicts: [{ nodeId: thonk.id, description: c.description }] })
-        }).catch(() => {})
-      }
-      // Check if new body conflicts with other nodes
-      detectConflicts(mergeTitle ?? parentNode.title, res.body, candidates.map(n => ({
-        id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-      }))).then(conflicts => {
-        for (const c of conflicts)
-          if (candidates.some(n => n.id === c.nodeId))
-            d.onUpdate(c.nodeId, { conflicts: [{ nodeId: parentNode.id, description: c.description }] })
-      }).catch(() => {})
+      applyIdeaResult(parentNode, res.body, res.title, true)
     })
+
+  const applyIdeaResult = useCallback((parentNode: TNode, body: string, rawTitle: string | undefined, isBranch: boolean) => {
+    const mergeTitle = rawTitle?.trim() || undefined
+    const graph = graphRef.current
+    d.onUpdate(parentNode.id, { body, ...(mergeTitle ? { title: mergeTitle } : {}), unread: true })
+    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
+    if (isBranch) {
+      collectQADescendants(graph, thonk.id).forEach(id => d.onUpdate(id, { resolved: true, resolvedAs: 'merged' }))
+    }
+    const candidates = graph.nodes.filter(n =>
+      n.id !== parentNode.id && n.id !== thonk.id &&
+      (n.resolvedAs === 'merged' || !n.resolved) &&
+      (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
+    )
+    detectConflicts(mergeTitle ?? parentNode.title, body, candidates.map(n => ({
+      id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
+    }))).then(conflicts => {
+      for (const c of conflicts)
+        if (candidates.some(n => n.id === c.nodeId))
+          d.onUpdate(c.nodeId, { conflicts: [{ nodeId: parentNode.id, description: c.description }] })
+    }).catch(() => {})
+  }, [thonk.id, d, graphRef])
 
   const handleCloseIdeaBranch = useCallback(() => {
     const graph = graphRef.current
@@ -1012,6 +1091,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const showExpandDetail = thonk.type !== 'question' && thonk.type !== 'answer'
 
   return (
+    <>
     <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
       <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !editing} position={Position.Top} offset={8}>
@@ -1376,6 +1456,20 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
           </div>
         )}
     </NodeShell>
+
+    {mergeConflict && (
+      <MergeConflictModal
+        open
+        conflictDescription={mergeConflict.description}
+        options={mergeConflict.options}
+        onChoose={(body, title) => {
+          mergeConflict.onApply(body, title)
+          setMergeConflict(null)
+        }}
+        onCancel={() => setMergeConflict(null)}
+      />
+    )}
+    </>
   )
 }
 
