@@ -306,12 +306,13 @@ export default function App() {
   const navigateToNode = useCallback((nodeId: string) => {
     setPanelNodeId(nodeId)
     setSelectedIds(new Set([nodeId]))
-    rfInstance.current?.fitView({
-      nodes: [{ id: nodeId }],
-      duration: 600,
-      padding: 0.6,
-      maxZoom: 1.2,
-    })
+    const n = rfInstance.current?.getNode(nodeId)
+    if (n) {
+      const cx = n.position.x + (n.measured?.width ?? 200) / 2
+      const cy = n.position.y + (n.measured?.height ?? 80) / 2
+      const zoom = rfInstance.current?.getZoom() ?? 1
+      rfInstance.current?.setCenter(cx, cy, { duration: 500, zoom })
+    }
   }, [])
 
   const callbacks: GraphCallbacks = useMemo(

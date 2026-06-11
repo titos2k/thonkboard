@@ -89,14 +89,18 @@ function collectChainPairs(
     const aNode = graph.nodes.find(n => n.id === currentId)
     if (!aNode) return { pairs, anchor: null }
 
-    const qEdge = graph.edges.find(e => e.target === currentId && (e.relation === 'answers' || e.relation === 'fixes'))
+    const qEdge =
+      graph.edges.find(e => e.target === currentId && (e.relation === 'answers' || e.relation === 'fixes')) ??
+      graph.edges.find(e => e.target === currentId && e.relation === 'spawns')
     if (!qEdge) return { pairs, anchor: null }
     const qNode = graph.nodes.find(n => n.id === qEdge.source)
     if (!qNode) return { pairs, anchor: null }
 
     if (!aNode.resolved && !qNode.resolved) pairs.unshift({ qNode, aNode })
 
-    const parentEdge = graph.edges.find(e => e.target === qNode.id && (e.relation === 'questions' || e.relation === 'argues'))
+    const parentEdge =
+      graph.edges.find(e => e.target === qNode.id && (e.relation === 'questions' || e.relation === 'argues')) ??
+      graph.edges.find(e => e.target === qNode.id && e.relation === 'spawns')
     if (!parentEdge) return { pairs, anchor: null }
     const parentNode = graph.nodes.find(n => n.id === parentEdge.source)
     if (!parentNode) return { pairs, anchor: null }
@@ -298,7 +302,17 @@ function findFreePos(
 function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const d = data as ThonkNodeData
   const { thonk, graphRef } = d
-  const { getNode } = useReactFlow()
+  const { getNode, setCenter, getZoom } = useReactFlow()
+
+  const panToSpawned = useCallback((ids: string[]) => {
+    requestAnimationFrame(() => {
+      const rects = ids.map(id => getNode(id)).filter(Boolean)
+      if (!rects.length) return
+      const cx = rects.reduce((s, n) => s + n!.position.x + (n!.measured?.width ?? 200) / 2, 0) / rects.length
+      const cy = rects.reduce((s, n) => s + n!.position.y + (n!.measured?.height ?? 80) / 2, 0) / rects.length
+      setCenter(cx, cy, { duration: 400, zoom: getZoom() })
+    })
+  }, [getNode, setCenter, getZoom])
 
   const [editing, setEditing] = useState(() => !!d.autoEdit)
   const [editTitle, setEditTitle] = useState(thonk.title)
@@ -447,13 +461,16 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     withLoading(async () => {
       const problems = await critiqueNode(ctx())
       const childDepth = thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0
+      const ids: string[] = []
       let i = 0
       for (const p of problems) {
         const node = d.onAddNode('problem', p.content, p.content, spawnPos(280 + i * 20, -40 + i * 80), { severity: p.severity, aiGenerated: true, aiDepth: childDepth })
         d.onAddEdge(thonk.id, node.id, 'argues', 's-right', 't-left')
+        ids.push(node.id)
         i++
       }
       if (problems.length === 0) showToast('No significant problems found — idea holds up.')
+      else panToSpawned(ids)
     })
 
   const handleQuestion = () =>
@@ -479,6 +496,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const pos = findFreePos(graphRef.current.nodes, livePos(), dx, dy, dir)
       const qNode = d.onAddNode('question', result.question, result.question, pos, { aiGenerated: true, yesNo: result.yesNo === true })
       d.onAddEdge(thonk.id, qNode.id, 'questions', sourceHandle, targetHandle)
+      panToSpawned([qNode.id])
       setActionState('answering')
     })
 
@@ -489,6 +507,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     const pos = findFreePos(graphRef.current.nodes, livePos(), dx, dy, dir)
     const qNode = d.onAddNode('question', '', '', pos)
     d.onAddEdge(thonk.id, qNode.id, 'questions', sourceHandle, targetHandle)
+    panToSpawned([qNode.id])
     d.onAutoEdit(qNode.id)
   }
 
@@ -499,12 +518,15 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const { sourceHandle, targetHandle } = dirHandles(dir)
       const { dx, dy } = dirOffset(dir, nodeH())
       const placed: { position: { x: number; y: number } }[] = []
+      const ids: string[] = []
       for (const idea of ideas) {
         const pos = findFreePos([...graphRef.current.nodes, ...placed], livePos(), dx, dy, dir)
         placed.push({ position: pos })
         const node = d.onAddNode('idea', idea.title, idea.body, pos, { aiGenerated: true, aiDepth: thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0 })
         d.onAddEdge(thonk.id, node.id, 'spawns', sourceHandle, targetHandle)
+        ids.push(node.id)
       }
+      panToSpawned(ids)
     })
 
   const handleAskAndAnswer = () => {
@@ -528,6 +550,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         sources: sources.length > 0 ? sources : undefined,
       })
       d.onAddEdge(qNode.id, aNode.id, 'answers', sourceHandle, targetHandle)
+      panToSpawned([qNode.id, aNode.id])
     })
   }
 
@@ -540,6 +563,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     const { sourceHandle, targetHandle } = dirHandles(dir)
     const aNode = d.onAddNode('answer', raw, raw, spawnPos(dx, dy))
     d.onAddEdge(thonk.id, aNode.id, relation, sourceHandle, targetHandle)
+    panToSpawned([aNode.id])
     setAnswerText('')
     setActionState('idle')
   }
@@ -550,6 +574,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     const { sourceHandle, targetHandle } = dirHandles(dir)
     const aNode = d.onAddNode('answer', text, text, spawnPos(dx, dy))
     d.onAddEdge(thonk.id, aNode.id, 'answers', sourceHandle, targetHandle)
+    panToSpawned([aNode.id])
   }
 
   const handleIdeateAnswer = () =>
@@ -563,6 +588,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         sources: sources.length > 0 ? sources : undefined,
       })
       d.onAddEdge(thonk.id, aNode.id, 'answers', sourceHandle, targetHandle)
+      panToSpawned([aNode.id])
     })
 
   const handleGenerateFix = () =>
@@ -577,6 +603,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         sources: sources.length > 0 ? sources : undefined,
       })
       d.onAddEdge(thonk.id, aNode.id, 'fixes', sourceHandle, targetHandle)
+      panToSpawned([aNode.id])
     })
 
   const handleCorrect = () => {
@@ -599,6 +626,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     const pos = findFreePos(graphRef.current.nodes, livePos(), spreadDx, spreadDy, dir)
     const node = d.onAddNode('idea', '', '', pos)
     d.onAddEdge(thonk.id, node.id, 'spawns', sourceHandle, targetHandle)
+    panToSpawned([node.id])
     d.onAutoEdit(node.id)
   }
 
@@ -606,6 +634,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     const pos = findFreePos(graphRef.current.nodes, livePos(), 280, -40)
     const node = d.onAddNode('problem', '', '', pos, { severity: 0.5 })
     d.onAddEdge(thonk.id, node.id, 'argues', 's-right', 't-left')
+    panToSpawned([node.id])
     d.onAutoEdit(node.id)
   }
 
@@ -657,7 +686,25 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const handleApplyBranch = () =>
     withLoading(async () => {
       const { pairs, anchor } = collectChainPairs(graphRef.current, thonk.id)
-      if (pairs.length === 0 || !anchor) return
+      if (pairs.length === 0 || !anchor) {
+        // No chain above — fall back to applying this single answer
+        const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes' || e.relation === 'spawns'))
+        if (!qEdge) return
+        const qNode = graphRef.current.nodes.find(n => n.id === qEdge.source)
+        if (!qNode) return
+        const rootNode = findChainRoot(graphRef.current, thonk.id)
+        const syncTarget = rootNode && (rootNode.type === 'core' || rootNode.type === 'idea') ? rootNode : null
+        if (syncTarget) {
+          const ctx = assembleContext(graphRef.current, syncTarget.id)
+          if (ctx) {
+            const res = await integrateQA(contextToPrompt(ctx), qNode.title, thonk.title)
+            d.onUpdate(syncTarget.id, { body: res.body, ...(res.title?.trim() ? { title: res.title.trim() } : {}), conflicts: [], unread: true })
+          }
+        }
+        d.onUpdate(qNode.id, { resolved: true, resolvedAs: 'merged' })
+        d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
+        return
+      }
       const c = assembleContext(graphRef.current, anchor.id)
       if (!c) return
       const { body, title } = await integrateAllQA(
@@ -673,7 +720,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       // Background conflict detection
       const allPairIds = new Set(pairs.flatMap(p => [p.qNode.id, p.aNode.id]))
       const candidates = graphRef.current.nodes.filter(n =>
-        n.id !== anchor.id && !allPairIds.has(n.id) && !n.resolved &&
+        n.id !== anchor.id && !allPairIds.has(n.id) &&
+        (n.resolvedAs === 'merged' || !n.resolved) &&
         (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
       )
       detectConflicts(title?.trim() || anchor.title, body, candidates.map(n => ({
@@ -752,7 +800,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
       // Background conflict detection — acknowledging a problem can create new contradictions
       const candidates = graph.nodes.filter(n =>
-        n.id !== parentNode.id && n.id !== thonk.id && !n.resolved &&
+        n.id !== parentNode.id && n.id !== thonk.id &&
+        (n.resolvedAs === 'merged' || !n.resolved) &&
         (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
       )
       detectConflicts(integratedTitle ?? parentNode.title, res.body, candidates.map(n => ({
@@ -785,7 +834,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         })
       // Background conflict detection
       const candidates = graph.nodes.filter(n =>
-        n.id !== parentNode.id && n.id !== thonk.id && !n.resolved &&
+        n.id !== parentNode.id && n.id !== thonk.id &&
+        (n.resolvedAs === 'merged' || !n.resolved) &&
         (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
       )
       detectConflicts(integratedTitle ?? parentNode.title, res.body, candidates.map(n => ({
@@ -805,8 +855,32 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await integrateIdea(contextToPrompt(ctx), thonk.title, thonk.body)
-      d.onUpdate(parentNode.id, { body: res.body, ...(res.title ? { title: res.title } : {}), unread: true })
+      const mergeTitle = res.title?.trim() || undefined
+      d.onUpdate(parentNode.id, { body: res.body, ...(mergeTitle ? { title: mergeTitle } : {}), unread: true })
       d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
+      const candidates = graph.nodes.filter(n =>
+        n.id !== parentNode.id && n.id !== thonk.id &&
+        (n.resolvedAs === 'merged' || !n.resolved) &&
+        (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
+      )
+      // When re-applying a previously-merged idea, check if it contradicts the pre-existing target content
+      if (thonk.resolvedAs === 'merged') {
+        detectConflicts(thonk.title, thonk.body, [{
+          id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
+        }]).then(pre => {
+          for (const c of pre)
+            if (c.nodeId === parentNode.id)
+              d.onUpdate(parentNode.id, { conflicts: [{ nodeId: thonk.id, description: c.description }] })
+        }).catch(() => {})
+      }
+      // Check if new body conflicts with other nodes
+      detectConflicts(mergeTitle ?? parentNode.title, res.body, candidates.map(n => ({
+        id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
+      }))).then(conflicts => {
+        for (const c of conflicts)
+          if (candidates.some(n => n.id === c.nodeId))
+            d.onUpdate(c.nodeId, { conflicts: [{ nodeId: parentNode.id, description: c.description }] })
+      }).catch(() => {})
     })
 
   const handleApplyIdeaBranch = () =>
@@ -817,11 +891,35 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await integrateIdea(contextToPrompt(ctx), thonk.title, thonk.body)
-      d.onUpdate(parentNode.id, { body: res.body, ...(res.title ? { title: res.title } : {}), unread: true })
+      const mergeTitle = res.title?.trim() || undefined
+      d.onUpdate(parentNode.id, { body: res.body, ...(mergeTitle ? { title: mergeTitle } : {}), unread: true })
       d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-      collectQADescendants(graph, thonk.id).forEach(id =>
-        d.onUpdate(id, { resolved: true, resolvedAs: 'merged' })
+      const descendantIds = collectQADescendants(graph, thonk.id)
+      descendantIds.forEach(id => d.onUpdate(id, { resolved: true, resolvedAs: 'merged' }))
+      const branchIds = new Set([thonk.id, ...descendantIds])
+      const candidates = graph.nodes.filter(n =>
+        n.id !== parentNode.id && !branchIds.has(n.id) &&
+        (n.resolvedAs === 'merged' || !n.resolved) &&
+        (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
       )
+      // When re-applying, check if the idea contradicts the pre-existing target content
+      if (thonk.resolvedAs === 'merged') {
+        detectConflicts(thonk.title, thonk.body, [{
+          id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
+        }]).then(pre => {
+          for (const c of pre)
+            if (c.nodeId === parentNode.id)
+              d.onUpdate(parentNode.id, { conflicts: [{ nodeId: thonk.id, description: c.description }] })
+        }).catch(() => {})
+      }
+      // Check if new body conflicts with other nodes
+      detectConflicts(mergeTitle ?? parentNode.title, res.body, candidates.map(n => ({
+        id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
+      }))).then(conflicts => {
+        for (const c of conflicts)
+          if (candidates.some(n => n.id === c.nodeId))
+            d.onUpdate(c.nodeId, { conflicts: [{ nodeId: parentNode.id, description: c.description }] })
+      }).catch(() => {})
     })
 
   const handleCloseIdeaBranch = useCallback(() => {

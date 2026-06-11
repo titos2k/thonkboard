@@ -334,7 +334,7 @@ export async function integrateAllQA(
 
 const INTEGRATE_IDEA_SYSTEM = `You are updating a personal note on an ideation board.
 Receive: a node (title + body) and one specific idea being merged into it.
-Task: rewrite the body incorporating ONLY the content of the provided idea. Do not pull in, summarize, or reference other nodes visible in the board skeleton — they are context only, not input.
+Task: rewrite the body to adopt the idea as the accepted direction. The idea represents the user's decision — treat it as the authoritative new input. If the existing body contradicts the idea, the idea wins: remove or rewrite the contradicting content so the body aligns with the idea. Do not keep both sides of a contradiction. Do not pull in, summarize, or reference other nodes visible in the board skeleton — they are context only, not input.
 
 TONE — this is critical:
 - Match the voice and register of the existing content exactly.
