@@ -138,7 +138,7 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
           )}
 
           {status === 'ready' && (
-            <div className="prose prose-sm max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-medium [&_ul]:my-1 [&_li]:my-0.5">
+            <div className="prose prose-sm max-w-none text-sm leading-relaxed [&_h1]:text-base [&_h1]:font-semibold [&_h2]:text-sm [&_h2]:font-semibold [&_h3]:text-sm [&_h3]:font-medium [&_ul]:my-1 [&_li]:my-0.5 [&_p]:mb-4 [&_p:last-child]:mb-0">
               <ReactMarkdown remarkPlugins={[remarkGfm]}>
                 {markdown}
               </ReactMarkdown>

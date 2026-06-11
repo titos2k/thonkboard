@@ -641,7 +641,8 @@ const BRIEF_SYSTEM = `You are arranging, not writing. Use the actual words from 
 Your only job is to order the ideas so they flow and cut what's redundant. Add a word or two of connective tissue only when something would be incomprehensible without it.
 The output should read like the person's own words put in order, not a paraphrase.
 No intro sentence, no outro, no meta-commentary. Just the ideas.
-No top-level title — return that separately.`
+No top-level title — return that separately.
+Separate distinct ideas with a blank line. Do not write one continuous block of text.`
 
 export async function generateBrief(
   graph: ThonkGraph,
