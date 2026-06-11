@@ -28,12 +28,13 @@ import { useIsMobile } from '@/hooks/useIsMobile'
 import { exportGraphToFile, parseImportedGraph } from '@/store/graph'
 import type { ThonkNode, ThonkEdge, ThonkGraph } from '@/store/types'
 import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
+import { NoteNodeComponent } from '@/components/nodes/NoteNode'
 import { EditorPanel } from '@/components/EditorPanel'
 import { TopBar } from '@/components/TopBar'
 import { Toaster } from '@/components/Toaster'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 
-const NODE_TYPES = { thonk: ThonkNodeComponent }
+const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent }
 
 const ZoomInButton = React.memo(function ZoomInButton() {
   const { zoomIn } = useReactFlow()
@@ -172,7 +173,7 @@ function toRFNode(
 ): Node {
   return {
     id: n.id,
-    type: 'thonk',
+    type: n.type === 'note' ? 'note' : 'thonk',
     position: n.position,
     selected,
     data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, ...cb } as ThonkNodeData,
@@ -184,14 +185,15 @@ function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
   const source   = nodes.find(n => n.id === e.source)
   const resolved = target?.resolved || source?.resolved
   const stroke   = NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8'
-  const dash     = target?.meta.aiGenerated ? '5 3' : undefined
+  const aiDepth  = Math.max(target?.meta.aiDepth ?? 0, source?.meta.aiDepth ?? 0)
+  const dash     = (target?.meta.aiGenerated || source?.meta.aiGenerated) ? `5 ${3 + aiDepth * 4}` : undefined
   return {
     id: e.id,
     source: e.source,
     target: e.target,
     sourceHandle: e.sourceHandle ?? undefined,
     targetHandle: e.targetHandle ?? undefined,
-    style: { stroke, strokeDasharray: dash, strokeWidth: 1.5, opacity: resolved ? 0.25 : 1 },
+    style: { stroke, strokeDasharray: dash, strokeWidth: 1.5, opacity: resolved ? 0.5 : 1 },
     className: `edge-rel-${e.relation}`,
     data: { relation: e.relation },
     reconnectable: true,
@@ -248,6 +250,13 @@ export default function App() {
     }
   }, [graph.nodes, panelNodeId])
 
+  // Clear unread dot when the Details panel opens for a node
+  useEffect(() => {
+    if (!panelNodeId) return
+    const node = graph.nodes.find(n => n.id === panelNodeId)
+    if (node?.unread) updateNode(panelNodeId, { unread: false })
+  }, [panelNodeId]) // eslint-disable-line react-hooks/exhaustive-deps
+
   // Follow selection: if panel is already open, switch it to the newly selected node
   useEffect(() => {
     if (panelNodeId !== null && selectedIds.size === 1) {
@@ -290,6 +299,7 @@ export default function App() {
     if (t === 'problem')  return '#e95a32'
     if (t === 'question') return '#f4f6f6'
     if (t === 'answer')   return '#00ae60'
+    if (t === 'note')     return '#fef9c3'
     return '#f5c44a'
   }, [])
 
@@ -468,6 +478,7 @@ export default function App() {
   const handleAddIdea     = () => { const n = addNode('idea',     '', '', viewCenter());                        setAutoEditId(n.id) }
   const handleAddProblem  = () => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 });     setAutoEditId(n.id) }
   const handleAddQuestion = () => { const n = addNode('question', '', '', viewCenter());                        setAutoEditId(n.id) }
+  const handleAddNote     = () => { const n = addNode('note',     '', '', viewCenter());                        setAutoEditId(n.id) }
 
   const handleImport = useCallback((file: File) => {
     const reader = new FileReader()
@@ -485,13 +496,14 @@ export default function App() {
   const panelNode = panelNodeId ? graph.nodes.find(n => n.id === panelNodeId) : null
 
   return (
-    <TooltipProvider delayDuration={0}>
+    <TooltipProvider delayDuration={0} disableHoverableContent>
       <div style={{ width: '100vw', height: '100dvh', position: 'relative' }}>
         <TopBar
           onAddCore={handleAddCore}
           onAddIdea={handleAddIdea}
           onAddProblem={handleAddProblem}
           onAddQuestion={handleAddQuestion}
+          onAddNote={handleAddNote}
           hideResolved={hideResolved}
           onToggleHideResolved={() => setHideResolved(v => !v)}
           onReset={() => { const coreId = resetGraph(); setAutoEditId(coreId); saveViewport({ x: 0, y: 0, zoom: 1 }); rfInstance.current?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 300 }) }}
@@ -567,6 +579,7 @@ export default function App() {
               { color: 'bg-[#f4f6f6] border border-black/10',   label: 'Question'     },
               { color: 'bg-[#00ae60]',                          label: 'Answer'       },
               { color: 'bg-[#00836d]',                          label: 'Answer AI'    },
+              { color: 'bg-[#fef9c3]',                          label: 'Note'         },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-2.5">
                 <span className={`inline-block w-3 h-3 rounded shrink-0 ${color}`} />

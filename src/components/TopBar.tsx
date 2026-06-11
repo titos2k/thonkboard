@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, FilePlus, Save, FolderOpen, Sparkles, Zap, EyeOff } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, FilePlus, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote } from 'lucide-react'
 import thonkLogo from '@/assets/thonk.webp'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -16,6 +16,7 @@ interface TopBarProps {
   onAddIdea: () => void
   onAddProblem: () => void
   onAddQuestion: () => void
+  onAddNote: () => void
   hideResolved: boolean
   onToggleHideResolved: () => void
   onReset: () => void
@@ -34,7 +35,7 @@ function MiniToggle({ on }: { on: boolean }) {
   )
 }
 
-export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hideResolved, onToggleHideResolved, onReset, showLegend, onToggleLegend, onExport, onImport, graph }: TopBarProps) {
+export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, onReset, showLegend, onToggleLegend, onExport, onImport, graph }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [resetOpen, setResetOpen] = useState(false)
   const [keyOpen, setKeyOpen] = useState(() => !getApiKey())
@@ -147,6 +148,15 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, hide
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
+
+      <Tooltip>
+        <TooltipTrigger asChild>
+          <Button size="sm" variant="outline" className="h-9 w-9 p-0 cursor-pointer bg-white" onClick={onAddNote}>
+            <StickyNote className="w-4 h-4" />
+          </Button>
+        </TooltipTrigger>
+        <TooltipContent side="bottom">Add Note</TooltipContent>
+      </Tooltip>
 
       {!isMobile && (
         <Button

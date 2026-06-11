@@ -114,8 +114,8 @@ export function useGraph() {
   )
 
   const addEdge = useCallback(
-    (source: string, target: string, relation: EdgeRelation): ThonkEdge => {
-      const edge: ThonkEdge = { id: uuidv4(), source, target, relation }
+    (source: string, target: string, relation: EdgeRelation, sourceHandle?: string, targetHandle?: string): ThonkEdge => {
+      const edge: ThonkEdge = { id: uuidv4(), source, target, relation, sourceHandle, targetHandle }
       setGraph(g => ({ ...g, edges: [...g.edges, edge] }))
       return edge
     },
@@ -123,7 +123,7 @@ export function useGraph() {
   )
 
   const updateNode = useCallback(
-    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type'>> & { meta?: Partial<ThonkNode['meta']> }) => {
+    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'unread' | 'conflicts' | 'type'>> & { meta?: Partial<ThonkNode['meta']> }) => {
       setGraph(g => ({
         ...g,
         nodes: g.nodes.map(n => {

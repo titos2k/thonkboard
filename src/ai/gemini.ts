@@ -138,7 +138,8 @@ const CRITIQUE_SYSTEM = `You are a smart, skeptical person who just read this id
 Identify the most direct, natural problems — the kind a thoughtful person would voice out loud right after reading.
 Short sentences. Plain language. No formal analysis, no jargon.
 Think: "But that assumes...", "What happens when...", "This falls apart if...", "Who would actually..."
-Score each problem 0.0–1.0. Return empty array if the idea holds up. Do NOT invent weak problems to fill space.
+Score each problem 0.0–1.0. Return only problems that genuinely arise from this specific content. Return empty array if the idea holds up.
+Do NOT pad to reach a number. Do NOT invent problems. If one real problem exists, return one. If four exist, return four.
 Each problem: 1–2 sentences max.`
 
 const SEVERITY_THRESHOLD = 0.5
@@ -211,14 +212,18 @@ TONE — this is critical:
 
 const EXPAND_SYSTEM = `You are helping develop ideas on an ideation board.
 The BOARD SKELETON shows ALL ideas that already exist — do not duplicate or paraphrase any of them.
-Generate 3 new, concrete ideas that genuinely extend or build upon the TARGET NODE.
+Generate however many new, concrete ideas naturally extend or build upon the TARGET NODE — no fixed count.
+If the content strongly suggests one direction, return one. If it opens several distinct threads, return several.
+Do NOT pad to reach a number. Each idea must earn its place.
 Each idea must be distinct from everything in the skeleton. Avoid generic brainstorming platitudes.
 Keep titles under 60 characters. Bodies should be 1-2 sentences.
 ${IDEA_TONE}`
 
 const PROPOSE_SYSTEM = `You are helping find new ideas related to a concept on an ideation board.
 The BOARD SKELETON shows ALL ideas that already exist — do not duplicate or paraphrase any of them.
-Generate 3 concrete sibling ideas — related to the TARGET NODE's domain but approaching it from different angles.
+Generate however many sibling ideas naturally emerge — related to the TARGET NODE's domain but approaching it from different angles.
+No fixed count. If one strong angle exists, return one. If several distinct approaches arise, return several.
+Do NOT pad to reach a number. Each idea must earn its place.
 Each idea must be distinct from everything in the skeleton.
 Keep titles under 60 characters. Bodies should be 1-2 sentences.
 ${IDEA_TONE}`
@@ -280,9 +285,10 @@ FORMAT — proper markdown:
 - No top-level title — the node already has one.
 
 CROSS-REFERENCES:
-- When referencing another node from the BOARD SKELETON, link it: [Node Title](node:NODE_ID)
+- You may link to IDEA nodes from the BOARD SKELETON using: [Node Title](node:NODE_ID)
   The NODE_ID is the full UUID in the first brackets of each skeleton entry.
-- Only link nodes that are genuinely conceptually related — not just adjacent.
+- Only link ideas that are genuinely conceptually related — not just adjacent.
+- Do NOT link to questions, answers, problems, or core nodes — ideas only.
 
 TITLE: Only provide a new title if the answer fundamentally renames the concept (under 60 chars). Otherwise leave blank.`
 
@@ -321,6 +327,118 @@ export async function integrateAllQA(
         body:  { type: 'string' },
         title: { type: 'string' },
       },
+      required: ['body'],
+    },
+  })
+}
+
+const INTEGRATE_IDEA_SYSTEM = `You are updating a personal note on an ideation board.
+Receive: a node (title + body) and one specific idea being merged into it.
+Task: rewrite the body incorporating ONLY the content of the provided idea. Do not pull in, summarize, or reference other nodes visible in the board skeleton — they are context only, not input.
+
+TONE — this is critical:
+- Match the voice and register of the existing content exactly.
+- If the note is casual and personal, write casually. If technical, match that.
+
+FORMAT — proper markdown:
+- Bullet lists for facts, thoughts, constraints. Each bullet on its own line starting with "- ".
+- NEVER put multiple bullets on one line separated by " - ".
+- Use ## headings only when content naturally falls into distinct sections.
+- Each bullet = 1–2 sentences max. Be terse.
+- No filler openers. No top-level title.
+
+TITLE: Only provide a new title if the idea fundamentally renames the concept (under 60 chars). Otherwise leave blank.`
+
+export async function integrateIdea(
+  contextPrompt: string,
+  ideaTitle: string,
+  ideaBody: string,
+): Promise<{ body: string; title?: string }> {
+  return callGemini<{ body: string; title?: string }>({
+    systemInstruction: INTEGRATE_IDEA_SYSTEM,
+    userPrompt: `${contextPrompt}\n\nIDEA BEING MERGED: ${ideaTitle}\nIDEA CONTENT: ${ideaBody}`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        body:  { type: 'string' },
+        title: { type: 'string' },
+      },
+      required: ['body'],
+    },
+  })
+}
+
+const ACKNOWLEDGE_PROBLEM_SYSTEM = `You are updating a personal note on an ideation board.
+Receive: a node (title + body) and a problem/concern that has been raised about it and is now being acknowledged.
+Task: briefly note this concern in the body — as a known limitation, caveat, or addressed issue. Add at most 1–2 short sentences.
+Rules:
+- Do not solve the problem or elaborate extensively — just acknowledge it exists or has been considered.
+- Only integrate the provided problem. Do not pull in other nodes visible in the board skeleton.
+- Match the voice and tone of the existing content exactly.
+- No filler openers ("Note that...", "It is worth...").
+- No top-level title.
+TITLE: Only provide a new title if the concern fundamentally reframes the concept (under 60 chars). Otherwise leave blank.`
+
+export async function acknowledgeProblem(
+  contextPrompt: string,
+  problemTitle: string,
+  problemBody: string,
+): Promise<{ body: string; title?: string }> {
+  return callGemini<{ body: string; title?: string }>({
+    systemInstruction: ACKNOWLEDGE_PROBLEM_SYSTEM,
+    userPrompt: `${contextPrompt}\n\nPROBLEM BEING ACKNOWLEDGED: ${problemTitle}\nPROBLEM DETAIL: ${problemBody}`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        body:  { type: 'string' },
+        title: { type: 'string' },
+      },
+      required: ['body'],
+    },
+  })
+}
+
+const REJECT_IDEA_SYSTEM = `You are updating a personal note on an ideation board.
+An idea that was spawned from it is being rejected.
+If the idea's content was already integrated into the body, remove that integration first.
+Then append one brief sentence noting the idea was considered and rejected.
+Rules: one added sentence max. Start with "Considered " or "Explored ". Do not editorialize.
+Format: return the full updated body only.`
+
+export async function rejectIdea(
+  contextPrompt: string,
+  ideaTitle: string,
+  ideaBody: string,
+): Promise<{ body: string }> {
+  return callGemini<{ body: string }>({
+    systemInstruction: REJECT_IDEA_SYSTEM,
+    userPrompt: `${contextPrompt}\n\nREJECTED IDEA: ${ideaTitle}\nIDEA CONTENT: ${ideaBody}`,
+    responseSchema: {
+      type: 'object',
+      properties: { body: { type: 'string' } },
+      required: ['body'],
+    },
+  })
+}
+
+const REJECTION_SYSTEM = `You are updating a personal note on an ideation board.
+Receive: a node (title + body), a question that was asked, and an answer that was rejected.
+The answer may have already been integrated into the body — if so, remove that integration first.
+Task: rewrite the body removing any content that came from the rejected answer, then append one brief sentence noting it was considered and rejected.
+Rules: preserve all content that did NOT come from the rejected answer. One added sentence max. Start with "Considered " or "Explored ". Do not editorialize.
+Format: return the full updated body only.`
+
+export async function integrateRejection(
+  contextPrompt: string,
+  question: string,
+  rejectedAnswer: string,
+): Promise<{ body: string }> {
+  return callGemini<{ body: string }>({
+    systemInstruction: REJECTION_SYSTEM,
+    userPrompt: `${contextPrompt}\n\nQUESTION ASKED: ${question}\nREJECTED ANSWER: ${rejectedAnswer}`,
+    responseSchema: {
+      type: 'object',
+      properties: { body: { type: 'string' } },
       required: ['body'],
     },
   })
@@ -434,11 +552,12 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
 // ── AI-generated answer ───────────────────────────────────────────────────────
 
 const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
-Answer the question directly and accurately in 1–3 sentences.
+Answer with the fewest words that fully cover the question — one sentence if it's enough, two if genuinely needed, never more.
+Do not pad. Do not add context the question didn't ask for. Stop as soon as the answer is complete.
 Use web search when the question benefits from current or factual information.
-Be specific. No preamble, no filler.
+No preamble, no filler, no sign-off.
 Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.
-If existing answers are already connected to this question (visible in context), provide a different angle or perspective — do not repeat what's already there.`
+If existing answers are already connected to this question (visible in context), provide a different angle — do not repeat what's already there.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
   const result = await callGeminiWithSearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
@@ -446,8 +565,8 @@ export async function answerQuestion(contextPrompt: string): Promise<{ answer: s
 }
 
 const SOLUTION_SYSTEM = `You are a direct, practical colleague in a brainstorming session.
-Propose one concrete solution or next step in 1–2 sentences.
-No analysis, no restating the problem, no preamble.
+Propose one concrete solution or next step. One sentence if it's enough — stop there.
+No analysis, no restating the problem, no preamble, no elaboration beyond the solution itself.
 Match the tone of the content — casual stays casual.
 If existing solutions are already connected to this problem (visible in context), provide a different approach — do not repeat what's already there.`
 

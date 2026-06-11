@@ -20,10 +20,10 @@ export function assembleContext(graph: ThonkGraph, targetId: string): AssembledC
   }
   connectedIds.delete(targetId)
 
-  const neighbors = graph.nodes.filter(n => connectedIds.has(n.id))
+  const neighbors = graph.nodes.filter(n => connectedIds.has(n.id) && n.type !== 'note')
 
   const skeleton = {
-    nodes: graph.nodes.map(n => ({ id: n.id, type: n.type, title: n.title })),
+    nodes: graph.nodes.filter(n => n.type !== 'note').map(n => ({ id: n.id, type: n.type, title: n.title })),
     edges: graph.edges.map(e => ({ source: e.source, target: e.target, relation: e.relation })),
   }
 

@@ -221,12 +221,15 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
                       }
                       if (nodeId) {
                         return (
-                          <button
+                          <span
+                            role="button"
+                            tabIndex={0}
                             onClick={() => onNavigateToNode?.(nodeId!)}
-                            className="node-ref inline text-primary underline cursor-pointer font-medium bg-transparent border-none p-0 hover:opacity-70 transition-opacity"
+                            onKeyDown={e => e.key === 'Enter' && onNavigateToNode?.(nodeId!)}
+                            className="node-ref text-primary underline cursor-pointer font-medium hover:opacity-70 transition-opacity"
                           >
                             {children}
-                          </button>
+                          </span>
                         )
                       }
                       return <a href={href} target="_blank" rel="noopener noreferrer">{children}</a>

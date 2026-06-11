@@ -1,4 +1,4 @@
-export type NodeType = 'core' | 'idea' | 'problem' | 'question' | 'answer'
+export type NodeType = 'core' | 'idea' | 'problem' | 'question' | 'answer' | 'note'
 
 export type EdgeRelation =
   | 'spawns'
@@ -24,8 +24,9 @@ export interface ThonkNode {
   title: string
   body: string        // full markdown description (edited in panel)
   summary: string     // AI-generated 1-2 sentence summary; empty until generated
-  resolved: boolean        // true when the Q&A pair has been closed (approved or dismissed)
-  resolvedAs?: 'approved' | 'dismissed'
+  resolved: boolean        // true when the Q&A pair has been closed (merged or closed)
+  resolvedAs?: 'merged' | 'closed' | 'rejected'
+  unread?: boolean         // true when AI has updated this node's body since the user last opened Details
   conflicts: ConflictEntry[]  // contradictions detected with other nodes after approval
   position: { x: number; y: number }
   meta: {

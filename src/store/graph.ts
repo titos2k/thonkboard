@@ -13,13 +13,21 @@ export function exportGraphToFile(graph: ThonkGraph): void {
   URL.revokeObjectURL(url)
 }
 
+function migrateNode(n: ThonkNode): ThonkNode {
+  const base = {
+    ...(n.summary == null ? { ...n, summary: '' } : n),
+    resolved:  (n as ThonkNode & { resolved?: boolean }).resolved  ?? false,
+    conflicts: (n as ThonkNode & { conflicts?: ThonkNode['conflicts'] }).conflicts ?? [],
+  }
+  // Migrate old resolvedAs values to new vocabulary
+  if ((base.resolvedAs as string) === 'approved')  base.resolvedAs = 'merged'
+  if ((base.resolvedAs as string) === 'dismissed') base.resolvedAs = 'closed'
+  return base
+}
+
 export function parseImportedGraph(json: string): ThonkGraph {
   const g = JSON.parse(json) as ThonkGraph
-  g.nodes = g.nodes.map(n => ({
-    ...(n.summary == null ? { ...n, summary: '' } : n),
-    resolved: (n as ThonkNode & { resolved?: boolean }).resolved ?? false,
-    conflicts: (n as ThonkNode & { conflicts?: ThonkNode['conflicts'] }).conflicts ?? [],
-  }))
+  g.nodes = g.nodes.map(migrateNode)
   return g
 }
 
@@ -50,12 +58,8 @@ export function loadGraph(): ThonkGraph {
     const raw = localStorage.getItem(STORAGE_KEY)
     if (raw) {
       const g = JSON.parse(raw) as ThonkGraph
-      // Migrate: ensure every node has required fields
-      g.nodes = g.nodes.map(n => ({
-        ...(n.summary == null ? { ...n, summary: '' } : n),
-        resolved:  (n as ThonkNode & { resolved?: boolean }).resolved  ?? false,
-        conflicts: (n as ThonkNode & { conflicts?: ThonkNode['conflicts'] }).conflicts ?? [],
-      }))
+      // Migrate: ensure every node has required fields + upgrade old resolvedAs values
+      g.nodes = g.nodes.map(migrateNode)
       return g
     }
   } catch {
@@ -108,7 +112,7 @@ export function addEdge(
 export function updateNode(
   graph: ThonkGraph,
   id: string,
-  patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'conflicts'>>,
+  patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'unread'>>,
 ): ThonkGraph {
   return {
     ...graph,
