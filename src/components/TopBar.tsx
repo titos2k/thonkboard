@@ -1,13 +1,19 @@
-import { useRef, useState } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale } from 'lucide-react'
+import { useRef, useState, memo } from 'react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
 import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from './ui/dropdown-menu'
-import { getApiKey, setApiKey, getHighIQ, setHighIQ } from '@/ai/gemini'
+import {
+  setApiKey, getHighIQ, setHighIQ,
+  getProvider, setProvider, getProviderKey, setProviderKey, hasActiveKey,
+} from '@/ai/gemini'
+import { getOllamaBaseUrl, getOllamaModel, setOllamaConfig, PROVIDER_MODEL_LITE, PROVIDER_MODEL_SMART } from '@/ai/openai-compat'
+import { MODEL_LITE as ANTHROPIC_LITE, MODEL_SMART as ANTHROPIC_SMART } from '@/ai/anthropic'
 import { SummarizeModal, type SummarizeCache } from './SummarizeModal'
 import type { ThonkGraph, BoardMeta } from '@/store/types'
+import type { Provider } from '@/ai/types'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface TopBarProps {
@@ -30,6 +36,9 @@ interface TopBarProps {
   onCreateBoard: () => void
   onDeleteBoard: (id: string) => void
   onRenameBoard: (id: string, name: string) => void
+  keyOpen: boolean
+  onKeyOpenChange: (open: boolean) => void
+  onAiConnected?: () => void
 }
 
 function MiniToggle({ on }: { on: boolean }) {
@@ -40,12 +49,52 @@ function MiniToggle({ on }: { on: boolean }) {
   )
 }
 
-export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportPng, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard }: TopBarProps) {
+const PROVIDER_LABELS: Record<Provider, string> = {
+  gemini: 'Google Gemini', openai: 'OpenAI', anthropic: 'Anthropic', deepseek: 'DeepSeek', ollama: 'Ollama',
+}
+
+const PROVIDER_SERVER: Record<Provider, string> = {
+  gemini: 'Google', openai: 'OpenAI', anthropic: 'Anthropic', deepseek: 'DeepSeek', ollama: 'Ollama',
+}
+
+const PROVIDERS: Provider[] = ['gemini', 'openai', 'anthropic', 'deepseek', 'ollama']
+
+const PROVIDER_MODELS: Record<Provider, { lite: string; smart: string }> = {
+  gemini:    { lite: 'gemini-3.1-flash-lite', smart: 'gemini-3.5-flash' },
+  openai:    { lite: PROVIDER_MODEL_LITE.openai, smart: PROVIDER_MODEL_SMART.openai },
+  anthropic: { lite: ANTHROPIC_LITE, smart: ANTHROPIC_SMART },
+  deepseek:  { lite: PROVIDER_MODEL_LITE.deepseek, smart: PROVIDER_MODEL_SMART.deepseek },
+  ollama:    { lite: '', smart: '' },
+}
+
+function apiKeyButtonLabel(provider: Provider): string {
+  return hasActiveKey() ? `${PROVIDER_LABELS[provider]} ✓` : 'Set AI key'
+}
+
+function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportPng, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [keyOpen, setKeyOpen] = useState(() => !getApiKey())
-  const [key, setKey] = useState(getApiKey)
+
+  // Committed provider (drives button label + Turbo Thonking visibility)
+  const [committedProvider, setCommittedProvider] = useState<Provider>(getProvider)
+
   const [saved, setSaved] = useState(false)
   const [highIQ, setHighIQState] = useState(getHighIQ)
+
+  // Dialog-local state — reset each time dialog opens
+  const [dialogProvider, setDialogProvider] = useState<Provider>(getProvider)
+  const [geminiKey, setGeminiKey] = useState(() => getProviderKey('gemini'))
+  const [openaiKey, setOpenaiKey] = useState(() => getProviderKey('openai'))
+  const [anthropicKey, setAnthropicKey] = useState(() => getProviderKey('anthropic'))
+  const [deepseekKey, setDeepseekKey] = useState(() => getProviderKey('deepseek'))
+  const [ollamaKey, setOllamaKey] = useState(() => getProviderKey('ollama'))
+  const [ollamaModel, setOllamaModel] = useState(getOllamaModel)
+  const [ollamaPort, setOllamaPort] = useState(() => {
+    const base = getOllamaBaseUrl()
+    const match = base.match(/:(\d+)\//)
+    return match ? match[1] : '11434'
+  })
+  const [ollamaTestStatus, setOllamaTestStatus] = useState<'idle' | 'testing' | 'ok' | 'fail'>('idle')
+
   const [summarizeOpen, setSummarizeOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
   const summarizeCache = useRef<SummarizeCache | null>(null)
@@ -55,6 +104,41 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [legalOpen, setLegalOpen] = useState(false)
 
+  const logoRef = useRef<HTMLImageElement>(null)
+  const logoHoverTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+  const logoRafRef = useRef<number | null>(null)
+  const logoShakingRef = useRef(false)
+  const logoShakeStartRef = useRef<number>(0)
+
+  const startLogoShake = () => {
+    if (logoRafRef.current) { cancelAnimationFrame(logoRafRef.current); logoRafRef.current = null }
+    logoShakingRef.current = true
+    logoShakeStartRef.current = 0
+    const animate = (now: number) => {
+      if (!logoShakingRef.current || !logoRef.current) return
+      if (!logoShakeStartRef.current) logoShakeStartRef.current = now
+      const elapsed = (now - logoShakeStartRef.current) / 1000
+      const intensity = Math.min(elapsed / 3, 1)
+      const maxAngle = 2 + intensity * 6
+      // freq ramps 1→2.5Hz over 3s; integrate phase so changing freq doesn't alias with large absolute now
+      const phaseRad = elapsed < 3
+        ? 2 * Math.PI * (elapsed + 0.25 * elapsed * elapsed)
+        : 2 * Math.PI * (5.25 + 2.5 * (elapsed - 3))
+      const angle = Math.sin(phaseRad) * maxAngle
+      logoRef.current.style.transform = `rotate(${angle}deg)`
+      logoRafRef.current = requestAnimationFrame(animate)
+    }
+    logoRafRef.current = requestAnimationFrame(animate)
+  }
+
+  const stopLogoShake = () => {
+    logoShakingRef.current = false
+    logoShakeStartRef.current = 0
+    if (logoRafRef.current) { cancelAnimationFrame(logoRafRef.current); logoRafRef.current = null }
+    if (logoHoverTimerRef.current) { clearTimeout(logoHoverTimerRef.current); logoHoverTimerRef.current = null }
+    if (logoRef.current) logoRef.current.style.transform = ''
+  }
+
   const hasContent = graph.nodes.some(n => n.type === 'core' || n.type === 'idea')
 
   const toggleHighIQ = () => {
@@ -63,21 +147,91 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
     setHighIQState(next)
   }
 
+  const openKeyDialog = () => {
+    // Re-sync from storage in case it changed
+    setDialogProvider(getProvider())
+    setGeminiKey(getProviderKey('gemini'))
+    setOpenaiKey(getProviderKey('openai'))
+    setAnthropicKey(getProviderKey('anthropic'))
+    setDeepseekKey(getProviderKey('deepseek'))
+    setOllamaKey(getProviderKey('ollama'))
+    const portMatch = getOllamaBaseUrl().match(/:(\d+)\//)
+    setOllamaPort(portMatch ? portMatch[1] : '11434')
+    setOllamaModel(getOllamaModel())
+    setOllamaTestStatus('idle')
+    onKeyOpenChange(true)
+  }
+
+  const handleDialogClose = (open: boolean) => {
+    if (!open) {
+      // Reset dialog state to committed values on close-without-save
+      setDialogProvider(committedProvider)
+    }
+    onKeyOpenChange(open)
+  }
+
+  // Auto-detect provider from key prefix and switch tabs
+  const handleKeyChange = (value: string, forProvider: Provider) => {
+    if (value.startsWith('AIza') && forProvider !== 'gemini') {
+      setGeminiKey(value); setDialogProvider('gemini'); return
+    }
+    if (value.startsWith('sk-ant-') && forProvider !== 'anthropic') {
+      setAnthropicKey(value); setDialogProvider('anthropic'); return
+    }
+    if (forProvider === 'gemini')    setGeminiKey(value)
+    else if (forProvider === 'openai')    setOpenaiKey(value)
+    else if (forProvider === 'anthropic') setAnthropicKey(value)
+    else if (forProvider === 'deepseek')  setDeepseekKey(value)
+    else if (forProvider === 'ollama')    setOllamaKey(value)
+  }
+
+  const currentKey = dialogProvider === 'gemini'    ? geminiKey
+                   : dialogProvider === 'openai'    ? openaiKey
+                   : dialogProvider === 'anthropic' ? anthropicKey
+                   : dialogProvider === 'deepseek'  ? deepseekKey
+                   : ollamaKey
+
+  const canSave = dialogProvider === 'ollama'
+    ? !!ollamaModel.trim()
+    : !!currentKey.trim()
+
   const handleSave = () => {
-    setApiKey(key)
+    if (dialogProvider === 'gemini') {
+      setApiKey(geminiKey)
+    } else if (dialogProvider === 'ollama') {
+      setProviderKey('ollama', ollamaKey)
+      setOllamaConfig(`http://localhost:${ollamaPort}/v1`, ollamaModel)
+    } else {
+      setProviderKey(dialogProvider, currentKey)
+    }
+    setProvider(dialogProvider)
+    setCommittedProvider(dialogProvider)
     setSaved(true)
     setTimeout(() => setSaved(false), 2000)
+    onAiConnected?.()
+    onKeyOpenChange(false)
   }
 
   return (
     <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-white border-b border-border" style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-      <img src="/thonkboard-logo.svg" alt="Thonk" className="h-7 w-auto mr-1" />
+      <img
+        ref={logoRef}
+        src="/thonkboard-logo.svg"
+        alt="Thonk"
+        className="h-7 w-auto mr-1"
+        style={{ transformOrigin: 'center' }}
+        onMouseEnter={() => { logoHoverTimerRef.current = setTimeout(startLogoShake, 1000) }}
+        onMouseLeave={stopLogoShake}
+      />
 
       {/* Hamburger menu */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="ghost" className="h-9 w-9 p-0 cursor-pointer">
+          <Button size="sm" variant="ghost" className="h-9 w-9 p-0 cursor-pointer relative">
             <Menu className="w-5 h-5" />
+            {isMobile && !hasActiveKey() && (
+              <span className="absolute top-1.5 right-1.5 w-2 h-2 rounded-full bg-red-500" />
+            )}
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" onCloseAutoFocus={e => e.preventDefault()}>
@@ -143,6 +297,33 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           <DropdownMenuItem disabled={!hasContent} onClick={() => setSummarizeOpen(true)}>
             <Sparkles className="w-4 h-4 text-muted-foreground" /> Summarize
           </DropdownMenuItem>
+          {isMobile && (
+            <>
+              <DropdownMenuSeparator />
+              {committedProvider !== 'ollama' && (
+                <DropdownMenuItem onClick={toggleHighIQ} className="justify-between">
+                  <span className="flex items-center gap-2">
+                    <Zap className="w-4 h-4 text-muted-foreground" /> Turbo Thonking
+                  </span>
+                  <MiniToggle on={highIQ} />
+                </DropdownMenuItem>
+              )}
+              <DropdownMenuItem onClick={onToggleHideResolved} className="justify-between">
+                <span className="flex items-center gap-2">
+                  <EyeOff className="w-4 h-4 text-muted-foreground" /> Hide resolved
+                </span>
+                <MiniToggle on={hideResolved} />
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={openKeyDialog} className={!hasActiveKey() ? 'text-red-500' : undefined}>
+                <Astroid className={`w-4 h-4 ${!hasActiveKey() ? 'text-red-500' : 'text-muted-foreground'}`} />
+                {apiKeyButtonLabel(committedProvider)}
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={() => setHelpOpen(true)}>
+                <HelpCircle className="w-4 h-4 text-muted-foreground" /> Help
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
             <a href="https://buymeacoffee.com/titos2k" target="_blank" rel="noopener noreferrer">
@@ -152,32 +333,6 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           <DropdownMenuItem onClick={() => setLegalOpen(true)}>
             <Scale className="w-4 h-4 text-muted-foreground" /> Privacy & Terms
           </DropdownMenuItem>
-
-          {isMobile && (
-            <>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={toggleHighIQ} className="justify-between">
-                <span className="flex items-center gap-2">
-                  <Zap className="w-4 h-4 text-muted-foreground" /> Turbo Thonking
-                </span>
-                <MiniToggle on={highIQ} />
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onToggleHideResolved} className="justify-between">
-                <span className="flex items-center gap-2">
-                  <EyeOff className="w-4 h-4 text-muted-foreground" /> Hide resolved
-                </span>
-                <MiniToggle on={hideResolved} />
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={() => setKeyOpen(true)}>
-                <Astroid className="w-4 h-4 text-muted-foreground" />
-                {getApiKey() ? 'API Key ✓' : 'Set API Key'}
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={() => setHelpOpen(true)}>
-                <HelpCircle className="w-4 h-4 text-muted-foreground" /> Help
-              </DropdownMenuItem>
-            </>
-          )}
         </DropdownMenuContent>
       </DropdownMenu>
 
@@ -253,32 +408,34 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           </TooltipContent>
         </Tooltip>
 
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={toggleHighIQ}
-              className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 transition-colors"
-            >
-              <span className="text-sm font-medium text-muted-foreground select-none">Turbo Thonking</span>
-              <div className={`relative w-8 h-4 rounded-full transition-colors ${highIQ ? 'bg-gray-700' : 'bg-gray-300'}`}>
-                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${highIQ ? 'translate-x-4' : 'translate-x-0.5'}`} />
-              </div>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom" className="max-w-[200px] text-center">
-            {highIQ
-              ? 'Using gemini-3.5-flash — smarter, slower, costs more'
-              : 'Using gemini-3.1-flash-lite — fast and cheap. Enable for deeper reasoning.'}
-          </TooltipContent>
-        </Tooltip>
+        {committedProvider !== 'ollama' && (
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={toggleHighIQ}
+                className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 transition-colors"
+              >
+                <span className="text-sm font-medium text-muted-foreground select-none">Turbo Thonking</span>
+                <div className={`relative w-8 h-4 rounded-full transition-colors ${highIQ ? 'bg-gray-700' : 'bg-gray-300'}`}>
+                  <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${highIQ ? 'translate-x-4' : 'translate-x-0.5'}`} />
+                </div>
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="bottom" className="max-w-[200px] text-center">
+              {highIQ
+                ? `Using ${PROVIDER_MODELS[committedProvider].smart} - smarter, slower, costs more`
+                : `Using ${PROVIDER_MODELS[committedProvider].lite} - fast and cheap. Enable for deeper reasoning.`}
+            </TooltipContent>
+          </Tooltip>
+        )}
 
         <Button
           size="sm" variant="ghost"
-          className={`h-9 text-sm gap-2 ${!getApiKey() ? 'text-red-500 hover:text-red-600' : ''}`}
-          onClick={() => setKeyOpen(true)}
+          className={`h-9 text-sm gap-2 ${!hasActiveKey() ? 'text-red-500 hover:text-red-600' : ''}`}
+          onClick={openKeyDialog}
         >
           <Astroid className="w-5 h-5" />
-          {getApiKey() ? 'API Key ✓' : 'Set API Key'}
+          {apiKeyButtonLabel(committedProvider)}
         </Button>
 
         <Tooltip>
@@ -310,40 +467,217 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
         </Button>
       </div>
 
-      {/* API Key dialog (controlled) */}
-      <Dialog open={keyOpen} onOpenChange={setKeyOpen}>
-        <DialogContent className="max-w-sm">
+      {/* ── API Key dialog ──────────────────────────────────────────────────────── */}
+      <Dialog open={keyOpen} onOpenChange={handleDialogClose}>
+        <DialogContent className={isMobile ? 'max-w-md' : 'max-w-[580px]'}>
+          {!isMobile && (
+            <img
+              src="/thonk-wizard.png"
+              alt=""
+              aria-hidden="true"
+              className="absolute bottom-[30px] -left-[96px] h-[410px] w-auto pointer-events-none select-none"
+            />
+          )}
+          <div className={`flex flex-col gap-4${!isMobile ? ' pl-[200px]' : ''}`}>
           <DialogHeader>
-            <DialogTitle className="pb-2">Gemini API Key</DialogTitle>
-            <DialogDescription>
-              For ThonkBoard to think, it needs a Gemini API key. It's free and takes 30 seconds to get. Your key is stored only in your browser. We never see it or send it anywhere.
+            <DialogTitle className="pb-2">Connect Your AI</DialogTitle>
+            <DialogDescription className="text-sm text-muted-foreground leading-snug">
+              <span className="text-foreground font-semibold">ThonkBoard</span>{' '}uses AI to critique your ideas, ask sharp questions, and generate answers. Pick a provider you already have access to - most have a free tier and take under a minute to set up.
             </DialogDescription>
           </DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); handleSave() }} className="flex gap-2">
-            <Input
-              type="password"
-              placeholder="Paste your API key…"
-              autoComplete="off"
-              value={key}
-              onChange={e => setKey(e.target.value)}
-              className="text-sm"
-            />
-            <Button type="submit" size="sm" disabled={!key.trim()} className="shrink-0 h-9 text-sm cursor-pointer">
-              {saved ? 'Saved!' : 'Save'}
-            </Button>
+
+          {/* Provider selector — radios */}
+          <div className="flex flex-wrap gap-x-5 gap-y-2">
+            {PROVIDERS.map(p => (
+              <label key={p} className="flex items-center gap-2 cursor-pointer">
+                <input
+                  type="radio"
+                  name="ai-provider"
+                  value={p}
+                  checked={dialogProvider === p}
+                  onChange={() => setDialogProvider(p)}
+                  className="accent-gray-900 w-4 h-4"
+                />
+                <span className="text-sm font-medium select-none">{PROVIDER_LABELS[p]}</span>
+              </label>
+            ))}
+          </div>
+
+          {/* Trust banner — hidden for Ollama local */}
+          {dialogProvider !== 'ollama' && (
+            <div className="flex items-start gap-2 bg-gray-50 rounded px-3 py-3">
+              <Lock className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'hsl(240, 55%, 42%)' }} />
+              <p className="text-sm text-muted-foreground leading-snug">
+                Your key is stored only in this browser's localStorage. It goes directly to{' '}
+                {PROVIDER_SERVER[dialogProvider]}'s servers - never ours.
+              </p>
+            </div>
+          )}
+
+          {/* Per-provider content */}
+          <form onSubmit={e => { e.preventDefault(); if (canSave) handleSave() }} className="space-y-3">
+
+            {dialogProvider === 'gemini' && (
+              <>
+                <Input
+                  type="password"
+                  placeholder="Gemini API key…"
+                  autoComplete="off"
+                  value={geminiKey}
+                  onChange={e => handleKeyChange(e.target.value, 'gemini')}
+                  className="text-sm font-mono bg-white"
+                  autoFocus
+                />
+                <a
+                  href="https://aistudio.google.com/app/apikey"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary underline hover:opacity-70 transition-opacity block"
+                >
+                  Get a free key from Google AI Studio →
+                </a>
+              </>
+            )}
+
+            {dialogProvider === 'openai' && (
+              <>
+                <Input
+                  type="password"
+                  placeholder="OpenAI API key…"
+                  autoComplete="off"
+                  value={openaiKey}
+                  onChange={e => handleKeyChange(e.target.value, 'openai')}
+                  className="text-sm font-mono bg-white"
+                  autoFocus
+                />
+                <a
+                  href="https://platform.openai.com/api-keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary underline hover:opacity-70 transition-opacity block"
+                >
+                  Get your key from OpenAI Platform →
+                </a>
+              </>
+            )}
+
+            {dialogProvider === 'anthropic' && (
+              <>
+                <Input
+                  type="password"
+                  placeholder="Anthropic API key…"
+                  autoComplete="off"
+                  value={anthropicKey}
+                  onChange={e => handleKeyChange(e.target.value, 'anthropic')}
+                  className="text-sm font-mono bg-white"
+                  autoFocus
+                />
+                <a
+                  href="https://console.anthropic.com/settings/keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary underline hover:opacity-70 transition-opacity block"
+                >
+                  Get your key from Anthropic Console →
+                </a>
+              </>
+            )}
+
+            {dialogProvider === 'deepseek' && (
+              <>
+                <Input
+                  type="password"
+                  placeholder="DeepSeek API key…"
+                  autoComplete="off"
+                  value={deepseekKey}
+                  onChange={e => handleKeyChange(e.target.value, 'deepseek')}
+                  className="text-sm font-mono bg-white"
+                  autoFocus
+                />
+                <a
+                  href="https://platform.deepseek.com/api_keys"
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-sm text-primary underline hover:opacity-70 transition-opacity block"
+                >
+                  Get your key from DeepSeek Platform →
+                </a>
+              </>
+            )}
+
+            {dialogProvider === 'ollama' && (
+              <>
+                <div className="space-y-2">
+                  <p className="text-sm text-muted-foreground bg-gray-50 rounded px-3 py-2">
+                    Make sure Ollama is running on your machine.{' '}
+                    <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-70">
+                      ollama.com →
+                    </a>
+                  </p>
+                  <div className="flex items-center gap-2">
+                    <label className="text-sm text-muted-foreground shrink-0">Port</label>
+                    <Input
+                      type="text"
+                      inputMode="numeric"
+                      placeholder="11434"
+                      value={ollamaPort}
+                      onChange={e => { setOllamaPort(e.target.value); setOllamaTestStatus('idle') }}
+                      className="text-sm font-mono bg-white w-24"
+                    />
+                    <Button
+                      type="button"
+                      size="sm"
+                      variant="outline"
+                      className="h-9 text-sm cursor-pointer bg-white shrink-0"
+                      disabled={ollamaTestStatus === 'testing'}
+                      onClick={async () => {
+                        setOllamaTestStatus('testing')
+                        try {
+                          const port = ollamaPort || '11434'
+                          const res = await fetch(`http://localhost:${port}/api/tags`, { signal: AbortSignal.timeout(3000) })
+                          setOllamaTestStatus(res.ok ? 'ok' : 'fail')
+                        } catch {
+                          setOllamaTestStatus('fail')
+                        }
+                      }}
+                    >
+                      {ollamaTestStatus === 'testing' ? 'Testing…' : 'Test'}
+                    </Button>
+                    {ollamaTestStatus === 'ok' && <span className="text-sm text-green-600 font-medium">✓ Running</span>}
+                    {ollamaTestStatus === 'fail' && <span className="text-sm text-red-500">Not reachable</span>}
+                  </div>
+                </div>
+
+                <div className="flex items-center gap-2">
+                  <label className="text-sm text-muted-foreground shrink-0">Model</label>
+                  <Input
+                    type="text"
+                    placeholder="gemma4"
+                    value={ollamaModel}
+                    onChange={e => setOllamaModel(e.target.value)}
+                    className="text-sm font-mono bg-white"
+                    autoFocus
+                  />
+                </div>
+              </>
+            )}
+
+            <div className="pt-2">
+              <Button
+                type="submit"
+                size="sm"
+                disabled={!canSave}
+                className="w-full h-9 text-sm cursor-pointer"
+              >
+                {saved ? 'Saved!' : 'Save'}
+              </Button>
+            </div>
           </form>
-          <a
-            href="https://aistudio.google.com/app/apikey"
-            target="_blank"
-            rel="noopener noreferrer"
-            className="text-sm text-primary underline hover:opacity-70 transition-opacity"
-          >
-            Get a free API key from Google AI Studio →
-          </a>
+          </div>
         </DialogContent>
       </Dialog>
 
-      {/* Help dialog (controlled) */}
+      {/* Help dialog */}
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
         <DialogContent className="max-w-md sm:max-w-2xl" aria-describedby={undefined}>
           <DialogHeader>
@@ -355,6 +689,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
             <div>
               <p className="font-semibold text-foreground mb-1">No backend, fully private</p>
               <p>ThonkBoard has no server. Nothing you type is stored anywhere outside your browser - no account, no sync, no telemetry. The flip side: if you clear your browser data, your boards are gone. Save boards to files regularly using the export button. Old-school, but yours.</p>
+              <p className="mt-1 text-orange-600">Do not use ThonkBoard in incognito/private mode - browsers wipe localStorage on close, so you will lose all your work.</p>
             </div>
 
             <div>
@@ -458,14 +793,13 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           <div className="text-sm text-muted-foreground space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <section>
               <strong className="text-foreground">Privacy Policy</strong>
-              <p className="mt-1">Thonkboard does not collect, store, or transmit any personal data. Your boards and API key are stored exclusively in your browser's localStorage and never leave your device.</p>
-              <p className="mt-1">This site uses Google Fonts, which are loaded from Google's servers. Google may log your IP address when fonts are fetched. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">Google's Privacy Policy</a>.</p>
-              <p className="mt-1">Gemini API calls are made directly from your browser to Google's API using your own key. We have no visibility into these requests.</p>
+              <p className="mt-1">Thonkboard does not collect, store, or transmit any personal data. Your boards and API keys are stored exclusively in your browser's localStorage and never leave your device.</p>
+              <p className="mt-1">AI API calls are made directly from your browser to your chosen provider using your own key. We have no visibility into these requests. When using Ollama (local), all AI processing happens on your device - no data leaves your machine at all.</p>
             </section>
             <section>
               <strong className="text-foreground">Terms of Service</strong>
               <p className="mt-1">Thonkboard is provided free of charge, as-is, with no warranties of any kind. Use at your own risk. We are not liable for any loss of data or damages arising from use of this tool.</p>
-              <p className="mt-1">You are responsible for your own Gemini API key and any costs associated with its use.</p>
+              <p className="mt-1">You are responsible for your own API keys and any costs associated with their use.</p>
               <p className="mt-1">Thonkboard uses AI to assist with thinking and ideation. AI-generated content may be inaccurate, incomplete, or misleading. You are solely responsible for evaluating AI output and any decisions, actions, or consequences that follow from it. Misuse of AI features is governed by your AI provider's terms. We accept no liability for harm arising from reliance on AI-generated content.</p>
             </section>
           </div>
@@ -474,3 +808,5 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
     </div>
   )
 }
+
+export const TopBar = memo(TopBarFn)

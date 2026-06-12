@@ -1,10 +1,53 @@
 import type { GroundingChunk, ThonkGraph } from '@/store/types'
+import type { AIRequest, Provider } from './types'
+import { callOpenAICompat, callOpenAICompatText, type OAICompatProvider } from './openai-compat'
+import { callAnthropic, callAnthropicText } from './anthropic'
+
+// ── Models ────────────────────────────────────────────────────────────────────
 
 const MODEL_LITE  = 'gemini-3.1-flash-lite'
 const MODEL_SMART = 'gemini-3.5-flash'
 
-const STORAGE_KEY     = 'thonk.apikey'
-const STORAGE_HI_KEY  = 'thonk.highiq'
+// ── Storage keys ──────────────────────────────────────────────────────────────
+
+const STORAGE_KEY      = 'thonk.apikey'
+const STORAGE_HI_KEY   = 'thonk.highiq'
+const STORAGE_PROVIDER = 'thonk.provider'
+
+// ── Provider helpers ─────────────────────────────────────────────────────────
+
+export function getProvider(): Provider {
+  return (localStorage.getItem(STORAGE_PROVIDER) as Provider) ?? 'gemini'
+}
+
+export function setProvider(p: Provider): void {
+  localStorage.setItem(STORAGE_PROVIDER, p)
+}
+
+export function getProviderKey(p: Provider): string {
+  if (p === 'gemini') return localStorage.getItem(STORAGE_KEY) ?? ''
+  return localStorage.getItem(`thonk.apikey.${p}`) ?? ''
+}
+
+export function setProviderKey(p: Provider, key: string): void {
+  if (p === 'gemini') {
+    localStorage.setItem(STORAGE_KEY, key)
+    return
+  }
+  localStorage.setItem(`thonk.apikey.${p}`, key)
+}
+
+export function hasActiveKey(): boolean {
+  const p = getProvider()
+  if (p === 'ollama') {
+    const base = localStorage.getItem('thonk.ollama.baseurl') ?? 'http://localhost:11434/v1'
+    if (base.startsWith('http://localhost') || base.startsWith('http://127.')) return true
+    return !!(localStorage.getItem('thonk.apikey.ollama') ?? '')
+  }
+  return !!getProviderKey(p)
+}
+
+// ── Gemini-specific key/model helpers (kept for backward compat) ──────────────
 
 export function getApiKey(): string {
   return localStorage.getItem(STORAGE_KEY) ?? ''
@@ -27,15 +70,11 @@ function getApiBase(): string {
   return `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent`
 }
 
-interface GeminiRequest {
-  systemInstruction: string
-  userPrompt: string
-  responseSchema: object
-}
+// ── Gemini internal fetcher ───────────────────────────────────────────────────
 
-async function callGemini<T>(req: GeminiRequest): Promise<T> {
+async function _callGemini<T>(req: AIRequest): Promise<T> {
   const key = getApiKey()
-  if (!key) throw new Error('No Gemini API key set. Add your key in the top bar.')
+  if (!key) throw new Error('No API key set. Add your key in the top bar.')
 
   const body = {
     systemInstruction: { parts: [{ text: req.systemInstruction }] },
@@ -62,6 +101,17 @@ async function callGemini<T>(req: GeminiRequest): Promise<T> {
   return JSON.parse(text) as T
 }
 
+// ── Provider dispatcher ───────────────────────────────────────────────────────
+
+async function callAI<T>(req: AIRequest): Promise<T> {
+  const p = getProvider()
+  if (p === 'anthropic') return callAnthropic<T>(req)
+  if (p === 'openai' || p === 'deepseek' || p === 'ollama') return callOpenAICompat<T>(p as OAICompatProvider, req)
+  return _callGemini<T>(req)
+}
+
+// ── Grounded search (Gemini only; others fall back to plain text) ─────────────
+
 interface SearchCallRequest {
   systemInstruction: string
   userPrompt: string
@@ -72,9 +122,9 @@ interface SearchResult {
   sources: GroundingChunk[]
 }
 
-async function callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResult> {
+async function _callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResult> {
   const key = getApiKey()
-  if (!key) throw new Error('No Gemini API key set. Add your key in the top bar.')
+  if (!key) throw new Error('No API key set. Add your key in the top bar.')
 
   const makeBody = (withSearch: boolean) => ({
     systemInstruction: { parts: [{ text: withSearch ? req.systemInstruction : req.systemInstruction + '\nDo not include any URLs or links in your response.' }] },
@@ -113,10 +163,22 @@ async function callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResul
   return { text, sources }
 }
 
+async function callAISearch(req: SearchCallRequest): Promise<SearchResult> {
+  const p = getProvider()
+  if (p === 'gemini') return _callGeminiWithSearch(req)
+  let text: string
+  if (p === 'anthropic') {
+    text = await callAnthropicText(req)
+  } else {
+    text = await callOpenAICompatText(p as OAICompatProvider, req)
+  }
+  return { text, sources: [] }
+}
+
 // ── Grammar fix ───────────────────────────────────────────────────────────────
 
 export async function fixGrammar(text: string): Promise<{ fixed: string }> {
-  return callGemini<{ fixed: string }>({
+  return callAI<{ fixed: string }>({
     systemInstruction: `You are a minimal text corrector. Fix spelling, apply sentence case, and add missing punctuation.
 
 Rules — follow all strictly:
@@ -169,7 +231,7 @@ Each problem: 1–2 sentences max.`
 const SEVERITY_THRESHOLD = 0.5
 
 export async function critiqueNode(contextPrompt: string): Promise<CritiqueItem[]> {
-  const items = await callGemini<CritiqueItem[]>({
+  const items = await callAI<CritiqueItem[]>({
     systemInstruction: CRITIQUE_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: CRITIQUE_SCHEMA,
@@ -201,7 +263,7 @@ Do not ask about anything already answered or addressed in the node body.
 Return only the question. No preamble.`
 
 export async function questionNode(contextPrompt: string): Promise<QuestionItem> {
-  return callGemini<QuestionItem>({
+  return callAI<QuestionItem>({
     systemInstruction: QUESTION_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: QUESTION_SCHEMA,
@@ -253,7 +315,7 @@ Keep titles under 60 characters. Bodies should be 1-2 sentences.
 ${IDEA_TONE}`
 
 export async function expandNode(contextPrompt: string): Promise<IdeaItem[]> {
-  return callGemini<IdeaItem[]>({
+  return callAI<IdeaItem[]>({
     systemInstruction: EXPAND_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: IDEA_SCHEMA,
@@ -261,7 +323,7 @@ export async function expandNode(contextPrompt: string): Promise<IdeaItem[]> {
 }
 
 export async function proposeIdeas(contextPrompt: string): Promise<IdeaItem[]> {
-  return callGemini<IdeaItem[]>({
+  return callAI<IdeaItem[]>({
     systemInstruction: PROPOSE_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: IDEA_SCHEMA,
@@ -276,7 +338,7 @@ Be concrete and specific — no filler like "this section discusses" or "this ex
 The summary will be shown as a preview on an ideation card.`
 
 export async function generateSummary(title: string, body: string): Promise<string> {
-  const result = await callGemini<{ summary: string }>({
+  const result = await callAI<{ summary: string }>({
     systemInstruction: SUMMARY_SYSTEM,
     userPrompt: `Title: ${title}\n\n${body}`,
     responseSchema: {
@@ -321,7 +383,7 @@ export async function integrateQA(
   question: string,
   answer: string,
 ): Promise<{ body: string; title?: string }> {
-  return callGemini<{ body: string; title?: string }>({
+  return callAI<{ body: string; title?: string }>({
     systemInstruction: INTEGRATE_SYSTEM,
     userPrompt: `${contextPrompt}\n\nQUESTION ASKED: ${question}\nANSWER PROVIDED: ${answer}`,
     responseSchema: {
@@ -342,7 +404,7 @@ export async function integrateAllQA(
   const pairsText = pairs
     .map((p, i) => `Q${i + 1}: ${p.question}\nA${i + 1}: ${p.answer}`)
     .join('\n\n')
-  return callGemini<{ body: string; title?: string }>({
+  return callAI<{ body: string; title?: string }>({
     systemInstruction: INTEGRATE_SYSTEM,
     userPrompt: `${contextPrompt}\n\n${pairsText}`,
     responseSchema: {
@@ -378,7 +440,7 @@ export async function integrateIdea(
   ideaTitle: string,
   ideaBody: string,
 ): Promise<{ body: string; title?: string }> {
-  return callGemini<{ body: string; title?: string }>({
+  return callAI<{ body: string; title?: string }>({
     systemInstruction: INTEGRATE_IDEA_SYSTEM,
     userPrompt: `${contextPrompt}\n\nIDEA BEING MERGED: ${ideaTitle}\nIDEA CONTENT: ${ideaBody}`,
     responseSchema: {
@@ -408,7 +470,7 @@ export async function acknowledgeProblem(
   problemTitle: string,
   problemBody: string,
 ): Promise<{ body: string; title?: string }> {
-  return callGemini<{ body: string; title?: string }>({
+  return callAI<{ body: string; title?: string }>({
     systemInstruction: ACKNOWLEDGE_PROBLEM_SYSTEM,
     userPrompt: `${contextPrompt}\n\nPROBLEM BEING ACKNOWLEDGED: ${problemTitle}\nPROBLEM DETAIL: ${problemBody}`,
     responseSchema: {
@@ -434,7 +496,7 @@ export async function rejectIdea(
   ideaTitle: string,
   ideaBody: string,
 ): Promise<{ body: string }> {
-  return callGemini<{ body: string }>({
+  return callAI<{ body: string }>({
     systemInstruction: REJECT_IDEA_SYSTEM,
     userPrompt: `${contextPrompt}\n\nREJECTED IDEA: ${ideaTitle}\nIDEA CONTENT: ${ideaBody}`,
     responseSchema: {
@@ -457,7 +519,7 @@ export async function integrateRejection(
   question: string,
   rejectedAnswer: string,
 ): Promise<{ body: string }> {
-  return callGemini<{ body: string }>({
+  return callAI<{ body: string }>({
     systemInstruction: REJECTION_SYSTEM,
     userPrompt: `${contextPrompt}\n\nQUESTION ASKED: ${question}\nREJECTED ANSWER: ${rejectedAnswer}`,
     responseSchema: {
@@ -504,12 +566,11 @@ export async function detectConflicts(
   const others = otherNodes
     .map(n => `[${n.id}] (${n.type}) "${n.title}": ${n.summary || n.body.slice(0, 200)}`)
     .join('\n')
-  const items = await callGemini<ConflictItem[]>({
+  const items = await callAI<ConflictItem[]>({
     systemInstruction: CONFLICT_SYSTEM,
     userPrompt: `UPDATED NODE:\nTitle: ${updatedTitle}\nBody: ${updatedBody}\n\nOTHER NODES:\n${others}`,
     responseSchema: CONFLICT_SCHEMA,
   })
-  // Replace any raw IDs that slipped into descriptions with the node's title
   return items.map(item => ({
     ...item,
     description: otherNodes.reduce(
@@ -519,7 +580,7 @@ export async function detectConflicts(
   }))
 }
 
-// ── Conflict resolution: generate 2 options when an idea contradicts a node ──
+// ── Conflict resolution ───────────────────────────────────────────────────────
 
 const RESOLVE_CONFLICT_SYSTEM = `You are helping resolve a content conflict on an ideation board.
 The user is merging an idea that directly contradicts the node's current content.
@@ -549,7 +610,7 @@ export async function resolveConflict(
   ideaTitle: string,
   ideaBody: string,
 ): Promise<{ options: [ConflictOption, ConflictOption] }> {
-  return callGemini({
+  return callAI({
     systemInstruction: RESOLVE_CONFLICT_SYSTEM,
     userPrompt: `${contextPrompt}\n\nIDEA BEING MERGED: ${ideaTitle}\nIDEA CONTENT: ${ideaBody}`,
     responseSchema: {
@@ -573,7 +634,7 @@ export async function resolveConflict(
   })
 }
 
-// ── Board propagation: find unconnected nodes that should absorb the insight ──
+// ── Board propagation ─────────────────────────────────────────────────────────
 
 const PROPAGATE_SCHEMA = {
   type: 'array',
@@ -601,7 +662,7 @@ export async function findRelatedNodes(
   const skeleton = otherNodes
     .map(n => `[${n.id}] (${n.type}) "${n.title}": ${n.summary}`)
     .join('\n')
-  const result = await callGemini<Array<{ nodeId: string }>>({
+  const result = await callAI<Array<{ nodeId: string }>>({
     systemInstruction: PROPAGATE_SYSTEM,
     userPrompt: `Q: ${question}\nA: ${answer}\n\nUPDATED NODE ID: ${updatedNodeId}\n\nBOARD:\n${skeleton}`,
     responseSchema: PROPAGATE_SCHEMA,
@@ -609,7 +670,7 @@ export async function findRelatedNodes(
   return result.map(r => r.nodeId).filter(id => id !== updatedNodeId)
 }
 
-// ── Argue (critique variant with fix framing) ─────────────────────────────────
+// ── Argue (critique variant) ──────────────────────────────────────────────────
 
 const ARGUE_SYSTEM = `You are a sharp reader who just heard this answer and immediately pushed back.
 Identify the most natural, direct problems — what a smart skeptic would say out loud right after reading.
@@ -619,7 +680,7 @@ Score 0.0–1.0. Return empty array if no real problems exist.
 Each problem: 1–2 sentences max.`
 
 export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> {
-  const items = await callGemini<CritiqueItem[]>({
+  const items = await callAI<CritiqueItem[]>({
     systemInstruction: ARGUE_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: CRITIQUE_SCHEMA,
@@ -627,7 +688,7 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
   return items.filter(i => i.severity >= SEVERITY_THRESHOLD)
 }
 
-// ── AI-generated answer ───────────────────────────────────────────────────────
+// ── AI-generated answer / solution (with search on Gemini) ────────────────────
 
 const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
 Answer with the fewest words that fully cover the question — one sentence if it's enough, two if genuinely needed, never more.
@@ -638,7 +699,7 @@ Match the tone and voice of the existing content exactly — casual content gets
 If existing answers are already connected to this question (visible in context), provide a different angle — do not repeat what's already there.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
-  const result = await callGeminiWithSearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
+  const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
   return { answer: result.text, sources: result.sources }
 }
 
@@ -649,17 +710,33 @@ Match the tone of the content — casual stays casual.
 If existing solutions are already connected to this problem (visible in context), provide a different approach — do not repeat what's already there.`
 
 export async function generateSolution(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
-  const result = await callGeminiWithSearch({ systemInstruction: SOLUTION_SYSTEM, userPrompt: contextPrompt })
+  const result = await callAISearch({ systemInstruction: SOLUTION_SYSTEM, userPrompt: contextPrompt })
   return { answer: result.text, sources: result.sources }
 }
 
-// ── Correct an answer based on user-pointed mistakes ─────────────────────────
+// ── Correct an answer ─────────────────────────────────────────────────────────
 
 const CORRECT_ANSWER_SYSTEM = `You are a sharp colleague revising a quick answer after a correction.
 One or two short sentences. Casual and direct — incorporate the correction, nothing else.
 No preamble, no meta-commentary, no "you're right", no summaries.`
 
-// ── Brief generation ─────────────────────────────────────────────────────────
+export async function correctAnswer(
+  contextPrompt: string,
+  originalAnswer: string,
+  correction: string,
+): Promise<{ answer: string }> {
+  return callAI<{ answer: string }>({
+    systemInstruction: CORRECT_ANSWER_SYSTEM,
+    userPrompt: `${contextPrompt}\n\nORIGINAL ANSWER: ${originalAnswer}\n\nUSER CORRECTION: ${correction}`,
+    responseSchema: {
+      type: 'object',
+      properties: { answer: { type: 'string' } },
+      required: ['answer'],
+    },
+  })
+}
+
+// ── Brief generation ──────────────────────────────────────────────────────────
 
 const BRIEF_SYSTEM = `You are arranging, not writing. Use the actual words from the nodes as much as possible — quote them, combine them, trim them. Do not rewrite in your own voice.
 Your only job is to order the ideas so they flow and cut what's redundant. Add a word or two of connective tissue only when something would be incomprehensible without it.
@@ -668,20 +745,14 @@ No intro sentence, no outro, no meta-commentary. Just the ideas.
 No top-level title — return that separately.
 Separate distinct ideas with a blank line. Do not write one continuous block of text.`
 
-export async function generateBrief(
-  graph: ThonkGraph,
-  apiKey: string,
-): Promise<{ title: string; markdown: string }> {
+export async function generateBrief(graph: ThonkGraph): Promise<{ title: string; markdown: string }> {
   const sourceNodes = graph.nodes.filter(n => n.type === 'core' || n.type === 'idea')
 
-  if (!apiKey || !sourceNodes.length) {
+  if (!hasActiveKey() || !sourceNodes.length) {
     const fallback = sourceNodes
       .map(n => `## ${n.title}\n\n${n.body || '*No content yet.*'}`)
       .join('\n\n---\n\n')
-    return {
-      title: sourceNodes[0]?.title || 'Untitled',
-      markdown: fallback,
-    }
+    return { title: sourceNodes[0]?.title || 'Untitled', markdown: fallback }
   }
 
   const nodeLines = sourceNodes
@@ -698,56 +769,16 @@ export async function generateBrief(
     })
     .join('\n')
 
-  const userPrompt = `NODES:\n${nodeLines}${edgeLines ? `\n\nCONNECTIONS:\n${edgeLines}` : ''}`
-
-  const key = apiKey
-  const model = getHighIQ() ? MODEL_SMART : MODEL_LITE
-  const url = `https://generativelanguage.googleapis.com/v1beta/models/${model}:generateContent?key=${key}`
-
-  const body = {
-    systemInstruction: { parts: [{ text: BRIEF_SYSTEM }] },
-    contents: [{ role: 'user', parts: [{ text: userPrompt }] }],
-    generationConfig: {
-      responseMimeType: 'application/json',
-      responseSchema: {
-        type: 'object',
-        properties: {
-          title:    { type: 'string' },
-          markdown: { type: 'string' },
-        },
-        required: ['title', 'markdown'],
-      },
-    },
-  }
-
-  const res = await fetch(url, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify(body),
-  })
-
-  if (!res.ok) {
-    const err = await res.text()
-    throw new Error(`Gemini error ${res.status}: ${err}`)
-  }
-
-  const data = await res.json()
-  const text: string = data.candidates[0].content.parts[0].text
-  return JSON.parse(text) as { title: string; markdown: string }
-}
-
-export async function correctAnswer(
-  contextPrompt: string,
-  originalAnswer: string,
-  correction: string,
-): Promise<{ answer: string }> {
-  return callGemini<{ answer: string }>({
-    systemInstruction: CORRECT_ANSWER_SYSTEM,
-    userPrompt: `${contextPrompt}\n\nORIGINAL ANSWER: ${originalAnswer}\n\nUSER CORRECTION: ${correction}`,
+  return callAI<{ title: string; markdown: string }>({
+    systemInstruction: BRIEF_SYSTEM,
+    userPrompt: `NODES:\n${nodeLines}${edgeLines ? `\n\nCONNECTIONS:\n${edgeLines}` : ''}`,
     responseSchema: {
       type: 'object',
-      properties: { answer: { type: 'string' } },
-      required: ['answer'],
+      properties: {
+        title:    { type: 'string' },
+        markdown: { type: 'string' },
+      },
+      required: ['title', 'markdown'],
     },
   })
 }

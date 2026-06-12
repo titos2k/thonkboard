@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
+import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 
 // Module-level store: tracks which node was most recently touched.
@@ -70,6 +70,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
   onVersionCore: (oldId: string, newTitle: string, newBody: string, pos: { x: number; y: number }) => TNode
   panelOpen: boolean
   hasAnswer: boolean
+  aiConnected: boolean
   onOpenPanel: (id: string | null) => void
   onAutoEdit: (id: string) => void
   onBatchStart: () => void
@@ -330,14 +331,15 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const [askText, setAskText] = useState('')
 
-  // Close answer/correction input on outside tap/click
+  // Close answer/correction/ask input on outside tap/click
   useEffect(() => {
-    if (actionState !== 'answering' && actionState !== 'correcting') return
+    if (actionState !== 'answering' && actionState !== 'correcting' && actionState !== 'asking') return
     const handler = (e: PointerEvent) => {
       const nodeEl = document.querySelector(`[data-id="${thonk.id}"]`)
       if (nodeEl && !nodeEl.contains(e.target as Node)) {
         setAnswerText('')
         setCorrectionText('')
+        setAskText('')
         setActionState('idle')
       }
     }
@@ -1058,39 +1060,40 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     setActionState('answering')
   }, [thonk.id, d, graphRef])
 
-  // Computed for answer resolution dropdown labels
-  const answerDescCount = thonk.type === 'answer'
-    ? collectQADescendants(graphRef.current, thonk.id).length
-    : 0
-  const ideaDescCount = thonk.type === 'idea'
-    ? collectQADescendants(graphRef.current, thonk.id).length
-    : 0
-  const ideaParentNode = thonk.type === 'idea' ? findSpawnParent(graphRef.current, thonk.id) : null
+  // Computed for answer resolution dropdown labels — memoized so graph traversals
+  // don't re-run on renders where only dragging/selection changed (edges stable during drag).
+  const {
+    answerDescCount, ideaDescCount,
+    ideaParentNode, problemParentNode, mergeTargetNode,
+    questionChildCount, problemChildCount,
+  } = useMemo(() => {
+    const g = graphRef.current
+    const answerDescCount    = thonk.type === 'answer'   ? collectQADescendants(g, thonk.id).length : 0
+    const ideaDescCount      = thonk.type === 'idea'     ? collectQADescendants(g, thonk.id).length : 0
+    const ideaParentNode     = thonk.type === 'idea'     ? findSpawnParent(g, thonk.id) : null
+    const problemParentNode  = thonk.type === 'problem'  ? findChainRoot(g, thonk.id) : null
+    const mergeTargetNode    = thonk.type === 'answer'   ? findChainRoot(g, thonk.id) : null
+    const questionChildCount = thonk.type === 'question'
+      ? g.edges.filter(e => e.source === thonk.id && e.relation === 'answers')
+          .reduce((acc, e) => acc + 1 + collectQADescendants(g, e.target).length, 0)
+      : 0
+    const problemChildCount  = thonk.type === 'problem'
+      ? g.edges.filter(e => e.source === thonk.id && e.relation === 'fixes')
+          .reduce((acc, e) => acc + 1 + collectQADescendants(g, e.target).length, 0)
+      : 0
+    return { answerDescCount, ideaDescCount, ideaParentNode, problemParentNode, mergeTargetNode, questionChildCount, problemChildCount }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [thonk.type, thonk.id, graphRef.current.edges])
+
   const ideaParentName = ideaParentNode?.title
     ? (ideaParentNode.title.length > 22 ? ideaParentNode.title.slice(0, 22) + '…' : ideaParentNode.title)
     : undefined
-  const problemParentNode = thonk.type === 'problem' ? findChainRoot(graphRef.current, thonk.id) : null
   const problemParentName = problemParentNode?.title
     ? (problemParentNode.title.length > 22 ? problemParentNode.title.slice(0, 22) + '…' : problemParentNode.title)
     : undefined
-  const mergeTargetNode = thonk.type === 'answer' ? findChainRoot(graphRef.current, thonk.id) : null
   const applyTargetName = mergeTargetNode?.title
     ? (mergeTargetNode.title.length > 22 ? mergeTargetNode.title.slice(0, 22) + '…' : mergeTargetNode.title)
     : 'canvas'
-
-  // Count for question close label
-  const questionChildCount = thonk.type === 'question'
-    ? graphRef.current.edges.filter(e => e.source === thonk.id && e.relation === 'answers').reduce((acc, e) => {
-        return acc + 1 + collectQADescendants(graphRef.current, e.target).length
-      }, 0)
-    : 0
-
-  // Count for problem close label
-  const problemChildCount = thonk.type === 'problem'
-    ? graphRef.current.edges.filter(e => e.source === thonk.id && e.relation === 'fixes').reduce((acc, e) => {
-        return acc + 1 + collectQADescendants(graphRef.current, e.target).length
-      }, 0)
-    : 0
 
   const isLoading = actionState === 'loading'
   const isLight = thonk.type === 'question' || thonk.type === 'idea'
@@ -1161,27 +1164,27 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               {/* Section 1: AI */}
               {(thonk.type === 'core' || thonk.type === 'idea') && (
                 <>
-                  <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} className="text-green-400" />
-                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} className="text-blue-300" />
-                  <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} className="text-red-400" heat={depthHeat} />
-                  <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} className="text-yellow-400" />
+                  <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
+                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
+                  <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
+                  <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-yellow-400" />
                 </>
               )}
               {thonk.type === 'problem' && (
                 <>
-                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('answering')} disabled={!hasContent} className="text-blue-300" />
-                  <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} className="text-green-400" heat={depthHeat} />
+                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
+                  <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" heat={depthHeat} />
                 </>
               )}
               {thonk.type === 'question' && (
-                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} className="text-emerald-300" />
+                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-emerald-300" />
               )}
               {thonk.type === 'answer' && (
                 <>
-                  <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} className="text-green-400" />
-                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} className="text-blue-300" />
-                  <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} className="text-red-400" heat={depthHeat} />
-                  {thonk.meta.aiGenerated && <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This..." onClick={() => setActionState('correcting')} disabled={!hasContent} className="text-orange-400" />}
+                  <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
+                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
+                  <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
+                  {thonk.meta.aiGenerated && <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This..." onClick={() => setActionState('correcting')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-orange-400" />}
                 </>
               )}
 
@@ -1334,7 +1337,10 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               placeholder="Your answer…"
               value={answerText}
               onChange={e => setAnswerText(e.target.value)}
-              onKeyDown={stopDeletePropagation}
+              onKeyDown={e => {
+                stopDeletePropagation(e)
+                if (e.key === 'Escape') { setAnswerText(''); setActionState('idle') }
+              }}
               className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 py-1 rounded-sm shadow-none"
               rows={3}
             />
@@ -1387,7 +1393,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         )}
 
         {/* Ask & Answer input */}
-        {(thonk.type === 'core' || thonk.type === 'idea' || thonk.type === 'answer') && isAsking && (
+        {(thonk.type === 'core' || thonk.type === 'idea' || thonk.type === 'answer' || thonk.type === 'problem') && isAsking && (
           <div className="nodrag px-3 pb-2">
             <Textarea
               ref={askRef}
@@ -1691,12 +1697,13 @@ function NodeMoreMenu({ onFixGrammar, hasContent }: { onFixGrammar: () => void; 
 }
 
 function ToolBtn({
-  icon, label, onClick, disabled, active, className, heat, dot,
+  icon, label, onClick, disabled, aiDisabled, active, className, heat, dot,
 }: {
   icon: React.ReactNode
   label: string
   onClick: () => void
   disabled?: boolean
+  aiDisabled?: boolean
   active?: boolean
   className?: string
   heat?: number   // 0–1; >= 1 hard-disables the button and shows a red dot
@@ -1704,17 +1711,17 @@ function ToolBtn({
 }) {
   const isHeatBlocked = !!heat && heat >= 1
   const showHeatBadge = !!heat && heat > 0
+  const isDisabled = disabled || aiDisabled || isHeatBlocked
 
   return (
     <Tooltip>
       <TooltipTrigger asChild>
         <button
           onClick={onClick}
-          disabled={disabled || isHeatBlocked}
+          disabled={isDisabled}
           className={cn(
             'w-8 h-8 flex items-center justify-center rounded text-white/80 transition-colors relative',
-            disabled        ? 'opacity-25 cursor-not-allowed' :
-            isHeatBlocked   ? 'cursor-not-allowed' :
+            isDisabled      ? 'opacity-25 cursor-not-allowed' :
                               'hover:bg-white/15 hover:text-white cursor-pointer',
             active && 'bg-white/20 text-white',
             className,
@@ -1728,7 +1735,7 @@ function ToolBtn({
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={10} className="text-sm">
-        {disabled ? `${label} — add content first` : label}
+        {aiDisabled ? 'Connect AI in the top bar' : disabled ? `${label} — add content first` : label}
       </TooltipContent>
     </Tooltip>
   )

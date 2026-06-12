@@ -5,7 +5,6 @@ import { RefreshCw, Download, FileText, Loader2 } from 'lucide-react'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import { generateBrief } from '@/ai/gemini'
-import { getApiKey } from '@/ai/gemini'
 import type { ThonkGraph } from '@/store/types'
 
 export interface SummarizeCache {
@@ -99,7 +98,7 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
     setError('')
 
     try {
-      const result = await generateBrief(graph, getApiKey())
+      const result = await generateBrief(graph)
       cache.current = { fingerprint: fp, title: result.title, markdown: result.markdown }
       setTitle(result.title)
       setMarkdown(result.markdown)

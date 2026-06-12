@@ -39,7 +39,9 @@ import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/Thonk
 import { NoteNodeComponent } from '@/components/nodes/NoteNode'
 import { EditorPanel } from '@/components/EditorPanel'
 import { TopBar } from '@/components/TopBar'
+import { WelcomeModal } from '@/components/WelcomeModal'
 import { Toaster } from '@/components/Toaster'
+import { hasActiveKey } from '@/ai/gemini'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
@@ -168,13 +170,14 @@ function toRFNode(
   hasAnswer: boolean,
   graphRef: React.MutableRefObject<ThonkGraph>,
   cb: GraphCallbacks,
+  aiConnected: boolean,
 ): Node {
   return {
     id: n.id,
     type: n.type === 'note' ? 'note' : 'thonk',
     position: n.position,
     selected,
-    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, ...cb } as ThonkNodeData,
+    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, aiConnected, ...cb } as ThonkNodeData,
   }
 }
 
@@ -227,6 +230,13 @@ export default function App() {
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
   const [panelNodeId, setPanelNodeId] = useState<string | null>(null)
   const [hideResolved, setHideResolved] = useState(false)
+
+  const [welcomed, setWelcomed] = useState(() => !!localStorage.getItem('thonk.welcomed'))
+  const [aiConnected, setAiConnected] = useState(hasActiveKey)
+  const [keyOpen, setKeyOpen] = useState(() => {
+    const alreadyWelcomed = !!localStorage.getItem('thonk.welcomed')
+    return alreadyWelcomed && !hasActiveKey()
+  })
   const [showLegend, setShowLegend] = useState(true)
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [replaceConfirm, setReplaceConfirm] = useState<{ board: BoardMeta; graph: ThonkGraph } | null>(null)
@@ -374,6 +384,23 @@ export default function App() {
     }
   }, [])
 
+  const handleAiConnected = useCallback(() => {
+    setAiConnected(true)
+    const core = graph.nodes.find(n => n.type === 'core')
+    if (core) navigateToNode(core.id)
+  }, [graph.nodes, navigateToNode])
+
+  const handleWelcomeConnectAI = useCallback(() => {
+    localStorage.setItem('thonk.welcomed', '1')
+    setWelcomed(true)
+    setKeyOpen(true)
+  }, [])
+
+  const handleWelcomeSkip = useCallback(() => {
+    localStorage.setItem('thonk.welcomed', '1')
+    setWelcomed(true)
+  }, [])
+
   const callbacks: GraphCallbacks = useMemo(
     () => ({
       onAddNode:     addNode,
@@ -424,9 +451,9 @@ export default function App() {
     () => visibleNodes.map(n => toRFNode(
       n, selectedIds.has(n.id), n.id === autoEditId, n.id === panelNodeId,
       graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
-      graphRef, callbacks,
+      graphRef, callbacks, aiConnected,
     )),
-    [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks],
+    [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks, aiConnected],
   )
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
@@ -525,20 +552,20 @@ export default function App() {
     [addGraphEdge],
   )
 
-  const viewCenter = () => {
+  const viewCenter = useCallback(() => {
     const wrap = document.getElementById('rf-wrap')
     const rect = wrap?.getBoundingClientRect() ?? { width: 800, height: 600, left: 0, top: 0 }
     return rfInstance.current?.screenToFlowPosition({
       x: rect.left + rect.width / 2,
       y: rect.top + rect.height / 2,
     }) ?? { x: 400, y: 300 }
-  }
+  }, [])
 
-  const handleAddCore     = () => { const n = addNode('core',     '', '', viewCenter());                        setAutoEditId(n.id) }
-  const handleAddIdea     = () => { const n = addNode('idea',     '', '', viewCenter());                        setAutoEditId(n.id) }
-  const handleAddProblem  = () => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 });     setAutoEditId(n.id) }
-  const handleAddQuestion = () => { const n = addNode('question', '', '', viewCenter());                        setAutoEditId(n.id) }
-  const handleAddNote     = () => { const n = addNode('note',     '', '', viewCenter());                        setAutoEditId(n.id) }
+  const handleAddCore     = useCallback(() => { const n = addNode('core',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
+  const handleAddIdea     = useCallback(() => { const n = addNode('idea',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
+  const handleAddProblem  = useCallback(() => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 }); setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
+  const handleAddQuestion = useCallback(() => { const n = addNode('question', '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
+  const handleAddNote     = useCallback(() => { const n = addNode('note',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
 
   const handleImport = useCallback((file: File) => {
     const reader = new FileReader()
@@ -608,11 +635,24 @@ export default function App() {
     })
   }, [boards, activeBoardId])
 
-  const panelNode = panelNodeId ? graph.nodes.find(n => n.id === panelNodeId) : null
+  const panelNode = useMemo(
+    () => panelNodeId ? graph.nodes.find(n => n.id === panelNodeId) : null,
+    [panelNodeId, graph.nodes],
+  )
+
+  const handleToggleHideResolved = useCallback(() => setHideResolved(v => !v), [])
+  const handleToggleLegend       = useCallback(() => setShowLegend(v => !v), [])
+  const handleExport             = useCallback(
+    () => exportGraphToFile(graph, activeBoardId, boards.find(b => b.id === activeBoardId)?.name ?? 'Board'),
+    [graph, activeBoardId, boards],
+  )
+  const handlePanelSave  = useCallback((id: string, patch: { title?: string; body?: string; summary?: string }) => updateNode(id, { ...patch, meta: { aiGenerated: false } }), [updateNode])
+  const handlePanelClose = useCallback(() => setPanelNodeId(null), [])
 
   return (
     <TooltipProvider delayDuration={0} disableHoverableContent>
       <div style={{ width: '100vw', height: '100dvh', position: 'relative' }}>
+        <WelcomeModal open={!welcomed} onConnectAI={handleWelcomeConnectAI} onSkip={handleWelcomeSkip} />
         <TopBar
           onAddCore={handleAddCore}
           onAddIdea={handleAddIdea}
@@ -620,10 +660,10 @@ export default function App() {
           onAddQuestion={handleAddQuestion}
           onAddNote={handleAddNote}
           hideResolved={hideResolved}
-          onToggleHideResolved={() => setHideResolved(v => !v)}
+          onToggleHideResolved={handleToggleHideResolved}
           showLegend={showLegend}
-          onToggleLegend={() => setShowLegend(v => !v)}
-          onExport={() => exportGraphToFile(graph, activeBoardId, boards.find(b => b.id === activeBoardId)?.name ?? 'Board')}
+          onToggleLegend={handleToggleLegend}
+          onExport={handleExport}
           onExportPng={handleExportPng}
           onImport={handleImport}
           graph={graph}
@@ -633,6 +673,9 @@ export default function App() {
           onCreateBoard={handleCreateBoard}
           onDeleteBoard={handleDeleteBoard}
           onRenameBoard={handleRenameBoard}
+          keyOpen={keyOpen}
+          onKeyOpenChange={setKeyOpen}
+          onAiConnected={handleAiConnected}
         />
         <div style={{ width: '100%', height: '100%', paddingTop: 44 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
           <ReactFlow
@@ -682,8 +725,8 @@ export default function App() {
           <EditorPanel
             node={panelNode}
             nodes={graph.nodes}
-            onSave={(id, patch) => updateNode(id, { ...patch, meta: { aiGenerated: false } })}
-            onClose={() => setPanelNodeId(null)}
+            onSave={handlePanelSave}
+            onClose={handlePanelClose}
             onNavigateToNode={navigateToNode}
           />
         )}
