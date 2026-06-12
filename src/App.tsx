@@ -12,6 +12,8 @@ import {
   BackgroundVariant,
   applyNodeChanges,
   applyEdgeChanges,
+  getNodesBounds,
+  getViewportForBounds,
   type NodeChange,
   type EdgeChange,
   type Connection,
@@ -19,6 +21,7 @@ import {
   type Edge,
   type ReactFlowInstance,
 } from '@xyflow/react'
+import { toPng } from 'html-to-image'
 import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2 } from 'lucide-react'
 import '@xyflow/react/dist/style.css'
 
@@ -288,6 +291,12 @@ export default function App() {
   }, [undo, redo])
 
   const openPanel = useCallback((id: string | null) => setPanelNodeId(id), [])
+
+  // Update page title to reflect active board name
+  useEffect(() => {
+    const name = boards.find(b => b.id === activeBoardId)?.name
+    document.title = name ? `Thonkboard - ${name}` : 'Thonkboard - Spatial Thinking Canvas'
+  }, [activeBoardId, boards])
 
   // Restore viewport when active board changes; fit view if no saved viewport
   useEffect(() => {
@@ -569,6 +578,36 @@ export default function App() {
     reader.readAsText(file)
   }, [boards, switchToBoard])
 
+  const handleExportPng = useCallback(() => {
+    const nodes = rfInstance.current?.getNodes() ?? []
+    if (!nodes.length) return
+    const bounds = getNodesBounds(nodes)
+    const PADDING = 40
+    const scale = 2
+    const imgW = Math.min(Math.round((bounds.width  + PADDING * 2) * scale), 4096)
+    const imgH = Math.min(Math.round((bounds.height + PADDING * 2) * scale), 4096)
+    const viewport = getViewportForBounds(bounds, imgW, imgH, 0.5, 2, PADDING * scale)
+    const el = document.querySelector<HTMLElement>('.react-flow__viewport')
+    if (!el) return
+    const boardName = boards.find(b => b.id === activeBoardId)?.name ?? 'Board'
+    const slug = boardName.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 40) || 'board'
+    const date = new Date().toISOString().slice(0, 10)
+    toPng(el, {
+      width: imgW,
+      height: imgH,
+      style: {
+        width: `${imgW}px`,
+        height: `${imgH}px`,
+        transform: `translate(${viewport.x}px, ${viewport.y}px) scale(${viewport.zoom})`,
+      },
+    }).then(url => {
+      const a = document.createElement('a')
+      a.download = `thonk-${slug}-${date}.png`
+      a.href = url
+      a.click()
+    })
+  }, [boards, activeBoardId])
+
   const panelNode = panelNodeId ? graph.nodes.find(n => n.id === panelNodeId) : null
 
   return (
@@ -585,6 +624,7 @@ export default function App() {
           showLegend={showLegend}
           onToggleLegend={() => setShowLegend(v => !v)}
           onExport={() => exportGraphToFile(graph, activeBoardId, boards.find(b => b.id === activeBoardId)?.name ?? 'Board')}
+          onExportPng={handleExportPng}
           onImport={handleImport}
           graph={graph}
           boards={boards}

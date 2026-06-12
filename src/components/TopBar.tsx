@@ -1,5 +1,5 @@
 import { useRef, useState } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -21,6 +21,7 @@ interface TopBarProps {
   showLegend: boolean
   onToggleLegend: () => void
   onExport: () => void
+  onExportPng: () => void
   onImport: (file: File) => void
   graph: ThonkGraph
   boards: BoardMeta[]
@@ -39,7 +40,7 @@ function MiniToggle({ on }: { on: boolean }) {
   )
 }
 
-export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard }: TopBarProps) {
+export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportPng, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
   const [keyOpen, setKeyOpen] = useState(() => !getApiKey())
   const [key, setKey] = useState(getApiKey)
@@ -52,6 +53,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameName, setRenameName] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [legalOpen, setLegalOpen] = useState(false)
 
   const hasContent = graph.nodes.some(n => n.type === 'core' || n.type === 'idea')
 
@@ -134,6 +136,9 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
             <FolderOpen className="w-4 h-4 text-muted-foreground" /> Load board
           </DropdownMenuItem>
+          <DropdownMenuItem onClick={onExportPng}>
+            <ImageDown className="w-4 h-4 text-muted-foreground" /> Export as PNG
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!hasContent} onClick={() => setSummarizeOpen(true)}>
             <Sparkles className="w-4 h-4 text-muted-foreground" /> Summarize
@@ -143,6 +148,9 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
             <a href="https://buymeacoffee.com/titos2k" target="_blank" rel="noopener noreferrer">
               <Coffee className="w-4 h-4 text-muted-foreground" /> Buy me a coffee
             </a>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={() => setLegalOpen(true)}>
+            <Scale className="w-4 h-4 text-muted-foreground" /> Privacy & Terms
           </DropdownMenuItem>
 
           {isMobile && (
@@ -437,6 +445,29 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
             <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { if (deleteConfirmId) { onDeleteBoard(deleteConfirmId); setDeleteConfirmId(null) } }}>Delete</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Privacy & Terms modal */}
+      <Dialog open={legalOpen} onOpenChange={setLegalOpen}>
+        <DialogContent className="max-w-md sm:max-w-2xl">
+          <DialogHeader>
+            <DialogTitle>Privacy & Terms</DialogTitle>
+          </DialogHeader>
+          <div className="text-sm text-muted-foreground space-y-4 max-h-[70vh] overflow-y-auto pr-1">
+            <section>
+              <strong className="text-foreground">Privacy Policy</strong>
+              <p className="mt-1">Thonkboard does not collect, store, or transmit any personal data. Your boards and API key are stored exclusively in your browser's localStorage and never leave your device.</p>
+              <p className="mt-1">This site uses Google Fonts, which are loaded from Google's servers. Google may log your IP address when fonts are fetched. See <a href="https://policies.google.com/privacy" target="_blank" rel="noopener noreferrer" className="underline">Google's Privacy Policy</a>.</p>
+              <p className="mt-1">Gemini API calls are made directly from your browser to Google's API using your own key. We have no visibility into these requests.</p>
+            </section>
+            <section>
+              <strong className="text-foreground">Terms of Service</strong>
+              <p className="mt-1">Thonkboard is provided free of charge, as-is, with no warranties of any kind. Use at your own risk. We are not liable for any loss of data or damages arising from use of this tool.</p>
+              <p className="mt-1">You are responsible for your own Gemini API key and any costs associated with its use.</p>
+              <p className="mt-1">Thonkboard uses AI to assist with thinking and ideation. AI-generated content may be inaccurate, incomplete, or misleading. You are solely responsible for evaluating AI output and any decisions, actions, or consequences that follow from it. Misuse of AI features is governed by your AI provider's terms. We accept no liability for harm arising from reliance on AI-generated content.</p>
+            </section>
           </div>
         </DialogContent>
       </Dialog>
