@@ -1,6 +1,5 @@
 import { useRef, useState } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, FilePlus, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote } from 'lucide-react'
-import thonkLogo from '@/assets/thonk.webp'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -8,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator } from './ui/dropdown-menu'
 import { getApiKey, setApiKey, getHighIQ, setHighIQ } from '@/ai/gemini'
 import { SummarizeModal, type SummarizeCache } from './SummarizeModal'
-import type { ThonkGraph } from '@/store/types'
+import type { ThonkGraph, BoardMeta } from '@/store/types'
 import { useIsMobile } from '@/hooks/useIsMobile'
 
 interface TopBarProps {
@@ -19,12 +18,17 @@ interface TopBarProps {
   onAddNote: () => void
   hideResolved: boolean
   onToggleHideResolved: () => void
-  onReset: () => void
   showLegend: boolean
   onToggleLegend: () => void
   onExport: () => void
   onImport: (file: File) => void
   graph: ThonkGraph
+  boards: BoardMeta[]
+  activeBoardId: string
+  onSwitchBoard: (id: string) => void
+  onCreateBoard: () => void
+  onDeleteBoard: (id: string) => void
+  onRenameBoard: (id: string, name: string) => void
 }
 
 function MiniToggle({ on }: { on: boolean }) {
@@ -35,9 +39,8 @@ function MiniToggle({ on }: { on: boolean }) {
   )
 }
 
-export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, onReset, showLegend, onToggleLegend, onExport, onImport, graph }: TopBarProps) {
+export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
-  const [resetOpen, setResetOpen] = useState(false)
   const [keyOpen, setKeyOpen] = useState(() => !getApiKey())
   const [key, setKey] = useState(getApiKey)
   const [saved, setSaved] = useState(false)
@@ -46,6 +49,9 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
   const [helpOpen, setHelpOpen] = useState(false)
   const summarizeCache = useRef<SummarizeCache | null>(null)
   const isMobile = useIsMobile()
+  const [renameOpen, setRenameOpen] = useState(false)
+  const [renameName, setRenameName] = useState('')
+  const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
 
   const hasContent = graph.nodes.some(n => n.type === 'core' || n.type === 'idea')
 
@@ -63,7 +69,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
 
   return (
     <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-white border-b border-border" style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
-      <img src={thonkLogo} alt="Thonk" className="h-7 w-auto mr-1" />
+      <img src="/thonkboard-logo.svg" alt="Thonk" className="h-7 w-auto mr-1" />
 
       {/* Hamburger menu */}
       <DropdownMenu>
@@ -73,9 +79,54 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" onCloseAutoFocus={e => e.preventDefault()}>
-          <DropdownMenuItem onClick={() => setResetOpen(true)}>
-            <FilePlus className="w-4 h-4 text-muted-foreground" /> New board
-          </DropdownMenuItem>
+          {/* Boards section */}
+          <div className="flex items-center justify-between pl-2 pr-1 py-1">
+            <span className="text-xs font-semibold text-muted-foreground uppercase tracking-wide">Boards</span>
+            <button
+              onClick={e => { e.stopPropagation(); onCreateBoard() }}
+              className="w-6 h-6 flex items-center justify-center rounded hover:bg-black/10 transition-colors"
+              title="New board"
+            >
+              <Plus className="w-4 h-4 text-muted-foreground" />
+            </button>
+          </div>
+          {boards.map(board => {
+            const isActive = board.id === activeBoardId
+            return (
+              <DropdownMenuItem
+                key={board.id}
+                onClick={() => onSwitchBoard(board.id)}
+                className="flex items-center justify-between gap-1 pr-1"
+              >
+                <span className="flex items-center gap-2 min-w-0">
+                  {isActive
+                    ? <Check className="w-4 h-4 shrink-0 text-foreground" />
+                    : <span className="w-4 shrink-0" />}
+                  <span className="truncate max-w-[140px]">{board.name}</span>
+                </span>
+                <span className="flex items-center gap-0.5 shrink-0">
+                  {isActive && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setRenameName(board.name); setRenameOpen(true) }}
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-black/10 transition-colors"
+                      title="Rename"
+                    >
+                      <Pencil className="w-4 h-4 text-muted-foreground" />
+                    </button>
+                  )}
+                  {boards.length > 1 && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setDeleteConfirmId(board.id) }}
+                      className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 transition-colors"
+                      title="Delete board"
+                    >
+                      <Trash2 className="w-4 h-4 text-muted-foreground hover:text-red-500" />
+                    </button>
+                  )}
+                </span>
+              </DropdownMenuItem>
+            )
+          })}
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onExport}>
             <Save className="w-4 h-4 text-muted-foreground" /> Save board
@@ -86,6 +137,12 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           <DropdownMenuSeparator />
           <DropdownMenuItem disabled={!hasContent} onClick={() => setSummarizeOpen(true)}>
             <Sparkles className="w-4 h-4 text-muted-foreground" /> Summarize
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <a href="https://buymeacoffee.com/titos2k" target="_blank" rel="noopener noreferrer">
+              <Coffee className="w-4 h-4 text-muted-foreground" /> Buy me a coffee
+            </a>
           </DropdownMenuItem>
 
           {isMobile && (
@@ -229,6 +286,17 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           <TooltipContent side="bottom">{showLegend ? 'Hide legend' : 'Show legend'}</TooltipContent>
         </Tooltip>
 
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" variant="ghost" className="h-9 w-9 p-0 bg-[#F5C44A] hover:bg-[#e8b73e] text-[#664500]" asChild>
+              <a href="https://buymeacoffee.com/titos2k" target="_blank" rel="noopener noreferrer">
+                <Coffee className="w-5 h-5" />
+              </a>
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Buy me a coffee</TooltipContent>
+        </Tooltip>
+
         <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={() => setHelpOpen(true)}>
           <HelpCircle className="w-5 h-5" />
         </Button>
@@ -240,7 +308,7 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
           <DialogHeader>
             <DialogTitle className="pb-2">Gemini API Key</DialogTitle>
             <DialogDescription>
-              For THONK to think, it needs a Gemini API key. It's free and takes 30 seconds to get. Your key is stored only in your browser. We never see it or send it anywhere.
+              For ThonkBoard to think, it needs a Gemini API key. It's free and takes 30 seconds to get. Your key is stored only in your browser. We never see it or send it anywhere.
             </DialogDescription>
           </DialogHeader>
           <form onSubmit={e => { e.preventDefault(); handleSave() }} className="flex gap-2">
@@ -269,18 +337,65 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
 
       {/* Help dialog (controlled) */}
       <Dialog open={helpOpen} onOpenChange={setHelpOpen}>
-        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+        <DialogContent className="max-w-md sm:max-w-2xl" aria-describedby={undefined}>
           <DialogHeader>
-            <DialogTitle>How to use THONK</DialogTitle>
+            <DialogTitle>How to use ThonkBoard</DialogTitle>
           </DialogHeader>
-          <div className="text-sm text-muted-foreground space-y-2">
-            <p><strong>Click a node</strong> to select it and reveal its actions.</p>
-            <p><strong>Argue</strong> — AI critique pass. Finds real problems with severity scoring.</p>
-            <p><strong>Question</strong> — Generates one sharp question. Answer it to refine your idea.</p>
-            <p><strong>Expand</strong> — Generates child ideas that build on the target.</p>
-            <p><strong>Ideate</strong> — Generates sibling ideas in the same domain.</p>
-            <p><strong>Approve</strong> — On an Answer node: merges it back into the Core as a new version.</p>
-            <p className="pt-1"><strong>Drag</strong> to move nodes. <strong>Scroll</strong> to zoom. <strong>Drag background</strong> to pan.</p>
+          <div className="text-sm text-muted-foreground space-y-3 max-h-[70vh] overflow-y-auto pr-1">
+            <p>ThonkBoard is a thinking canvas. Its job is to help <strong>you</strong> think - not to think for you. Use AI to pressure-test your ideas, not to replace your reasoning.</p>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">No backend, fully private</p>
+              <p>ThonkBoard has no server. Nothing you type is stored anywhere outside your browser - no account, no sync, no telemetry. The flip side: if you clear your browser data, your boards are gone. Save boards to files regularly using the export button. Old-school, but yours.</p>
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">Canvas</p>
+              <p>Click a node to select it and reveal its toolbar. Drag nodes to move them, scroll to zoom. Pan by dragging the background with the left button, or use middle-click or right-click drag.</p>
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">Node types</p>
+              <p><strong>Core</strong> - your main idea, topic, or thesis. Start here.</p>
+              <p><strong>Idea</strong> - a branch, variant, or proposal.</p>
+              <p><strong>Problem</strong> - a flaw, risk, or blocker worth tracking.</p>
+              <p><strong>Question / Answer</strong> - open threads and their resolutions.</p>
+              <p><strong>Note</strong> - freeform sticky. No structure required.</p>
+              <p className="mt-1 opacity-70">Any node can be converted to another type from its toolbar.</p>
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">AI actions</p>
+              <p><strong>Find Problems</strong> - AI critiques the node and spawns Problem nodes for real issues it finds.</p>
+              <p><strong>Ask me</strong> - generates one sharp question. Answer it yourself to push your thinking forward.</p>
+              <p><strong>Answer me</strong> - you ask a question, AI answers it in context.</p>
+              <p><strong>Generate Ideas / Suggest Solution</strong> - spawns new branches from the current node.</p>
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">AI fatigue</p>
+              <p>Nodes generated by AI track their depth. The deeper the chain, the more unreliable the output - actions on those nodes show a warning badge. This is intentional: the further you drift from your own thinking, the less useful AI becomes.</p>
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">Resolving</p>
+              <p>Answer and Idea nodes can be <strong>applied</strong> back to their parent - AI merges what you learned into the parent's body. Resolved nodes turn grey and can be hidden. This keeps the canvas clean as threads close.</p>
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">Details panel</p>
+              <p>Open Details on any node to write a long-form body, read AI summaries, and see how the node connects to the rest of the graph.</p>
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">Multiple boards</p>
+              <p>Use the board switcher in the top-left to create separate sessions. Each board is fully independent - different topics, different canvases.</p>
+            </div>
+
+            <div>
+              <p className="font-semibold text-foreground mb-1">Summarize</p>
+              <p>The Summarize button generates an AI overview of everything on the current canvas - useful for capturing where you landed after a long session.</p>
+            </div>
           </div>
         </DialogContent>
       </Dialog>
@@ -292,18 +407,36 @@ export function TopBar({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAd
         cache={summarizeCache}
       />
 
-      {/* New board confirm dialog */}
-      <Dialog open={resetOpen} onOpenChange={setResetOpen}>
+      {/* Rename board dialog */}
+      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
+        <DialogContent className="max-w-sm" aria-describedby={undefined}>
+          <DialogHeader>
+            <DialogTitle className="pb-2">Rename board</DialogTitle>
+          </DialogHeader>
+          <form onSubmit={e => { e.preventDefault(); if (renameName.trim()) { onRenameBoard(activeBoardId, renameName.trim()); setRenameOpen(false) } }} className="flex gap-2">
+            <input
+              className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
+              value={renameName}
+              onChange={e => setRenameName(e.target.value)}
+              autoFocus
+            />
+            <Button type="submit" size="sm" disabled={!renameName.trim()} className="shrink-0 h-9 text-sm cursor-pointer">Save</Button>
+          </form>
+        </DialogContent>
+      </Dialog>
+
+      {/* Delete board confirm dialog */}
+      <Dialog open={!!deleteConfirmId} onOpenChange={open => { if (!open) setDeleteConfirmId(null) }}>
         <DialogContent className="max-w-sm">
           <DialogHeader>
-            <DialogTitle className="pb-2">Reset board?</DialogTitle>
+            <DialogTitle className="pb-2">Delete board?</DialogTitle>
             <DialogDescription>
-              This will delete all nodes and edges. This cannot be undone.
+              All nodes and edges on this board will be permanently deleted.
             </DialogDescription>
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
-            <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setResetOpen(false)}>Cancel</Button>
-            <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { onReset(); setResetOpen(false) }}>Reset</Button>
+            <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+            <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { if (deleteConfirmId) { onDeleteBoard(deleteConfirmId); setDeleteConfirmId(null) } }}>Delete</Button>
           </div>
         </DialogContent>
       </Dialog>

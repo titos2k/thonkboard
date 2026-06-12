@@ -53,3 +53,9 @@ export interface ThonkGraph {
   nodes: ThonkNode[]
   edges: ThonkEdge[]
 }
+
+export interface BoardMeta {
+  id: string
+  name: string
+  createdAt: string
+}

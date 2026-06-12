@@ -1,12 +1,14 @@
-import React, { useEffect, useLayoutEffect, useRef } from 'react'
+import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { NodeToolbar, Position, type NodeProps } from '@xyflow/react'
-import { Trash2, ArrowDownUp, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, MessageCircle } from 'lucide-react'
+import { Trash2, ArrowDownUp, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, MessageCircle, SpellCheck, Loader2 } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { cn } from '@/lib/utils'
 import type { ThonkNodeData } from './ThonkNode'
 import type { NodeType } from '@/store/types'
+import { fixGrammar } from '@/ai/gemini'
+import { showToast } from '@/lib/toast'
 
 const NOTE_TRANSFORM_TARGETS: { type: NodeType; label: string; icon: React.ReactNode }[] = [
   { type: 'core',     label: 'Core',     icon: <Brain className="w-4 h-4" /> },
@@ -25,6 +27,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
   const { thonk } = d
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const textRef = useRef(thonk.title)
+  const [fixing, setFixing] = useState(false)
 
   // Focus textarea on auto-edit (newly created note)
   useEffect(() => {
@@ -76,8 +79,29 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
     d.onUpdate(thonk.id, { type: newType })
   }
 
+  const handleFixGrammar = async () => {
+    const text = textRef.current.trim()
+    if (!text) return
+    setFixing(true)
+    try {
+      const { fixed } = await fixGrammar(text)
+      if (fixed && fixed !== text) {
+        if (textareaRef.current) {
+          textareaRef.current.value = fixed
+          textRef.current = fixed
+          autoResize()
+        }
+        d.onUpdate(thonk.id, { title: fixed, body: fixed })
+      }
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : String(e))
+    } finally {
+      setFixing(false)
+    }
+  }
+
   return (
-    <NodeShell nodeType="note" selected={selected} handles={false} className="cursor-default active:cursor-default !rounded-none">
+    <NodeShell nodeType="note" selected={selected} handles={false} className="cursor-default active:cursor-default">
       <NodeToolbar isVisible={selected && !dragging} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
           <Tooltip>
@@ -104,6 +128,19 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
           <Tooltip>
             <TooltipTrigger asChild>
               <button
+                onClick={handleFixGrammar}
+                disabled={fixing}
+                className="nodrag w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer disabled:opacity-40"
+              >
+                {fixing ? <Loader2 className="w-5 h-5 animate-spin" /> : <SpellCheck className="w-5 h-5" />}
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={10} className="text-sm">Fix Grammar</TooltipContent>
+          </Tooltip>
+          <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
                 onClick={() => d.onDelete(thonk.id)}
                 className="nodrag w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
               >
@@ -117,7 +154,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
 
       {/* Drag handle — the only grabbable area on a note */}
       <div className="h-4 flex items-center justify-center cursor-grab active:cursor-grabbing">
-        <div className="w-8 h-0.5 rounded-full bg-yellow-600/30" />
+        <div className="w-8 h-0.5 rounded-full bg-gray-300" />
       </div>
 
       <div className="px-3 pb-2.5">
@@ -133,7 +170,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
           placeholder="Type a note…"
           className={cn(
             'nodrag w-full bg-transparent outline-none border-none text-sm leading-snug',
-            'text-gray-800 placeholder:text-yellow-700/40 resize-none overflow-hidden p-0 m-0',
+            'text-gray-500 placeholder:text-gray-300 resize-none overflow-hidden p-0 m-0',
             'cursor-text',
           )}
         />

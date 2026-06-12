@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect } from 'react'
+import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -17,7 +17,6 @@ import {
   type Connection,
   type Node,
   type Edge,
-  type Viewport,
   type ReactFlowInstance,
 } from '@xyflow/react'
 import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2 } from 'lucide-react'
@@ -25,14 +24,22 @@ import '@xyflow/react/dist/style.css'
 
 import { useGraph } from '@/store/useGraph'
 import { useIsMobile } from '@/hooks/useIsMobile'
-import { exportGraphToFile, parseImportedGraph } from '@/store/graph'
-import type { ThonkNode, ThonkEdge, ThonkGraph } from '@/store/types'
+import {
+  exportGraphToFile, parseImportedGraph, saveGraph,
+  migrateToMultiBoard,
+  loadBoards, saveBoards, getActiveBoardId, setActiveBoardId as persistActiveBoardId, deleteBoard,
+  loadViewport, saveViewport,
+} from '@/store/graph'
+import type { ThonkNode, ThonkEdge, ThonkGraph, BoardMeta } from '@/store/types'
+import { v4 as uuidv4 } from 'uuid'
 import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
 import { NoteNodeComponent } from '@/components/nodes/NoteNode'
 import { EditorPanel } from '@/components/EditorPanel'
 import { TopBar } from '@/components/TopBar'
 import { Toaster } from '@/components/Toaster'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 
 const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent }
 
@@ -128,19 +135,7 @@ const ZoomDisplay = React.memo(function ZoomDisplay() {
   )
 })
 
-const VIEWPORT_KEY = 'thonk.viewport'
-
-function loadViewport(): Viewport | null {
-  try {
-    const raw = localStorage.getItem(VIEWPORT_KEY)
-    if (raw) return JSON.parse(raw) as Viewport
-  } catch {}
-  return null
-}
-
-function saveViewport(vp: Viewport) {
-  localStorage.setItem(VIEWPORT_KEY, JSON.stringify(vp))
-}
+migrateToMultiBoard()
 
 const NODE_EDGE_COLOR: Record<string, string> = {
   core:     '#392946',
@@ -196,14 +191,19 @@ function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
     style: { stroke, strokeDasharray: dash, strokeWidth: 1.5, opacity: resolved ? 0.5 : 1 },
     className: `edge-rel-${e.relation}`,
     data: { relation: e.relation },
+    interactionWidth: 20,
     reconnectable: true,
   }
 }
 
 export default function App() {
+  const [boards, setBoards] = useState<BoardMeta[]>(loadBoards)
+  const [activeBoardId, setActiveBoardIdState] = useState<string>(getActiveBoardId)
+
   const {
     graph,
-    setGraph,
+    graphRef,
+    switchToBoard,
     addNode,
     addEdge: addGraphEdge,
     updateNode,
@@ -212,14 +212,13 @@ export default function App() {
     deleteEdge: deleteGraphEdge,
     reconnectEdge,
     versionCore,
-    resetGraph,
     undo,
     redo,
     canUndo,
     canRedo,
     onBatchStart,
     onBatchEnd,
-  } = useGraph()
+  } = useGraph(activeBoardId)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
@@ -227,15 +226,12 @@ export default function App() {
   const [hideResolved, setHideResolved] = useState(false)
   const [showLegend, setShowLegend] = useState(true)
   const [spaceHeld, setSpaceHeld] = useState(false)
-  const savedViewport = useMemo(() => loadViewport(), [])
+  const [replaceConfirm, setReplaceConfirm] = useState<{ board: BoardMeta; graph: ThonkGraph } | null>(null)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  const savedViewport = useMemo(() => loadViewport(activeBoardId), [])
 
   const isMobile = useIsMobile()
   const rfInstance = useRef<ReactFlowInstance | null>(null)
-
-  // Stable ref to current graph — passed to nodes instead of graph itself so
-  // node components don't re-render on unrelated graph mutations.
-  const graphRef = useRef<ThonkGraph>(graph)
-  useLayoutEffect(() => { graphRef.current = graph }, [graph])
 
   // Local RF node/edge state — lets React Flow manage selection/drag internally.
   const [rfNodes, setRfNodes] = useState<Node[]>([])
@@ -293,13 +289,67 @@ export default function App() {
 
   const openPanel = useCallback((id: string | null) => setPanelNodeId(id), [])
 
+  // Restore viewport when active board changes; fit view if no saved viewport
+  useEffect(() => {
+    if (!rfInstance.current) return
+    const vp = loadViewport(activeBoardId)
+    if (vp) {
+      rfInstance.current.setViewport(vp, { duration: 300 })
+    } else {
+      setTimeout(() => rfInstance.current?.fitView({ padding: 0.5, duration: 400 }), 50)
+    }
+    setSelectedIds(new Set())
+    setPanelNodeId(null)
+  }, [activeBoardId]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleSwitchBoard = useCallback((id: string) => {
+    if (id === activeBoardId) return
+    const currentVp = rfInstance.current?.getViewport()
+    if (currentVp) saveViewport(currentVp, activeBoardId)
+    persistActiveBoardId(id)
+    setActiveBoardIdState(id)
+    switchToBoard(id)
+  }, [activeBoardId, switchToBoard])
+
+  const handleCreateBoard = useCallback(() => {
+    const id = uuidv4()
+    const board: BoardMeta = { id, name: `Board ${boards.length + 1}`, createdAt: new Date().toISOString() }
+    const next = [...boards, board]
+    setBoards(next)
+    saveBoards(next)
+    persistActiveBoardId(id)
+    setActiveBoardIdState(id)
+    switchToBoard(id)
+  }, [boards, switchToBoard])
+
+  const handleDeleteBoard = useCallback((id: string) => {
+    if (boards.length <= 1) return
+    const idx = boards.findIndex(b => b.id === id)
+    const next = boards.filter(b => b.id !== id)
+    setBoards(next)
+    saveBoards(next)
+    deleteBoard(id)
+    if (id === activeBoardId) {
+      const newActive = next[Math.max(0, idx - 1)].id
+      persistActiveBoardId(newActive)
+      setActiveBoardIdState(newActive)
+      switchToBoard(newActive)
+    }
+  }, [boards, activeBoardId, switchToBoard])
+
+  const handleRenameBoard = useCallback((id: string, name: string) => {
+    const next = boards.map(b => b.id === id ? { ...b, name } : b)
+    setBoards(next)
+    saveBoards(next)
+  }, [boards])
+
   const miniMapNodeColor = useCallback((n: Node) => {
     const t = (n.data as ThonkNodeData)?.thonk?.type
     if (t === 'core')     return '#392946'
     if (t === 'problem')  return '#e95a32'
     if (t === 'question') return '#f4f6f6'
     if (t === 'answer')   return '#00ae60'
-    if (t === 'note')     return '#fef9c3'
+    if (t === 'note')     return '#ffffff'
     return '#f5c44a'
   }, [])
 
@@ -485,14 +535,39 @@ export default function App() {
     const reader = new FileReader()
     reader.onload = e => {
       try {
-        const imported = parseImportedGraph(e.target!.result as string)
-        setGraph(imported)
+        const { graph: imported, boardId: fileBoardId, boardName: fileBoardName } = parseImportedGraph(e.target!.result as string)
+
+        // If file was exported from a board that still exists, confirm before replacing
+        const existing = fileBoardId ? boards.find(b => b.id === fileBoardId) : null
+        if (existing) {
+          setReplaceConfirm({ board: existing, graph: imported })
+          return
+        }
+
+        // Create a new board, deriving the name from the file
+        const core = imported.nodes.find(n => n.type === 'core')
+        const nameFromFile = file.name
+          .replace(/^thonk-/, '').replace(/-\d{4}-\d{2}-\d{2}\.json$/, '').replace(/-/g, ' ').trim()
+        const boardName = fileBoardName || core?.title?.trim() || nameFromFile || 'Imported Board'
+        const id = fileBoardId ?? uuidv4()
+        const board: BoardMeta = { id, name: boardName, createdAt: new Date().toISOString() }
+        const nextBoards = [...boards, board]
+
+        // React state first — these cannot throw, UI always updates
+        setBoards(nextBoards)
+        setActiveBoardIdState(id)
+        switchToBoard(id, imported)
+
+        // Persist after — best-effort, failures show toasts
+        saveBoards(nextBoards)
+        saveGraph(imported, id)
+        persistActiveBoardId(id)
       } catch {
         // malformed file — ignore
       }
     }
     reader.readAsText(file)
-  }, [setGraph])
+  }, [boards, switchToBoard])
 
   const panelNode = panelNodeId ? graph.nodes.find(n => n.id === panelNodeId) : null
 
@@ -507,12 +582,17 @@ export default function App() {
           onAddNote={handleAddNote}
           hideResolved={hideResolved}
           onToggleHideResolved={() => setHideResolved(v => !v)}
-          onReset={() => { const coreId = resetGraph(); setAutoEditId(coreId); saveViewport({ x: 0, y: 0, zoom: 1 }); rfInstance.current?.setViewport({ x: 0, y: 0, zoom: 1 }, { duration: 300 }) }}
           showLegend={showLegend}
           onToggleLegend={() => setShowLegend(v => !v)}
-          onExport={() => exportGraphToFile(graph)}
+          onExport={() => exportGraphToFile(graph, activeBoardId, boards.find(b => b.id === activeBoardId)?.name ?? 'Board')}
           onImport={handleImport}
           graph={graph}
+          boards={boards}
+          activeBoardId={activeBoardId}
+          onSwitchBoard={handleSwitchBoard}
+          onCreateBoard={handleCreateBoard}
+          onDeleteBoard={handleDeleteBoard}
+          onRenameBoard={handleRenameBoard}
         />
         <div style={{ width: '100%', height: '100%', paddingTop: 44 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
           <ReactFlow
@@ -530,12 +610,13 @@ export default function App() {
             fitViewOptions={{ padding: 0.5, maxZoom: 1 }}
             defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
             onMoveStart={() => document.getElementById('rf-wrap')?.classList.add('is-panning')}
-            onMoveEnd={(_e, vp) => { document.getElementById('rf-wrap')?.classList.remove('is-panning'); saveViewport(vp) }}
+            onMoveEnd={(_e, vp) => { document.getElementById('rf-wrap')?.classList.remove('is-panning'); saveViewport(vp, activeBoardId) }}
             panOnDrag={[1, 2]}
             minZoom={0.1}
             maxZoom={2}
             zoomOnDoubleClick={false}
             deleteKeyCode="Delete"
+            elevateEdgesOnSelect
             proOptions={{ hideAttribution: false }}
           >
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
@@ -580,7 +661,7 @@ export default function App() {
               { color: 'bg-[#f4f6f6] border border-black/10',   label: 'Question'     },
               { color: 'bg-[#00ae60]',                          label: 'Answer'       },
               { color: 'bg-[#00836d]',                          label: 'Answer AI'    },
-              { color: 'bg-[#fef9c3]',                          label: 'Note'         },
+              { color: 'bg-[#ffffff]',                          label: 'Note'         },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-2.5">
                 <span className={`inline-block w-3 h-3 rounded shrink-0 ${color}`} />
@@ -607,6 +688,27 @@ export default function App() {
           </div>
         </div>}
       </div>
+        <Dialog open={!!replaceConfirm} onOpenChange={open => { if (!open) setReplaceConfirm(null) }}>
+          <DialogContent className="max-w-sm">
+            <DialogHeader>
+              <DialogTitle className="pb-2">Replace "{replaceConfirm?.board.name}"?</DialogTitle>
+              <DialogDescription>
+                This file was exported from this board. Loading it will overwrite its current content.
+              </DialogDescription>
+            </DialogHeader>
+            <div className="flex justify-end gap-2 mt-4">
+              <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setReplaceConfirm(null)}>Cancel</Button>
+              <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => {
+                if (!replaceConfirm) return
+                saveGraph(replaceConfirm.graph, replaceConfirm.board.id)
+                persistActiveBoardId(replaceConfirm.board.id)
+                setActiveBoardIdState(replaceConfirm.board.id)
+                switchToBoard(replaceConfirm.board.id, replaceConfirm.graph)
+                setReplaceConfirm(null)
+              }}>Replace</Button>
+            </div>
+          </DialogContent>
+        </Dialog>
       <Toaster />
     </TooltipProvider>
   )

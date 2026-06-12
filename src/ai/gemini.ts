@@ -113,6 +113,30 @@ async function callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResul
   return { text, sources }
 }
 
+// ── Grammar fix ───────────────────────────────────────────────────────────────
+
+export async function fixGrammar(text: string): Promise<{ fixed: string }> {
+  return callGemini<{ fixed: string }>({
+    systemInstruction: `You are a minimal text corrector. Fix spelling, apply sentence case, and add missing punctuation.
+
+Rules — follow all strictly:
+- Fix obvious typos and misspellings
+- Apply sentence case: capitalize only the first word and proper nouns; lowercase everything else
+- Add missing colons, commas, question marks, or periods where clearly needed
+- Do NOT rephrase, reorder, or restructure anything
+- Do NOT add or remove words unless correcting a clear error
+- Do NOT add em dashes, long dashes, or hyphens
+- Do NOT add emojis or symbols
+- Preserve the original tone, brevity, and style`,
+    userPrompt: text,
+    responseSchema: {
+      type: 'object',
+      properties: { fixed: { type: 'string' } },
+      required: ['fixed'],
+    },
+  })
+}
+
 // ── Critique pass ─────────────────────────────────────────────────────────────
 
 export interface CritiqueItem {

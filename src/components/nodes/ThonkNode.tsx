@@ -35,6 +35,8 @@ import {
   MessagesSquare,
   CircleCheckBig,
   Ban,
+  MoreHorizontal,
+  SpellCheck,
 } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
@@ -43,7 +45,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
 import { assembleContext, contextToPrompt } from '@/ai/context'
-import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, resolveConflict, answerQuestion, generateSolution, correctAnswer } from '@/ai/gemini'
+import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, resolveConflict, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
 import type { ConflictOption } from '@/ai/gemini'
 import type { ThonkGraph, ConflictEntry } from '@/store/types'
 import { MergeConflictModal } from './MergeConflictModal'
@@ -1021,6 +1023,17 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'rejected' })
     })
 
+  const handleFixGrammar = () =>
+    withLoading(async () => {
+      const text = thonk.title.trim()
+      if (!text) return
+      const { fixed } = await fixGrammar(text)
+      if (fixed && fixed !== text) {
+        const bodyPatch = thonk.type === 'question' ? { body: fixed } : {}
+        d.onUpdate(thonk.id, { title: fixed, ...bodyPatch })
+      }
+    })
+
   const handleNoteRejection = () =>
     withLoading(async () => {
       const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
@@ -1102,6 +1115,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             <>
               {showEdit && thonk.type !== 'problem' && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
               {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} dot={!!thonk.unread && !d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
+              <NodeMoreMenu onFixGrammar={handleFixGrammar} hasContent={hasContent} />
               <Sep />
               {thonk.type === 'question' && (
                 <button
@@ -1155,7 +1169,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               )}
               {thonk.type === 'problem' && (
                 <>
-                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} className="text-blue-300" />
+                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('answering')} disabled={!hasContent} className="text-blue-300" />
                   <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} className="text-green-400" heat={depthHeat} />
                 </>
               )}
@@ -1177,6 +1191,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} dot={!!thonk.unread && !d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
               <AddDropdown nodeType={thonk.type} onAddQuestion={handleAddQuestion} onAddIdea={handleAddIdea} onAddProblem={handleAddProblem} />
               <TransformBtn currentType={thonk.type} onTransform={handleTransform} />
+              <NodeMoreMenu onFixGrammar={handleFixGrammar} hasContent={hasContent} />
               {thonk.type === 'answer' && (
                 <>
                   <Sep />
@@ -1645,6 +1660,29 @@ function ResolutionDropdown({
           <DropdownMenuItem onClick={onCloseBranch}>
             <CircleSlash className="w-4 h-4 text-gray-400" />
             {closeBranchCount > 1 ? `Close branch (${closeBranchCount})` : 'Close branch'}
+          </DropdownMenuItem>
+        </DropdownMenuContent>
+      </DropdownMenu>
+    </Tooltip>
+  )
+}
+
+function NodeMoreMenu({ onFixGrammar, hasContent }: { onFixGrammar: () => void; hasContent: boolean }) {
+  return (
+    <Tooltip>
+      <DropdownMenu>
+        <TooltipTrigger asChild>
+          <DropdownMenuTrigger asChild>
+            <button className="nodrag w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
+              <MoreHorizontal className="w-5 h-5" />
+            </button>
+          </DropdownMenuTrigger>
+        </TooltipTrigger>
+        <TooltipContent side="top" sideOffset={10} className="text-sm">More options</TooltipContent>
+        <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[160px]" onCloseAutoFocus={e => e.preventDefault()}>
+          <DropdownMenuItem onClick={onFixGrammar} disabled={!hasContent}>
+            <SpellCheck className="w-4 h-4" />
+            Fix Grammar
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>

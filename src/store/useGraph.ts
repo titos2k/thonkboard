@@ -13,30 +13,39 @@ function debounce<T extends (...args: Parameters<T>) => void>(fn: T, ms: number)
 
 const MAX_HISTORY = 21 // 20 undo steps
 
-export function useGraph() {
-  // useState(loadGraph) calls loadGraph only once (lazy initializer)
-  const [graph, setGraphRaw] = useState<ThonkGraph>(loadGraph)
+export function useGraph(boardId: string) {
+  const [graph, setGraphRaw] = useState<ThonkGraph>(() => loadGraph(boardId))
 
-  // Eager-sync ref — useRef(graph) uses the initial value on first render only
-  const graphRef = useRef<ThonkGraph>(graph)
+  const graphRef    = useRef<ThonkGraph>(graph)
+  const boardIdRef  = useRef<string>(boardId)
+  const historyRef  = useRef<ThonkGraph[]>([graph])
+  const historyIdx  = useRef(0)
+  const [histVer, setHistVer] = useState(0)
+  const isBatching  = useRef(false)
 
-  // History stack — seeded with the initial graph
-  const historyRef = useRef<ThonkGraph[]>([graph])
-  const historyIdx = useRef(0)
-  const [histVer, setHistVer] = useState(0) // bumped to trigger canUndo/canRedo recompute
-
-  // Batch mode: multiple setGraph calls collapse into one history entry
-  const isBatching = useRef(false)
-
+  // persist always saves to whichever board is current at fire time
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const persist = useCallback(
-    debounce((g: ThonkGraph) => saveGraph(g), 500),
+    debounce((g: ThonkGraph) => saveGraph(g, boardIdRef.current), 500),
     [],
   )
 
+  // Call this to switch boards. Flushes current board, loads (or accepts) the new graph,
+  // resets history. Pass preloadedGraph to avoid a redundant localStorage read on import.
+  const switchToBoard = useCallback((newBoardId: string, preloadedGraph?: ThonkGraph) => {
+    saveGraph(graphRef.current, boardIdRef.current)
+    boardIdRef.current = newBoardId
+    const next = preloadedGraph ?? loadGraph(newBoardId)
+    graphRef.current = next
+    setGraphRaw(next)
+    historyRef.current = [next]
+    historyIdx.current = 0
+    setHistVer(v => v + 1)
+  }, [])
+
   const pushHistory = useCallback((next: ThonkGraph) => {
     const h = historyRef.current
-    h.splice(historyIdx.current + 1) // truncate redo branch
+    h.splice(historyIdx.current + 1)
     h.push(next)
     if (h.length > MAX_HISTORY) h.shift()
     else historyIdx.current = h.length - 1
@@ -54,9 +63,7 @@ export function useGraph() {
     [persist, pushHistory],
   )
 
-  const onBatchStart = useCallback(() => {
-    isBatching.current = true
-  }, [])
+  const onBatchStart = useCallback(() => { isBatching.current = true }, [])
 
   const onBatchEnd = useCallback(() => {
     isBatching.current = false
@@ -69,7 +76,7 @@ export function useGraph() {
     const prev = historyRef.current[historyIdx.current]
     graphRef.current = prev
     setGraphRaw(prev)
-    saveGraph(prev)
+    saveGraph(prev, boardIdRef.current)
     setHistVer(v => v + 1)
   }, [])
 
@@ -79,7 +86,7 @@ export function useGraph() {
     const next = historyRef.current[historyIdx.current]
     graphRef.current = next
     setGraphRaw(next)
-    saveGraph(next)
+    saveGraph(next, boardIdRef.current)
     setHistVer(v => v + 1)
   }, [])
 
@@ -156,7 +163,6 @@ export function useGraph() {
     [setGraph],
   )
 
-  /** Version a core node: creates a new core with revisionOf=oldId */
   const versionCore = useCallback(
     (oldId: string, newTitle: string, newBody: string, position: { x: number; y: number }): ThonkNode => {
       const newNode: ThonkNode = {
@@ -206,12 +212,13 @@ export function useGraph() {
   const canUndo = historyIdx.current > 0
   const canRedo = historyIdx.current < historyRef.current.length - 1
 
-  // histVer is read here only to ensure this hook re-renders when history changes
   void histVer
 
   return {
     graph,
+    graphRef,
     setGraph,
+    switchToBoard,
     addNode,
     addEdge,
     updateNode,
@@ -231,10 +238,8 @@ export function useGraph() {
 }
 
 // ── Shared selected-node state ─────────────────────────────────────────────────
-// Not in the hook above since it doesn't need persistence.
 export type SelectedNodeId = string | null
 
-// Debounce ref utility (stable across renders without useCallback tricks)
 export function useDebouncedRef<T>(fn: (v: T) => void, ms: number) {
   const timerRef = useRef<ReturnType<typeof setTimeout> | null>(null)
   return useCallback(
