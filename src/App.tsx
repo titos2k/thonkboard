@@ -171,13 +171,14 @@ function toRFNode(
   graphRef: React.MutableRefObject<ThonkGraph>,
   cb: GraphCallbacks,
   aiConnected: boolean,
+  hiddenNodeIds: Set<string>,
 ): Node {
   return {
     id: n.id,
     type: n.type === 'note' ? 'note' : 'thonk',
     position: n.position,
     selected,
-    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, aiConnected, ...cb } as ThonkNodeData,
+    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, aiConnected, hiddenNodeIds, ...cb } as ThonkNodeData,
   }
 }
 
@@ -187,7 +188,7 @@ function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
   const resolved = target?.resolved || source?.resolved
   const stroke   = NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8'
   const aiDepth  = Math.max(target?.meta.aiDepth ?? 0, source?.meta.aiDepth ?? 0)
-  const dash     = (target?.meta.aiGenerated || source?.meta.aiGenerated) ? `5 ${3 + aiDepth * 4}` : undefined
+  const dash     = (target?.meta.aiGenerated && source?.meta.aiGenerated) ? `5 ${3 + aiDepth * 4}` : undefined
   return {
     id: e.id,
     source: e.source,
@@ -229,7 +230,7 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
   const [panelNodeId, setPanelNodeId] = useState<string | null>(null)
-  const [hideResolved, setHideResolved] = useState(false)
+  const [hideResolved, setHideResolved] = useState(() => localStorage.getItem('hideResolved') === 'true')
 
   const [welcomed, setWelcomed] = useState(() => !!localStorage.getItem('thonk.welcomed'))
   const [aiConnected, setAiConnected] = useState(hasActiveKey)
@@ -387,8 +388,18 @@ export default function App() {
   const handleAiConnected = useCallback(() => {
     setAiConnected(true)
     const core = graph.nodes.find(n => n.type === 'core')
-    if (core) navigateToNode(core.id)
-  }, [graph.nodes, navigateToNode])
+    if (core) {
+      setSelectedIds(new Set([core.id]))
+      setAutoEditId(core.id)
+      const n = rfInstance.current?.getNode(core.id)
+      if (n) {
+        const cx = n.position.x + (n.measured?.width ?? 200) / 2
+        const cy = n.position.y + (n.measured?.height ?? 80) / 2
+        const zoom = rfInstance.current?.getZoom() ?? 1
+        rfInstance.current?.setCenter(cx, cy, { duration: 500, zoom })
+      }
+    }
+  }, [graph.nodes])
 
   const handleWelcomeConnectAI = useCallback(() => {
     localStorage.setItem('thonk.welcomed', '1')
@@ -401,11 +412,24 @@ export default function App() {
     setWelcomed(true)
   }, [])
 
+  const handleUpdateNode: GraphCallbacks['onUpdate'] = useCallback((id, patch) => {
+    updateNode(id, patch)
+    if ('title' in patch && patch.title) {
+      const node = graph.nodes.find(n => n.id === id)
+      if (node?.type === 'core') {
+        const board = boards.find(b => b.id === activeBoardId)
+        if (board && /^Board \d+$/.test(board.name)) {
+          handleRenameBoard(activeBoardId, patch.title)
+        }
+      }
+    }
+  }, [updateNode, graph.nodes, boards, activeBoardId, handleRenameBoard])
+
   const callbacks: GraphCallbacks = useMemo(
     () => ({
       onAddNode:     addNode,
       onAddEdge:     addGraphEdge,
-      onUpdate:      updateNode,
+      onUpdate:      handleUpdateNode,
       onDelete:      deleteNode,
       onVersionCore: versionCore,
       onOpenPanel:   openPanel,
@@ -413,12 +437,12 @@ export default function App() {
       onBatchStart,
       onBatchEnd,
     }),
-    [addNode, addGraphEdge, updateNode, deleteNode, versionCore, openPanel, onBatchStart, onBatchEnd],
+    [addNode, addGraphEdge, handleUpdateNode, deleteNode, versionCore, openPanel, onBatchStart, onBatchEnd],
   )
 
-  // Compute nodes from store (used to sync into rfNodes when not dragging)
-  const visibleNodes = useMemo(() => {
-    if (!hideResolved) return graph.nodes
+  // Compute which node IDs are hidden when hideResolved is active
+  const hiddenNodeIds = useMemo(() => {
+    if (!hideResolved) return new Set<string>()
 
     // Build undirected adjacency map
     const adj = new Map<string, string[]>(graph.nodes.map(n => [n.id, []]))
@@ -443,17 +467,81 @@ export default function App() {
       }
     }
 
-    return graph.nodes.filter(n => !hidden.has(n.id))
+    return hidden
   }, [graph.nodes, graph.edges, hideResolved])
+
+  // Compute nodes from store (used to sync into rfNodes when not dragging)
+  const visibleNodes = useMemo(
+    () => graph.nodes.filter(n => !hiddenNodeIds.has(n.id)),
+    [graph.nodes, hiddenNodeIds],
+  )
   const visibleNodeIds = useMemo(() => new Set(visibleNodes.map(n => n.id)), [visibleNodes])
+
+  // Ghost connectors: grey dotted edges bridging visible nodes through hidden-node gaps
+  const ghostEdges = useMemo((): Edge[] => {
+    if (!hideResolved || hiddenNodeIds.size === 0) return []
+
+    const visited = new Set<string>()
+    const result: Edge[] = []
+
+    for (const hiddenId of hiddenNodeIds) {
+      if (visited.has(hiddenId)) continue
+
+      // BFS over connected component of hidden nodes
+      const component = new Set<string>()
+      const queue = [hiddenId]
+      const connectedVisible = new Set<string>()
+
+      while (queue.length) {
+        const curr = queue.shift()!
+        if (component.has(curr)) continue
+        component.add(curr)
+        visited.add(curr)
+
+        for (const edge of graph.edges) {
+          const neighbor = edge.source === curr ? edge.target
+                         : edge.target === curr ? edge.source
+                         : null
+          if (neighbor === null) continue
+          if (hiddenNodeIds.has(neighbor)) {
+            if (!component.has(neighbor)) queue.push(neighbor)
+          } else {
+            connectedVisible.add(neighbor)
+          }
+        }
+      }
+
+      // One ghost edge per pair of visible nodes linked through this hidden component
+      const visArr = [...connectedVisible]
+      for (let i = 0; i < visArr.length; i++) {
+        for (let j = i + 1; j < visArr.length; j++) {
+          const [src, tgt] = [visArr[i], visArr[j]]
+          result.push({
+            id: `ghost-${src}-${tgt}`,
+            source: src,
+            target: tgt,
+            style: { stroke: '#64748b', strokeWidth: 1.5, opacity: 0.3 },
+            label: component.size === 1 ? '1 hidden' : `${component.size} hidden`,
+            labelStyle: { fill: '#64748b', fontSize: 11 },
+            labelBgStyle: { fill: 'hsl(42, 15%, 92%)' },
+            labelBgPadding: [4, 2] as [number, number],
+            selectable: false,
+            focusable: false,
+            interactionWidth: 0,
+          })
+        }
+      }
+    }
+    return result
+  }, [hideResolved, hiddenNodeIds, graph.edges])
 
   const storeNodes = useMemo(
     () => visibleNodes.map(n => toRFNode(
       n, selectedIds.has(n.id), n.id === autoEditId, n.id === panelNodeId,
       graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
-      graphRef, callbacks, aiConnected,
+      graphRef, callbacks, aiConnected, hiddenNodeIds,
     )),
-    [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks, aiConnected],
+    [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks, aiConnected, hiddenNodeIds],
   )
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
@@ -471,14 +559,15 @@ export default function App() {
   useEffect(() => {
     setRfEdges(prev => {
       const prevById = new Map(prev.map(e => [e.id, e]))
-      return graph.edges
+      const realEdges = graph.edges
         .filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
         .map(e => {
           const existing = prevById.get(e.id)
           return { ...toRFEdge(e, graph.nodes), selected: existing?.selected ?? false }
         })
+      return [...realEdges, ...ghostEdges]
     })
-  }, [graph.edges, visibleNodeIds])
+  }, [graph.edges, visibleNodeIds, ghostEdges])
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -640,7 +729,11 @@ export default function App() {
     [panelNodeId, graph.nodes],
   )
 
-  const handleToggleHideResolved = useCallback(() => setHideResolved(v => !v), [])
+  const handleToggleHideResolved = useCallback(() => setHideResolved(v => {
+    const next = !v
+    localStorage.setItem('hideResolved', String(next))
+    return next
+  }), [])
   const handleToggleLegend       = useCallback(() => setShowLegend(v => !v), [])
   const handleExport             = useCallback(
     () => exportGraphToFile(graph, activeBoardId, boards.find(b => b.id === activeBoardId)?.name ?? 'Board'),

@@ -37,6 +37,7 @@ import {
   Ban,
   MoreHorizontal,
   SpellCheck,
+  EyeOff,
 } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
@@ -71,6 +72,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
   panelOpen: boolean
   hasAnswer: boolean
   aiConnected: boolean
+  hiddenNodeIds?: Set<string>
   onOpenPanel: (id: string | null) => void
   onAutoEdit: (id: string) => void
   onBatchStart: () => void
@@ -232,16 +234,21 @@ function nodeSpawnDir(
     }
   }
 
-  // No parent (root node): infer direction from where existing children already sit
+  // No parent (root node): pick the direction with the fewest existing children
   const children = graph.edges
     .filter(e => e.source === nodeId)
     .map(e => graph.nodes.find(n => n.id === e.target))
     .filter(Boolean) as { id: string; position: { x: number; y: number } }[]
   if (children.length > 0) {
-    const avgVx = children.reduce((s, c) => s + (c.position.x - node.position.x), 0) / children.length
-    const avgVy = children.reduce((s, c) => s + (c.position.y - node.position.y), 0) / children.length
-    if (Math.abs(avgVx) > Math.abs(avgVy)) return avgVx > 0 ? 'right' : 'left'
-    return avgVy >= 0 ? 'down' : 'up'
+    const counts: Record<Dir, number> = { right: 0, left: 0, down: 0, up: 0 }
+    for (const c of children) {
+      const vx = c.position.x - node.position.x
+      const vy = c.position.y - node.position.y
+      const d: Dir = Math.abs(vx) > Math.abs(vy) ? (vx > 0 ? 'right' : 'left') : (vy >= 0 ? 'down' : 'up')
+      counts[d]++
+    }
+    const min = Math.min(...Object.values(counts))
+    return (Object.entries(counts) as [Dir, number][]).find(([, v]) => v === min)![0]
   }
 
   return 'down'
@@ -484,14 +491,18 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const handleArgue = () =>
     withLoading(async () => {
       const problems = await critiqueNode(ctx())
+      const dir = nodeSpawnDir(thonk.id, graphRef.current)
+      const { sourceHandle, targetHandle } = dirHandles(dir)
+      const { dx, dy } = dirOffset(dir, nodeH())
       const childDepth = thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0
+      const placed: { position: { x: number; y: number } }[] = []
       const ids: string[] = []
-      let i = 0
       for (const p of problems) {
-        const node = d.onAddNode('problem', p.content, p.content, spawnPos(280 + i * 20, -40 + i * 80), { severity: p.severity, aiGenerated: true, aiDepth: childDepth })
-        d.onAddEdge(thonk.id, node.id, 'argues', 's-right', 't-left')
+        const pos = findFreePos([...graphRef.current.nodes, ...placed], livePos(), dx, dy, dir)
+        placed.push({ position: pos })
+        const node = d.onAddNode('problem', p.content, p.content, pos, { severity: p.severity, aiGenerated: true, aiDepth: childDepth })
+        d.onAddEdge(thonk.id, node.id, 'argues', sourceHandle, targetHandle)
         ids.push(node.id)
-        i++
       }
       if (problems.length === 0) showToast('No significant problems found — idea holds up.')
       else panToSpawned(ids)
@@ -655,9 +666,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   }
 
   const handleAddProblem = () => {
-    const pos = findFreePos(graphRef.current.nodes, livePos(), 280, -40)
+    const dir = nodeSpawnDir(thonk.id, graphRef.current)
+    const { dx, dy } = dirOffset(dir, nodeH())
+    const { sourceHandle, targetHandle } = dirHandles(dir)
+    const pos = findFreePos(graphRef.current.nodes, livePos(), dx, dy, dir)
     const node = d.onAddNode('problem', '', '', pos, { severity: 0.5 })
-    d.onAddEdge(thonk.id, node.id, 'argues', 's-right', 't-left')
+    d.onAddEdge(thonk.id, node.id, 'argues', sourceHandle, targetHandle)
     panToSpawned([node.id])
     d.onAutoEdit(node.id)
   }
@@ -1095,6 +1109,10 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     ? (mergeTargetNode.title.length > 22 ? mergeTargetNode.title.slice(0, 22) + '…' : mergeTargetNode.title)
     : 'canvas'
 
+  const mergeTargetHidden   = !!d.hiddenNodeIds?.has(mergeTargetNode?.id   ?? '')
+  const ideaParentHidden    = !!d.hiddenNodeIds?.has(ideaParentNode?.id    ?? '')
+  const problemParentHidden = !!d.hiddenNodeIds?.has(problemParentNode?.id ?? '')
+
   const isLoading = actionState === 'loading'
   const isLight = thonk.type === 'question' || thonk.type === 'idea'
 
@@ -1114,21 +1132,24 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
 
           {thonk.resolved ? (
-            /* Resolved: edit, details, reopen (+ answer shortcut for questions only), delete */
+            /* Resolved: answer first (questions), then edit, details, reopen, delete */
             <>
+              {thonk.type === 'question' && (
+                <>
+                  <button
+                    onClick={handleReopenAndAnswer}
+                    className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
+                  >
+                    <MessageCircleReply className="w-5 h-5" />
+                    Answer
+                  </button>
+                  <Sep />
+                </>
+              )}
               {showEdit && thonk.type !== 'problem' && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
               {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} dot={!!thonk.unread && !d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
               <NodeMoreMenu onFixGrammar={handleFixGrammar} hasContent={hasContent} />
               <Sep />
-              {thonk.type === 'question' && (
-                <button
-                  onClick={handleReopenAndAnswer}
-                  className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
-                >
-                  <MessageCircleReply className="w-5 h-5" />
-                  Answer
-                </button>
-              )}
               <ToolBtn icon={<RotateCcw className="w-5 h-5" />} label="Reopen" onClick={handleReopen} />
               <Sep />
               <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
@@ -1207,6 +1228,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                     applyTargetName={applyTargetName}
                     onNoteRejection={mergeTargetNode ? handleNoteRejection : undefined}
                     noteRejectionTarget={applyTargetName}
+                    targetHidden={mergeTargetHidden}
                   />
                 </>
               )}
@@ -1230,6 +1252,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                     onApply={problemParentNode ? handleApplyProblem : undefined}
                     onApplyBranch={problemParentNode ? handleApplyProblemBranch : undefined}
                     applyTargetName={problemParentName}
+                    targetHidden={problemParentHidden}
                   />
                 </>
               )}
@@ -1245,6 +1268,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                     applyTargetName={ideaParentName}
                     onNoteRejection={ideaParentNode ? handleRejectIdea : undefined}
                     noteRejectionTarget={ideaParentName}
+                    targetHidden={ideaParentHidden}
                   />
                 </>
               )}
@@ -1283,7 +1307,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 if (e.key === 'Escape') { setEditTitle(thonk.title); setEditing(false) }
               }}
               placeholder={
-                thonk.type === 'core'     ? 'Your idea, core problem, topic, plan…' :
+                thonk.type === 'core'     ? 'Your idea, core problem, topic, plan, next project…' :
                 thonk.type === 'idea'     ? 'Describe the idea…' :
                 thonk.type === 'problem'  ? 'What\'s the problem?' :
                 thonk.type === 'question' ? 'Ask a question…' :
@@ -1303,7 +1327,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               )}
               onDoubleClick={thonk.type === 'question' ? (thonk.title.trim() ? () => setActionState('answering') : enterEdit) : enterEdit}
             >
-              {thonk.title ? linkifyText(thonk.title) : <span className="opacity-40">{thonk.type === 'core' ? 'Your idea, core problem, topic, plan…' : 'Untitled'}</span>}
+              {thonk.title ? linkifyText(thonk.title) : <span className="opacity-40">{thonk.type === 'core' ? 'Your idea, core problem, topic, plan, next project…' : 'Untitled'}</span>}
             </p>
           )}
 
@@ -1615,6 +1639,7 @@ function ResolutionDropdown({
   applyTargetName,
   onNoteRejection,
   noteRejectionTarget,
+  targetHidden,
 }: {
   closeBranchCount: number
   onClose: () => void
@@ -1624,6 +1649,7 @@ function ResolutionDropdown({
   applyTargetName?: string
   onNoteRejection?: () => void
   noteRejectionTarget?: string
+  targetHidden?: boolean
 }) {
   return (
     <Tooltip>
@@ -1641,11 +1667,11 @@ function ResolutionDropdown({
             <>
               <DropdownMenuItem onClick={onApply}>
                 <CircleCheckBig className="w-4 h-4 text-[#00ae60]" />
-                {`Apply to "${applyTargetName}"`}
+                Apply to {targetHidden && <span title="This node is hidden"><EyeOff className="w-4 h-4 inline text-gray-400 mr-0.5" /></span>}"{applyTargetName}"
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onApplyBranch}>
                 <CheckCheck className="w-4 h-4 text-[#00ae60]" />
-                {`Apply branch to "${applyTargetName}"`}
+                Apply branch to {targetHidden && <span title="This node is hidden"><EyeOff className="w-4 h-4 inline text-gray-400 mr-0.5" /></span>}"{applyTargetName}"
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>
@@ -1654,7 +1680,7 @@ function ResolutionDropdown({
             <>
               <DropdownMenuItem onClick={onNoteRejection}>
                 <Ban className="w-4 h-4 text-[#e95a32]" />
-                {`Reject in "${noteRejectionTarget}"`}
+                Reject in {targetHidden && <span title="This node is hidden"><EyeOff className="w-4 h-4 inline text-gray-400 mr-0.5" /></span>}"{noteRejectionTarget}"
               </DropdownMenuItem>
               <DropdownMenuSeparator />
             </>

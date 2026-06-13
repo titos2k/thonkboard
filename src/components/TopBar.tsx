@@ -1,4 +1,4 @@
-import { useRef, useState, memo } from 'react'
+import { useRef, useState, memo, useEffect } from 'react'
 import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -73,6 +73,8 @@ function apiKeyButtonLabel(provider: Provider): string {
 
 function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportPng, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected }: TopBarProps) {
   const fileInputRef = useRef<HTMLInputElement>(null)
+
+  useEffect(() => { new Image().src = '/thonk-wizard.png' }, [])
 
   // Committed provider (drives button label + Turbo Thonking visibility)
   const [committedProvider, setCommittedProvider] = useState<Provider>(getProvider)
@@ -488,19 +490,24 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
 
           {/* Provider selector — radios */}
           <div className="flex flex-wrap gap-x-5 gap-y-2">
-            {PROVIDERS.map(p => (
-              <label key={p} className="flex items-center gap-2 cursor-pointer">
-                <input
-                  type="radio"
-                  name="ai-provider"
-                  value={p}
-                  checked={dialogProvider === p}
-                  onChange={() => setDialogProvider(p)}
-                  className="accent-gray-900 w-4 h-4"
-                />
-                <span className="text-sm font-medium select-none">{PROVIDER_LABELS[p]}</span>
-              </label>
-            ))}
+            {PROVIDERS.map(p => {
+              const isOllamaRemote = p === 'ollama' && window.location.hostname !== 'localhost' && window.location.hostname !== '127.0.0.1'
+              return (
+                <label key={p} className={`flex items-center gap-2 ${isOllamaRemote ? 'cursor-not-allowed opacity-50' : 'cursor-pointer'}`}>
+                  <input
+                    type="radio"
+                    name="ai-provider"
+                    value={p}
+                    checked={dialogProvider === p}
+                    onChange={() => setDialogProvider(p)}
+                    disabled={isOllamaRemote}
+                    className="accent-gray-900 w-4 h-4"
+                  />
+                  <span className="text-sm font-medium select-none">{PROVIDER_LABELS[p]}</span>
+                  {isOllamaRemote && <span className="text-[10px] font-semibold uppercase tracking-wide bg-gray-200 text-gray-500 rounded px-1.5 py-0.5 leading-none">Local only</span>}
+                </label>
+              )
+            })}
           </div>
 
           {/* Trust banner — hidden for Ollama local */}

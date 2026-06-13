@@ -302,7 +302,7 @@ Generate however many new, concrete ideas naturally extend or build upon the TAR
 If the content strongly suggests one direction, return one. If it opens several distinct threads, return several.
 Do NOT pad to reach a number. Each idea must earn its place.
 Each idea must be distinct from everything in the skeleton. Avoid generic brainstorming platitudes.
-Keep titles under 60 characters. Bodies should be 1-2 sentences.
+Keep titles under 60 characters. Titles must be self-contained: a reader who sees only the title (not the parent body) must understand the idea — no pronouns ("this", "it"), no vague referents ("the approach", "the solution"), no implicit callbacks to the parent body. Bodies should be 1-2 sentences.
 ${IDEA_TONE}`
 
 const PROPOSE_SYSTEM = `You are helping find new ideas related to a concept on an ideation board.
@@ -311,7 +311,7 @@ Generate however many sibling ideas naturally emerge — related to the TARGET N
 No fixed count. If one strong angle exists, return one. If several distinct approaches arise, return several.
 Do NOT pad to reach a number. Each idea must earn its place.
 Each idea must be distinct from everything in the skeleton.
-Keep titles under 60 characters. Bodies should be 1-2 sentences.
+Keep titles under 60 characters. Titles must be self-contained: a reader who sees only the title (not the parent body) must understand the idea — no pronouns ("this", "it"), no vague referents ("the approach", "the solution"), no implicit callbacks to the parent body. Bodies should be 1-2 sentences.
 ${IDEA_TONE}`
 
 export async function expandNode(contextPrompt: string): Promise<IdeaItem[]> {

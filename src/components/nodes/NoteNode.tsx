@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { NodeToolbar, Position, type NodeProps } from '@xyflow/react'
-import { Trash2, ArrowDownUp, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, MessageCircle, SpellCheck, Loader2 } from 'lucide-react'
+import { Trash2, ArrowDownUp, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, MessageCircle, SpellCheck, Loader2, GripHorizontal, Pencil } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -27,41 +27,42 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
   const { thonk } = d
   const textareaRef = useRef<HTMLTextAreaElement>(null)
   const textRef = useRef(thonk.title)
+  const [editing, setEditing] = useState(() => !!d.autoEdit)
   const [fixing, setFixing] = useState(false)
 
-  // Focus textarea on auto-edit (newly created note)
+  // Focus textarea when entering edit mode
   useEffect(() => {
-    if (d.autoEdit) {
-      const id = setTimeout(() => textareaRef.current?.focus(), 0)
+    if (editing) {
+      const id = setTimeout(() => {
+        textareaRef.current?.focus()
+        autoResize()
+      }, 0)
       return () => clearTimeout(id)
     }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [])
+  }, [editing])
 
-  // Sync from store when title changes externally
+  // Keep textRef in sync when store updates externally (while not editing)
   useEffect(() => {
-    if (textareaRef.current && textareaRef.current !== document.activeElement) {
-      textareaRef.current.value = thonk.title
-      textRef.current = thonk.title
-      autoResize()
-    }
+    if (!editing) textRef.current = thonk.title
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [thonk.title])
-
-  // Min content height keeps the note square (128px wide − 16px handle − 10px padding = 102px)
-  const MIN_H = 102
 
   function autoResize() {
     const el = textareaRef.current
     if (!el) return
     el.style.height = 'auto'
-    el.style.height = Math.max(el.scrollHeight, MIN_H) + 'px'
+    el.style.height = el.scrollHeight + 'px'
   }
 
-  // Initial resize after mount
+  // Initial resize on first mount (when autoEdit starts in edit mode)
   useLayoutEffect(() => {
     autoResize()
   }, [])
+
+  const enterEdit = () => {
+    textRef.current = thonk.title
+    setEditing(true)
+  }
 
   const handleChange = (e: React.ChangeEvent<HTMLTextAreaElement>) => {
     textRef.current = e.target.value
@@ -73,6 +74,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
     if (val !== thonk.title) {
       d.onUpdate(thonk.id, { title: val, body: val })
     }
+    setEditing(false)
   }
 
   const handleTransform = (newType: NodeType) => {
@@ -104,6 +106,18 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
     <NodeShell nodeType="note" selected={selected} handles={false} className="cursor-default active:cursor-default">
       <NodeToolbar isVisible={selected && !dragging} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
+          <Tooltip>
+            <TooltipTrigger asChild>
+              <button
+                onClick={enterEdit}
+                className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
+              >
+                <Pencil className="w-5 h-5" />
+              </button>
+            </TooltipTrigger>
+            <TooltipContent side="top" sideOffset={10} className="text-sm">Edit</TooltipContent>
+          </Tooltip>
+          <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
           <Tooltip>
             <DropdownMenu>
               <TooltipTrigger asChild>
@@ -154,26 +168,35 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
 
       {/* Drag handle — the only grabbable area on a note */}
       <div className="h-4 flex items-center justify-center cursor-grab active:cursor-grabbing">
-        <div className="w-8 h-0.5 rounded-full bg-gray-300" />
+        <GripHorizontal className="w-4 h-4" style={{ color: '#ddcba3' }} />
       </div>
 
-      <div className="px-3 pb-2.5">
-        <textarea
-          ref={textareaRef}
-          defaultValue={thonk.title}
-          onChange={handleChange}
-          onBlur={handleBlur}
-          onKeyDown={e => {
-            stopDeletePropagation(e)
-            if (e.key === 'Escape') textareaRef.current?.blur()
-          }}
-          placeholder="Type a note…"
-          className={cn(
-            'nodrag w-full bg-transparent outline-none border-none text-sm leading-snug',
-            'text-gray-500 placeholder:text-gray-300 resize-none overflow-hidden p-0 m-0',
-            'cursor-text',
-          )}
-        />
+      <div className="px-3 pb-2.5 flex items-center justify-center min-h-[102px]">
+        {editing ? (
+          <textarea
+            ref={textareaRef}
+            defaultValue={thonk.title}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            onKeyDown={e => {
+              stopDeletePropagation(e)
+              if (e.key === 'Escape') textareaRef.current?.blur()
+            }}
+            placeholder="Type a note…"
+            className={cn(
+              'nodrag w-full bg-transparent outline-none border-none text-sm leading-snug',
+              'text-gray-700 placeholder:text-gray-400 resize-none overflow-hidden p-0 m-0',
+              'cursor-text text-center',
+            )}
+          />
+        ) : (
+          <p
+            onDoubleClick={enterEdit}
+            className="w-full text-sm leading-snug text-gray-700 text-center select-none cursor-default"
+          >
+            {thonk.title || <span className="text-gray-400">Type a note…</span>}
+          </p>
+        )}
       </div>
     </NodeShell>
   )

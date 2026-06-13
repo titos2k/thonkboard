@@ -120,7 +120,6 @@ body {
 /* Edge reconnect handles — only visible on selected edges, hidden while dragging */
 .react-flow__edgeupdater {
   opacity: 0;
-  r: 3;
   fill: white;
   stroke-width: 1.5;
   cursor: crosshair;

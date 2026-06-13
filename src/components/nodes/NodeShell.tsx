@@ -20,7 +20,7 @@ const TYPE_STYLES: Record<NodeType, string> = {
   problem:  'border border-black/10 bg-[#e95a32] text-white shadow',
   question: 'border border-black/10 bg-[#f4f6f6] text-gray-900 shadow-md',
   answer:   'border border-black/10 bg-[#00ae60] text-white shadow',
-  note:     'border-0 bg-[#ffffff] text-gray-500 shadow-md rounded-[3px]',
+  note:     'border-0 bg-[#f7efd0] text-gray-700 shadow-md rounded-[3px]',
 }
 
 const TYPE_SELECTED: Record<NodeType, string> = {
