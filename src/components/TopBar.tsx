@@ -14,7 +14,7 @@ import { MODEL_LITE as ANTHROPIC_LITE, MODEL_SMART as ANTHROPIC_SMART } from '@/
 import { SummarizeModal, type SummarizeCache } from './SummarizeModal'
 import type { ThonkGraph, BoardMeta } from '@/store/types'
 import type { Provider } from '@/ai/types'
-import { useIsMobile } from '@/hooks/useIsMobile'
+import { useIsMobile, useIsNarrow } from '@/hooks/useIsMobile'
 
 interface TopBarProps {
   onAddCore: () => void
@@ -29,6 +29,8 @@ interface TopBarProps {
   onExport: () => void
   onExportAs: () => void
   onExportPng: () => void
+  linkedFileName: string | null
+  fileDirty: boolean
   onImport: (file: File) => void
   graph: ThonkGraph
   boards: BoardMeta[]
@@ -72,7 +74,7 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? `${PROVIDER_LABELS[provider]} ✓` : 'Set AI key'
 }
 
-function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected }: TopBarProps) {
+function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected }: TopBarProps) {
   const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -103,6 +105,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
   const [helpOpen, setHelpOpen] = useState(false)
   const summarizeCache = useRef<SummarizeCache | null>(null)
   const isMobile = useIsMobile()
+  const isNarrow = useIsNarrow()
   const [renameOpen, setRenameOpen] = useState(false)
   const [renameName, setRenameName] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -262,7 +265,14 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   {isActive
                     ? <Check className="w-4 h-4 shrink-0 text-foreground" />
                     : <span className="w-4 shrink-0" />}
-                  <span className="truncate max-w-[140px]">{board.name}</span>
+                  <span className="flex flex-col min-w-0">
+                    <span className="truncate max-w-[140px]">{board.name}</span>
+                    {isActive && linkedFileName && (
+                      <span className="text-[10px] text-muted-foreground/50 font-mono truncate max-w-[140px]" title={linkedFileName}>
+                        {fileDirty ? '* ' : ''}{linkedFileName}
+                      </span>
+                    )}
+                  </span>
                 </span>
                 <span className="flex items-center gap-0.5 shrink-0">
                   {isActive && (
@@ -290,7 +300,16 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onExport} className="justify-between">
             <span className="flex items-center gap-2"><Save className="w-4 h-4 text-muted-foreground" /> Save board</span>
-            <kbd className={`ml-3 text-xs font-mono ${fsaSupported ? 'text-muted-foreground' : 'text-muted-foreground/30'}`}>Ctrl+S</kbd>
+            <Tooltip>
+              <TooltipTrigger asChild>
+                <kbd className={`ml-3 text-xs font-mono cursor-default ${fsaSupported ? 'text-muted-foreground' : 'text-muted-foreground/30'}`}>Ctrl+S</kbd>
+              </TooltipTrigger>
+              {!fsaSupported && (
+                <TooltipContent side="right" className="max-w-[180px] text-center text-xs">
+                  Silent save not supported in Firefox — downloads a copy instead
+                </TooltipContent>
+              )}
+            </Tooltip>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onExportAs} disabled={!fsaSupported} className={!fsaSupported ? 'opacity-40' : undefined}>
             <Save className="w-4 h-4 text-muted-foreground" /> Save board as…
@@ -387,14 +406,21 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
       </Tooltip>
 
       {!isMobile && (
-        <Button
-          size="sm" variant="outline"
-          className="h-9 text-sm gap-1.5 cursor-pointer bg-white"
-          disabled={!hasContent}
-          onClick={() => setSummarizeOpen(true)}
-        >
-          <Sparkles className="w-4 h-4" /> Summarize
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm" variant="outline"
+              className="h-9 cursor-pointer bg-white"
+              style={isNarrow ? { width: 36, padding: 0 } : undefined}
+              disabled={!hasContent}
+              onClick={() => setSummarizeOpen(true)}
+            >
+              <Sparkles className="w-4 h-4" />
+              {!isNarrow && <span className="ml-1.5 text-sm">Summarize</span>}
+            </Button>
+          </TooltipTrigger>
+          {isNarrow && <TooltipContent side="bottom">Summarize</TooltipContent>}
+        </Tooltip>
       )}
 
       {/* Right-side controls — hidden on mobile */}
@@ -405,14 +431,16 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
               onClick={onToggleHideResolved}
               className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 transition-colors"
             >
-              <span className="text-sm font-medium text-muted-foreground select-none">Hide resolved</span>
+              {isNarrow
+                ? <EyeOff className="w-4 h-4 text-muted-foreground" />
+                : <span className="text-sm font-medium text-muted-foreground select-none">Hide resolved</span>}
               <div className={`relative w-8 h-4 rounded-full transition-colors ${hideResolved ? 'bg-gray-700' : 'bg-gray-300'}`}>
                 <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${hideResolved ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </div>
             </button>
           </TooltipTrigger>
           <TooltipContent side="bottom">
-            {hideResolved ? 'Showing only active nodes' : 'Toggle to hide approved Q&A pairs'}
+            {hideResolved ? 'Showing only active nodes' : 'Hide resolved nodes'}
           </TooltipContent>
         </Tooltip>
 
@@ -423,7 +451,9 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                 onClick={toggleHighIQ}
                 className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 transition-colors"
               >
-                <span className="text-sm font-medium text-muted-foreground select-none">Turbo Thonking</span>
+                {isNarrow
+                  ? <Brain className="w-4 h-4 text-muted-foreground" />
+                  : <span className="text-sm font-medium text-muted-foreground select-none">Turbo Thonking</span>}
                 <div className={`relative w-8 h-4 rounded-full transition-colors ${highIQ ? 'bg-gray-700' : 'bg-gray-300'}`}>
                   <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${highIQ ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </div>
@@ -437,14 +467,21 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
           </Tooltip>
         )}
 
-        <Button
-          size="sm" variant="ghost"
-          className={`h-9 text-sm gap-2 ${!hasActiveKey() ? 'text-red-500 hover:text-red-600' : ''}`}
-          onClick={openKeyDialog}
-        >
-          <Astroid className="w-5 h-5" />
-          {apiKeyButtonLabel(committedProvider)}
-        </Button>
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button
+              size="sm" variant="ghost"
+              className={`h-9 gap-2 ${!hasActiveKey() ? 'text-red-500 hover:text-red-600' : ''}`}
+              onClick={openKeyDialog}
+            >
+              <Astroid className="w-5 h-5" />
+              {!isNarrow && <span className="text-sm">{apiKeyButtonLabel(committedProvider)}</span>}
+            </Button>
+          </TooltipTrigger>
+          {isNarrow && (
+            <TooltipContent side="bottom">{apiKeyButtonLabel(committedProvider)}</TooltipContent>
+          )}
+        </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>

@@ -28,12 +28,13 @@ import '@xyflow/react/dist/style.css'
 import { useGraph } from '@/store/useGraph'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
-  exportGraphToFile, parseImportedGraph, saveGraph,
+  exportGraphToFile, parseImportedGraph, saveGraph, loadGraph,
   migrateToMultiBoard,
   loadBoards, saveBoards, getActiveBoardId, setActiveBoardId as persistActiveBoardId, deleteBoard,
   loadViewport, saveViewport,
   fsaSupported, saveGraphToFileHandle,
 } from '@/store/graph'
+import { persistFileHandle, restoreFileHandle, dropFileHandle, ensureWritePermission } from '@/store/fileHandleStore'
 import type { ThonkNode, ThonkEdge, ThonkGraph, BoardMeta } from '@/store/types'
 import { v4 as uuidv4 } from 'uuid'
 import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
@@ -242,13 +243,37 @@ export default function App() {
   })
   const [showLegend, setShowLegend] = useState(true)
   const [spaceHeld, setSpaceHeld] = useState(false)
-  const [replaceConfirm, setReplaceConfirm] = useState<{ board: BoardMeta; graph: ThonkGraph } | null>(null)
+  const [replaceConfirm, setReplaceConfirm] = useState<{ board: BoardMeta; graph: ThonkGraph; incomingHandle?: FileSystemFileHandle } | null>(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const savedViewport = useMemo(() => loadViewport(activeBoardId), [])
 
   const isMobile = useIsMobile()
   const rfInstance = useRef<ReactFlowInstance | null>(null)
   const fileHandlesRef = useRef<Map<string, FileSystemFileHandle>>(new Map())
+  const [linkedFileName, setLinkedFileName] = useState<string | null>(null)
+  const savedGraphJsonRef = useRef<Map<string, string>>(new Map())
+  const [fileDirty, setFileDirty] = useState(false)
+
+  // Restore file handle name from IDB on mount so the UI reflects the link after a page refresh
+  useEffect(() => {
+    restoreFileHandle(activeBoardId).then(h => {
+      if (h) {
+        fileHandlesRef.current.set(activeBoardId, h)
+        savedGraphJsonRef.current.set(activeBoardId, JSON.stringify(graph))
+        setLinkedFileName(h.name)
+      }
+    })
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [])
+
+  // Dirty flag — true when current graph differs from what was last saved to the linked file
+  useEffect(() => {
+    if (!linkedFileName) { setFileDirty(false); return }
+    const baseline = savedGraphJsonRef.current.get(activeBoardId)
+    if (baseline === undefined) { setFileDirty(false); return }
+    setFileDirty(JSON.stringify(graph) !== baseline)
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [graph, linkedFileName, activeBoardId])
 
   // Local RF node/edge state — lets React Flow manage selection/drag internally.
   const [rfNodes, setRfNodes] = useState<Node[]>([])
@@ -299,7 +324,29 @@ export default function App() {
       exportGraphToFile(graph, activeBoardId, boardName)
       return
     }
+
+    // 1. Get handle from memory, fall back to IDB
     let handle = fileHandlesRef.current.get(activeBoardId)
+    if (!handle) {
+      const stored = await restoreFileHandle(activeBoardId)
+      if (stored) {
+        handle = stored
+        fileHandlesRef.current.set(activeBoardId, stored)
+      }
+    }
+
+    // 2. Verify/request write permission for restored handle
+    if (handle) {
+      const ok = await ensureWritePermission(handle)
+      if (!ok) {
+        fileHandlesRef.current.delete(activeBoardId)
+        await dropFileHandle(activeBoardId)
+        setLinkedFileName(null)
+        handle = undefined
+      }
+    }
+
+    // 3. No handle — open picker
     if (!handle) {
       const slug = boardName.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 40) || 'board'
       try {
@@ -308,16 +355,25 @@ export default function App() {
           types: [{ description: 'ThonkBoard', accept: { 'application/octet-stream': ['.thonk'] } }],
         })
         fileHandlesRef.current.set(activeBoardId, handle)
+        await persistFileHandle(activeBoardId, handle)
+        setLinkedFileName(handle.name)
       } catch {
         return
       }
     }
-    const h = handle!
+
+    const h = handle
     try {
       await saveGraphToFileHandle(h, graph, activeBoardId, boardName)
+      savedGraphJsonRef.current.set(activeBoardId, JSON.stringify(graph))
+      setFileDirty(false)
+      setLinkedFileName(h.name)
       showToast(`Saved: ${h.name}`, 'success')
     } catch {
       fileHandlesRef.current.delete(activeBoardId)
+      await dropFileHandle(activeBoardId)
+      setLinkedFileName(null)
+      showToast('Save failed — file may have been moved or deleted. Choose a new location.', 'error')
     }
   }, [graph, activeBoardId, boards])
 
@@ -331,14 +387,22 @@ export default function App() {
         types: [{ description: 'ThonkBoard', accept: { 'application/octet-stream': ['.thonk'] } }],
       })
       fileHandlesRef.current.set(activeBoardId, handle)
+      await persistFileHandle(activeBoardId, handle)
+      setLinkedFileName(handle.name)
     } catch {
       return
     }
     try {
       await saveGraphToFileHandle(handle, graph, activeBoardId, boardName)
+      savedGraphJsonRef.current.set(activeBoardId, JSON.stringify(graph))
+      setFileDirty(false)
+      setLinkedFileName(handle.name)
       showToast(`Saved: ${handle.name}`, 'success')
     } catch {
       fileHandlesRef.current.delete(activeBoardId)
+      await dropFileHandle(activeBoardId)
+      setLinkedFileName(null)
+      showToast('Save failed — file may have been moved or deleted.', 'error')
     }
   }, [graph, activeBoardId, boards])
 
@@ -382,6 +446,20 @@ export default function App() {
     persistActiveBoardId(id)
     setActiveBoardIdState(id)
     switchToBoard(id)
+    // Reflect file link for the new board (memory first, IDB fallback)
+    const memHandle = fileHandlesRef.current.get(id)
+    if (memHandle) {
+      setLinkedFileName(memHandle.name)
+    } else {
+      setLinkedFileName(null)
+      restoreFileHandle(id).then(h => {
+        if (h) {
+          fileHandlesRef.current.set(id, h)
+          savedGraphJsonRef.current.set(id, JSON.stringify(loadGraph(id)))
+        }
+        setLinkedFileName(h?.name ?? null)
+      })
+    }
   }, [activeBoardId, switchToBoard])
 
   const handleCreateBoard = useCallback(() => {
@@ -402,6 +480,7 @@ export default function App() {
     setBoards(next)
     saveBoards(next)
     deleteBoard(id)
+    dropFileHandle(id)
     if (id === activeBoardId) {
       const newActive = next[Math.max(0, idx - 1)].id
       persistActiveBoardId(newActive)
@@ -709,7 +788,7 @@ export default function App() {
   const handleAddQuestion = useCallback(() => { const n = addNode('question', '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddNote     = useCallback(() => { const n = addNode('note',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
 
-  const handleImport = useCallback((file: File) => {
+  const handleImport = useCallback((file: File, incomingHandle?: FileSystemFileHandle) => {
     const reader = new FileReader()
     reader.onload = e => {
       try {
@@ -718,7 +797,7 @@ export default function App() {
         // If file was exported from a board that still exists, confirm before replacing
         const existing = fileBoardId ? boards.find(b => b.id === fileBoardId) : null
         if (existing) {
-          setReplaceConfirm({ board: existing, graph: imported })
+          setReplaceConfirm({ board: existing, graph: imported, incomingHandle })
           return
         }
 
@@ -740,6 +819,11 @@ export default function App() {
         saveBoards(nextBoards)
         saveGraph(imported, id)
         persistActiveBoardId(id)
+        if (incomingHandle) {
+          fileHandlesRef.current.set(id, incomingHandle)
+          persistFileHandle(id, incomingHandle)
+          savedGraphJsonRef.current.set(id, JSON.stringify(imported))
+        }
       } catch {
         // malformed file — ignore
       }
@@ -755,8 +839,9 @@ export default function App() {
     ;(window as { launchQueue?: { setConsumer: (fn: (p: { files: FileSystemFileHandle[] }) => void) => void } }).launchQueue!
       .setConsumer(async ({ files }) => {
         if (!files.length) return
-        const file = await files[0].getFile()
-        handleImportRef.current(file)
+        const fileHandle = files[0]
+        const file = await fileHandle.getFile()
+        handleImportRef.current(file, fileHandle)
       })
   }, [])
 
@@ -823,6 +908,8 @@ export default function App() {
           onExportAs={handleSaveAs}
           onExportPng={handleExportPng}
           onImport={handleImport}
+          linkedFileName={linkedFileName}
+          fileDirty={fileDirty}
           graph={graph}
           boards={boards}
           activeBoardId={activeBoardId}
@@ -888,6 +975,15 @@ export default function App() {
           />
         )}
 
+        {!isMobile && (
+          <div
+            className="absolute pointer-events-none z-10 font-semibold text-sm text-foreground/60 bg-(--background)/80 px-1 rounded-sm"
+            style={{ top: 44 + 16, left: 12 }}
+          >
+            {boards.find(b => b.id === activeBoardId)?.name ?? ''}
+          </div>
+        )}
+
         {showLegend && !isMobile && <div
           className="absolute bg-white border border-border rounded-lg px-4 py-3 text-sm shadow-sm pointer-events-none z-10"
           style={{ top: 44 + 16, right: panelNode ? 576 + 16 : 16 }}
@@ -929,23 +1025,56 @@ export default function App() {
         </div>}
       </div>
         <Dialog open={!!replaceConfirm} onOpenChange={open => { if (!open) setReplaceConfirm(null) }}>
-          <DialogContent className="max-w-sm">
+          <DialogContent className="max-w-md">
             <DialogHeader>
-              <DialogTitle className="pb-2">Replace "{replaceConfirm?.board.name}"?</DialogTitle>
-              <DialogDescription>
-                This file was exported from this board. Loading it will overwrite its current content.
+              <DialogTitle className="text-lg pb-1">Replace "{replaceConfirm?.board.name}"?</DialogTitle>
+              <DialogDescription className="text-sm leading-relaxed">
+                This file contains an older version of this board. Loading it will overwrite your current work.
               </DialogDescription>
             </DialogHeader>
-            <div className="flex justify-end gap-2 mt-4">
-              <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setReplaceConfirm(null)}>Cancel</Button>
-              <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => {
+            <div className="flex justify-end gap-2 mt-5">
+              <Button variant="outline" className="h-9 text-sm cursor-pointer bg-white shadow-sm" onClick={async () => {
                 if (!replaceConfirm) return
+                const boardId = replaceConfirm.board.id
+                const boardName = replaceConfirm.board.name
+                const currentGraph = boardId === activeBoardId ? graph : loadGraph(boardId)
+                // Save to the CURRENT linked file (before switching to the incoming one)
+                const currentHandle = fileHandlesRef.current.get(boardId) ?? await restoreFileHandle(boardId)
+                if (currentHandle && await ensureWritePermission(currentHandle)) {
+                  try {
+                    await saveGraphToFileHandle(currentHandle, currentGraph, boardId, boardName)
+                    showToast(`Saved: ${currentHandle.name}`, 'success')
+                  } catch { /* non-critical */ }
+                }
+                // Switch file association to the newly opened file
+                if (replaceConfirm.incomingHandle) {
+                  fileHandlesRef.current.set(boardId, replaceConfirm.incomingHandle)
+                  await persistFileHandle(boardId, replaceConfirm.incomingHandle)
+                }
+                setLinkedFileName(fileHandlesRef.current.get(boardId)?.name ?? null)
+                savedGraphJsonRef.current.set(boardId, JSON.stringify(replaceConfirm.graph))
+                saveGraph(replaceConfirm.graph, boardId)
+                persistActiveBoardId(boardId)
+                setActiveBoardIdState(boardId)
+                switchToBoard(boardId, replaceConfirm.graph)
+                setReplaceConfirm(null)
+              }}>Save current & replace</Button>
+              <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={async () => {
+                if (!replaceConfirm) return
+                // Switch file association to the newly opened file
+                if (replaceConfirm.incomingHandle) {
+                  fileHandlesRef.current.set(replaceConfirm.board.id, replaceConfirm.incomingHandle)
+                  await persistFileHandle(replaceConfirm.board.id, replaceConfirm.incomingHandle)
+                }
+                setLinkedFileName(fileHandlesRef.current.get(replaceConfirm.board.id)?.name ?? null)
+                savedGraphJsonRef.current.set(replaceConfirm.board.id, JSON.stringify(replaceConfirm.graph))
                 saveGraph(replaceConfirm.graph, replaceConfirm.board.id)
                 persistActiveBoardId(replaceConfirm.board.id)
                 setActiveBoardIdState(replaceConfirm.board.id)
                 switchToBoard(replaceConfirm.board.id, replaceConfirm.graph)
                 setReplaceConfirm(null)
               }}>Replace</Button>
+              <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setReplaceConfirm(null)}>Cancel</Button>
             </div>
           </DialogContent>
         </Dialog>
