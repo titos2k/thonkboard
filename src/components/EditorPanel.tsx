@@ -115,7 +115,7 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
   }
 
   return (
-    <div className="fixed right-0 top-0 bottom-0 w-full md:w-[560px] bg-white border-l border-border shadow-2xl z-20 flex flex-col">
+    <div className="fixed right-0 top-0 bottom-0 w-full md:w-[560px] bg-card border-l border-border shadow-2xl z-20 flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
         <span className={cn('text-sm font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0', TYPE_BADGE[node.type] ?? 'bg-muted text-muted-foreground')}>

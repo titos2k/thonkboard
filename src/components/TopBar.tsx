@@ -1,5 +1,5 @@
 import { useRef, useState, memo, useEffect } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -42,6 +42,8 @@ interface TopBarProps {
   keyOpen: boolean
   onKeyOpenChange: (open: boolean) => void
   onAiConnected?: () => void
+  darkMode: boolean
+  onToggleDarkMode: () => void
 }
 
 function MiniToggle({ on }: { on: boolean }) {
@@ -74,7 +76,7 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? `${PROVIDER_LABELS[provider]} ✓` : 'Set AI key'
 }
 
-function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected }: TopBarProps) {
+function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode }: TopBarProps) {
   const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
 
@@ -220,7 +222,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
   }
 
   return (
-    <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-white border-b border-border" style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.04)' }}>
+    <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-card border-b border-border" style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
       <img
         ref={logoRef}
         src="/thonkboard-logo.svg"
@@ -253,6 +255,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
               <Plus className="w-4 h-4 text-muted-foreground" />
             </button>
           </div>
+          <div className="max-h-[224px] overflow-y-auto">
           {boards.map(board => {
             const isActive = board.id === activeBoardId
             return (
@@ -297,6 +300,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
               </DropdownMenuItem>
             )
           })}
+          </div>
           <DropdownMenuSeparator />
           <DropdownMenuItem onClick={onExport} className="justify-between">
             <span className="flex items-center gap-2"><Save className="w-4 h-4 text-muted-foreground" /> Save board</span>
@@ -352,8 +356,16 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             </>
           )}
           <DropdownMenuSeparator />
+          <DropdownMenuItem onClick={onToggleDarkMode} className="justify-between">
+            <span className="flex items-center gap-2">
+              {darkMode ? <Sun className="w-4 h-4 text-muted-foreground" /> : <Moon className="w-4 h-4 text-muted-foreground" />}
+              {darkMode ? 'Light mode' : 'Dark mode'}
+            </span>
+            <MiniToggle on={darkMode} />
+          </DropdownMenuItem>
+          <DropdownMenuSeparator />
           <DropdownMenuItem asChild>
-            <a href="https://github.com/titos2k/thonk" target="_blank" rel="noopener noreferrer">
+            <a href="https://github.com/titos2k/thonkboard" target="_blank" rel="noopener noreferrer">
               <svg className="w-4 h-4 text-muted-foreground" viewBox="0 0 24 24" fill="currentColor"><path d="M12 2C6.477 2 2 6.477 2 12c0 4.418 2.865 8.166 6.839 9.489.5.092.682-.217.682-.482 0-.237-.009-.868-.013-1.703-2.782.604-3.369-1.34-3.369-1.34-.454-1.156-1.11-1.463-1.11-1.463-.908-.62.069-.608.069-.608 1.003.07 1.531 1.03 1.531 1.03.892 1.529 2.341 1.087 2.91.832.092-.647.35-1.088.636-1.338-2.22-.253-4.555-1.11-4.555-4.943 0-1.091.39-1.984 1.029-2.683-.103-.253-.446-1.27.098-2.647 0 0 .84-.269 2.75 1.025A9.578 9.578 0 0 1 12 6.836a9.59 9.59 0 0 1 2.504.337c1.909-1.294 2.747-1.025 2.747-1.025.546 1.377.203 2.394.1 2.647.64.699 1.028 1.592 1.028 2.683 0 3.842-2.339 4.687-4.566 4.935.359.309.678.919.678 1.852 0 1.336-.012 2.415-.012 2.743 0 .267.18.579.688.481C19.138 20.163 22 16.418 22 12c0-5.523-4.477-10-10-10z"/></svg>
               View on GitHub
             </a>
@@ -378,7 +390,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
       {/* Add Node dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="h-9 text-sm gap-1.5 cursor-pointer bg-white">
+          <Button size="sm" variant="outline" className="h-9 text-sm gap-1.5 cursor-pointer bg-card">
             <Plus className="w-4 h-4" /> Add Node <ChevronDown className="w-4 h-4 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
@@ -404,7 +416,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button size="sm" variant="outline" className="h-9 w-9 p-0 cursor-pointer bg-white" onClick={onAddNote}>
+          <Button size="sm" variant="outline" className="h-9 w-9 p-0 cursor-pointer bg-card" onClick={onAddNote}>
             <StickyNote className="w-4 h-4" />
           </Button>
         </TooltipTrigger>
@@ -416,7 +428,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
           <TooltipTrigger asChild>
             <Button
               size="sm" variant="outline"
-              className="h-9 cursor-pointer bg-white"
+              className="h-9 cursor-pointer bg-card"
               style={isNarrow ? { width: 36, padding: 0 } : undefined}
               disabled={!hasContent}
               onClick={() => setSummarizeOpen(true)}
@@ -435,12 +447,12 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
           <TooltipTrigger asChild>
             <button
               onClick={onToggleHideResolved}
-              className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 transition-colors"
+              className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
             >
               {isNarrow
                 ? <EyeOff className="w-4 h-4 text-muted-foreground" />
                 : <span className="text-sm font-medium text-muted-foreground select-none">Hide resolved</span>}
-              <div className={`relative w-8 h-4 rounded-full transition-colors ${hideResolved ? 'bg-gray-700' : 'bg-gray-300'}`}>
+              <div className={`relative w-8 h-4 rounded-full transition-colors ${hideResolved ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}>
                 <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${hideResolved ? 'translate-x-4' : 'translate-x-0.5'}`} />
               </div>
             </button>
@@ -455,12 +467,12 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             <TooltipTrigger asChild>
               <button
                 onClick={toggleHighIQ}
-                className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 transition-colors"
+                className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
               >
                 {isNarrow
                   ? <Brain className="w-4 h-4 text-muted-foreground" />
                   : <span className="text-sm font-medium text-muted-foreground select-none">Turbo Thonking</span>}
-                <div className={`relative w-8 h-4 rounded-full transition-colors ${highIQ ? 'bg-gray-700' : 'bg-gray-300'}`}>
+                <div className={`relative w-8 h-4 rounded-full transition-colors ${highIQ ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}>
                   <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${highIQ ? 'translate-x-4' : 'translate-x-0.5'}`} />
                 </div>
               </button>
@@ -561,8 +573,8 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
 
           {/* Trust banner — hidden for Ollama local */}
           {dialogProvider !== 'ollama' && (
-            <div className="flex items-start gap-2 bg-gray-50 rounded px-3 py-3">
-              <Lock className="w-4 h-4 shrink-0 mt-0.5" style={{ color: 'hsl(240, 55%, 42%)' }} />
+            <div className="flex items-start gap-2 bg-secondary rounded px-3 py-3">
+              <Lock className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
               <p className="text-sm text-muted-foreground leading-snug">
                 Your key is stored only in this browser's localStorage. It goes directly to{' '}
                 {PROVIDER_SERVER[dialogProvider]}'s servers - never ours.
@@ -581,7 +593,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   autoComplete="off"
                   value={geminiKey}
                   onChange={e => handleKeyChange(e.target.value, 'gemini')}
-                  className="text-sm font-mono bg-white"
+                  className="text-sm font-mono bg-background"
                   autoFocus
                 />
                 <a
@@ -603,7 +615,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   autoComplete="off"
                   value={openaiKey}
                   onChange={e => handleKeyChange(e.target.value, 'openai')}
-                  className="text-sm font-mono bg-white"
+                  className="text-sm font-mono bg-background"
                   autoFocus
                 />
                 <a
@@ -625,7 +637,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   autoComplete="off"
                   value={anthropicKey}
                   onChange={e => handleKeyChange(e.target.value, 'anthropic')}
-                  className="text-sm font-mono bg-white"
+                  className="text-sm font-mono bg-background"
                   autoFocus
                 />
                 <a
@@ -647,7 +659,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   autoComplete="off"
                   value={deepseekKey}
                   onChange={e => handleKeyChange(e.target.value, 'deepseek')}
-                  className="text-sm font-mono bg-white"
+                  className="text-sm font-mono bg-background"
                   autoFocus
                 />
                 <a
@@ -664,7 +676,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             {dialogProvider === 'ollama' && (
               <>
                 <div className="space-y-2">
-                  <p className="text-sm text-muted-foreground bg-gray-50 rounded px-3 py-2">
+                  <p className="text-sm text-muted-foreground bg-secondary rounded px-3 py-2">
                     Make sure Ollama is running on your machine.{' '}
                     <a href="https://ollama.com" target="_blank" rel="noopener noreferrer" className="underline hover:opacity-70">
                       ollama.com →
@@ -684,7 +696,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                       type="button"
                       size="sm"
                       variant="outline"
-                      className="h-9 text-sm cursor-pointer bg-white shrink-0"
+                      className="h-9 text-sm cursor-pointer bg-card shrink-0"
                       disabled={ollamaTestStatus === 'testing'}
                       onClick={async () => {
                         setOllamaTestStatus('testing')
@@ -711,7 +723,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                     placeholder="gemma4"
                     value={ollamaModel}
                     onChange={e => setOllamaModel(e.target.value)}
-                    className="text-sm font-mono bg-white"
+                    className="text-sm font-mono bg-background"
                     autoFocus
                   />
                 </div>

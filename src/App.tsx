@@ -242,6 +242,7 @@ export default function App() {
     return alreadyWelcomed && !hasActiveKey()
   })
   const [showLegend, setShowLegend] = useState(true)
+  const [darkMode, setDarkMode] = useState(() => localStorage.getItem('thonk.darkmode') === '1')
   const [spaceHeld, setSpaceHeld] = useState(false)
   const [replaceConfirm, setReplaceConfirm] = useState<{ board: BoardMeta; graph: ThonkGraph; incomingHandle?: FileSystemFileHandle } | null>(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -309,6 +310,11 @@ export default function App() {
       return () => clearTimeout(id)
     }
   }, [autoEditId])
+
+  useEffect(() => {
+    document.documentElement.classList.toggle('dark', darkMode)
+    localStorage.setItem('thonk.darkmode', darkMode ? '1' : '0')
+  }, [darkMode])
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.code === 'Space' && e.target === document.body) setSpaceHeld(true) }
@@ -920,6 +926,8 @@ export default function App() {
           keyOpen={keyOpen}
           onKeyOpenChange={setKeyOpen}
           onAiConnected={handleAiConnected}
+          darkMode={darkMode}
+          onToggleDarkMode={() => setDarkMode(d => !d)}
         />
         <div style={{ width: '100%', height: '100%', paddingTop: 44 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
           <ReactFlow
@@ -946,7 +954,7 @@ export default function App() {
             elevateEdgesOnSelect
             proOptions={{ hideAttribution: false }}
           >
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={darkMode ? 'hsl(240, 8%, 25%)' : undefined} />
             <Controls showZoom={false} showFitView={false} showInteractive={false} style={isMobile ? { bottom: 4, left: 4 } : { bottom: 24, left: 16 }}>
               <UndoButton onClick={undo} disabled={!canUndo} />
               <RedoButton onClick={redo} disabled={!canRedo} />
@@ -959,7 +967,7 @@ export default function App() {
             {!isMobile && (
               <MiniMap
                 nodeColor={miniMapNodeColor}
-                maskColor="rgba(200,195,190,0.3)"
+                maskColor={darkMode ? 'rgba(10,12,20,0.5)' : 'rgba(200,195,190,0.3)'}
               />
             )}
           </ReactFlow>
@@ -985,7 +993,7 @@ export default function App() {
         )}
 
         {showLegend && !isMobile && <div
-          className="absolute bg-white border border-border rounded-lg px-4 py-3 text-sm shadow-sm pointer-events-none z-10"
+          className="absolute bg-card border border-border rounded-lg px-4 py-3 text-sm shadow-sm pointer-events-none z-10"
           style={{ top: 44 + 16, right: panelNode ? 576 + 16 : 16 }}
         >
           <div className="font-semibold text-sm mb-2">Nodes</div>
@@ -1033,7 +1041,7 @@ export default function App() {
               </DialogDescription>
             </DialogHeader>
             <div className="flex justify-end gap-2 mt-5">
-              <Button variant="outline" className="h-9 text-sm cursor-pointer bg-white shadow-sm" onClick={async () => {
+              <Button variant="outline" className="h-9 text-sm cursor-pointer bg-card shadow-sm" onClick={async () => {
                 if (!replaceConfirm) return
                 const boardId = replaceConfirm.board.id
                 const boardName = replaceConfirm.board.name
