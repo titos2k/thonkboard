@@ -27,6 +27,7 @@ interface TopBarProps {
   showLegend: boolean
   onToggleLegend: () => void
   onExport: () => void
+  onExportAs: () => void
   onExportPng: () => void
   onImport: (file: File) => void
   graph: ThonkGraph
@@ -71,7 +72,8 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? `${PROVIDER_LABELS[provider]} ✓` : 'Set AI key'
 }
 
-function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportPng, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected }: TopBarProps) {
+function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected }: TopBarProps) {
+  const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { new Image().src = '/thonk-wizard.png' }, [])
@@ -219,7 +221,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
       <img
         ref={logoRef}
         src="/thonkboard-logo.svg"
-        alt="Thonk"
+        alt="ThonkBoard"
         className="h-7 w-auto mr-1"
         style={{ transformOrigin: 'center' }}
         onMouseEnter={() => { logoHoverTimerRef.current = setTimeout(startLogoShake, 1000) }}
@@ -286,8 +288,12 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             )
           })}
           <DropdownMenuSeparator />
-          <DropdownMenuItem onClick={onExport}>
-            <Save className="w-4 h-4 text-muted-foreground" /> Save board
+          <DropdownMenuItem onClick={onExport} className="justify-between">
+            <span className="flex items-center gap-2"><Save className="w-4 h-4 text-muted-foreground" /> Save board</span>
+            <kbd className={`ml-3 text-xs font-mono ${fsaSupported ? 'text-muted-foreground' : 'text-muted-foreground/30'}`}>Ctrl+S</kbd>
+          </DropdownMenuItem>
+          <DropdownMenuItem onClick={onExportAs} disabled={!fsaSupported} className={!fsaSupported ? 'opacity-40' : undefined}>
+            <Save className="w-4 h-4 text-muted-foreground" /> Save board as…
           </DropdownMenuItem>
           <DropdownMenuItem onClick={() => fileInputRef.current?.click()}>
             <FolderOpen className="w-4 h-4 text-muted-foreground" /> Load board
@@ -340,7 +346,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
 
       <input
         ref={fileInputRef}
-        type="file" accept=".json" className="hidden"
+        type="file" accept=".thonk,.json" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) onImport(f); e.target.value = '' }}
       />
 
@@ -800,14 +806,14 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
           <div className="text-sm text-muted-foreground space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <section>
               <strong className="text-foreground">Privacy Policy</strong>
-              <p className="mt-1">Thonkboard does not collect, store, or transmit any personal data. Your boards and API keys are stored exclusively in your browser's localStorage and never leave your device.</p>
+              <p className="mt-1">ThonkBoard does not collect, store, or transmit any personal data. Your boards and API keys are stored exclusively in your browser's localStorage and never leave your device.</p>
               <p className="mt-1">AI API calls are made directly from your browser to your chosen provider using your own key. We have no visibility into these requests. When using Ollama (local), all AI processing happens on your device - no data leaves your machine at all.</p>
             </section>
             <section>
               <strong className="text-foreground">Terms of Service</strong>
-              <p className="mt-1">Thonkboard is provided free of charge, as-is, with no warranties of any kind. Use at your own risk. We are not liable for any loss of data or damages arising from use of this tool.</p>
+              <p className="mt-1">ThonkBoard is provided free of charge, as-is, with no warranties of any kind. Use at your own risk. We are not liable for any loss of data or damages arising from use of this tool.</p>
               <p className="mt-1">You are responsible for your own API keys and any costs associated with their use.</p>
-              <p className="mt-1">Thonkboard uses AI to assist with thinking and ideation. AI-generated content may be inaccurate, incomplete, or misleading. You are solely responsible for evaluating AI output and any decisions, actions, or consequences that follow from it. Misuse of AI features is governed by your AI provider's terms. We accept no liability for harm arising from reliance on AI-generated content.</p>
+              <p className="mt-1">ThonkBoard uses AI to assist with thinking and ideation. AI-generated content may be inaccurate, incomplete, or misleading. You are solely responsible for evaluating AI output and any decisions, actions, or consequences that follow from it. Misuse of AI features is governed by your AI provider's terms. We accept no liability for harm arising from reliance on AI-generated content.</p>
             </section>
           </div>
         </DialogContent>

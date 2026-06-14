@@ -32,6 +32,7 @@ import {
   migrateToMultiBoard,
   loadBoards, saveBoards, getActiveBoardId, setActiveBoardId as persistActiveBoardId, deleteBoard,
   loadViewport, saveViewport,
+  fsaSupported, saveGraphToFileHandle,
 } from '@/store/graph'
 import type { ThonkNode, ThonkEdge, ThonkGraph, BoardMeta } from '@/store/types'
 import { v4 as uuidv4 } from 'uuid'
@@ -246,6 +247,7 @@ export default function App() {
 
   const isMobile = useIsMobile()
   const rfInstance = useRef<ReactFlowInstance | null>(null)
+  const fileHandlesRef = useRef<Map<string, FileSystemFileHandle>>(new Map())
 
   // Local RF node/edge state — lets React Flow manage selection/drag internally.
   const [rfNodes, setRfNodes] = useState<Node[]>([])
@@ -290,23 +292,70 @@ export default function App() {
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
   }, [])
 
+  const handleCtrlSSave = useCallback(async () => {
+    const boardName = boards.find(b => b.id === activeBoardId)?.name ?? 'Board'
+    if (!fsaSupported) {
+      exportGraphToFile(graph, activeBoardId, boardName)
+      return
+    }
+    let handle = fileHandlesRef.current.get(activeBoardId)
+    if (!handle) {
+      const slug = boardName.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 40) || 'board'
+      try {
+        handle = await window.showSaveFilePicker({
+          suggestedName: `${slug}.thonk`,
+          types: [{ description: 'ThonkBoard', accept: { 'application/octet-stream': ['.thonk'] } }],
+        })
+        fileHandlesRef.current.set(activeBoardId, handle)
+      } catch {
+        return
+      }
+    }
+    try {
+      await saveGraphToFileHandle(handle, graph, activeBoardId, boardName)
+    } catch {
+      fileHandlesRef.current.delete(activeBoardId)
+    }
+  }, [graph, activeBoardId, boards])
+
+  const handleSaveAs = useCallback(async () => {
+    const boardName = boards.find(b => b.id === activeBoardId)?.name ?? 'Board'
+    const slug = boardName.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 40) || 'board'
+    let handle: FileSystemFileHandle
+    try {
+      handle = await window.showSaveFilePicker({
+        suggestedName: `${slug}.thonk`,
+        types: [{ description: 'ThonkBoard', accept: { 'application/octet-stream': ['.thonk'] } }],
+      })
+      fileHandlesRef.current.set(activeBoardId, handle)
+    } catch {
+      return
+    }
+    try {
+      await saveGraphToFileHandle(handle, graph, activeBoardId, boardName)
+    } catch {
+      fileHandlesRef.current.delete(activeBoardId)
+    }
+  }, [graph, activeBoardId, boards])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo() }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo() }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 's') { e.preventDefault(); handleCtrlSSave() }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo])
+  }, [undo, redo, handleCtrlSSave])
 
   const openPanel = useCallback((id: string | null) => setPanelNodeId(id), [])
 
   // Update page title to reflect active board name
   useEffect(() => {
     const name = boards.find(b => b.id === activeBoardId)?.name
-    document.title = name ? `Thonkboard - ${name}` : 'Thonkboard - Spatial Thinking Canvas'
+    document.title = name ? `ThonkBoard - ${name}` : 'ThonkBoard - Spatial Thinking Canvas'
   }, [activeBoardId, boards])
 
   // Restore viewport when active board changes; fit view if no saved viewport
@@ -734,11 +783,8 @@ export default function App() {
     localStorage.setItem('hideResolved', String(next))
     return next
   }), [])
-  const handleToggleLegend       = useCallback(() => setShowLegend(v => !v), [])
-  const handleExport             = useCallback(
-    () => exportGraphToFile(graph, activeBoardId, boards.find(b => b.id === activeBoardId)?.name ?? 'Board'),
-    [graph, activeBoardId, boards],
-  )
+  const handleToggleLegend = useCallback(() => setShowLegend(v => !v), [])
+
   const handlePanelSave  = useCallback((id: string, patch: { title?: string; body?: string; summary?: string }) => updateNode(id, { ...patch, meta: { aiGenerated: false } }), [updateNode])
   const handlePanelClose = useCallback(() => setPanelNodeId(null), [])
 
@@ -756,7 +802,8 @@ export default function App() {
           onToggleHideResolved={handleToggleHideResolved}
           showLegend={showLegend}
           onToggleLegend={handleToggleLegend}
-          onExport={handleExport}
+          onExport={handleCtrlSSave}
+          onExportAs={handleSaveAs}
           onExportPng={handleExportPng}
           onImport={handleImport}
           graph={graph}

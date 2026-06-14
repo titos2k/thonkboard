@@ -70,6 +70,8 @@ export function deleteBoard(boardId: string): void {
 
 // ── Graph persistence ──────────────────────────────────────────────────────────
 
+export const fsaSupported = 'showSaveFilePicker' in window
+
 export function exportGraphToFile(graph: ThonkGraph, boardId: string, boardName: string): void {
   const slug = boardName.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 40) || 'board'
   const date = new Date().toISOString().slice(0, 10)
@@ -77,9 +79,21 @@ export function exportGraphToFile(graph: ThonkGraph, boardId: string, boardName:
   const blob = new Blob([JSON.stringify(payload, null, 2)], { type: 'application/json' })
   const url = URL.createObjectURL(blob)
   const a = document.createElement('a')
-  a.href = url; a.download = `thonk-${slug}-${date}.json`
+  a.href = url; a.download = `thonk-${slug}-${date}.thonk`
   a.click()
   URL.revokeObjectURL(url)
+}
+
+export async function saveGraphToFileHandle(
+  handle: FileSystemFileHandle,
+  graph: ThonkGraph,
+  boardId: string,
+  boardName: string,
+): Promise<void> {
+  const payload = { boardId, boardName, ...graph }
+  const writable = await handle.createWritable()
+  await writable.write(JSON.stringify(payload, null, 2))
+  await writable.close()
 }
 
 function migrateNode(n: ThonkNode): ThonkNode {

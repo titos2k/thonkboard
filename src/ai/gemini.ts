@@ -97,6 +97,7 @@ async function _callGemini<T>(req: AIRequest): Promise<T> {
   }
 
   const data = await res.json()
+  if (!data.candidates?.length) throw new Error('Gemini returned no candidates — content may have been blocked by safety filters.')
   const text: string = data.candidates[0].content.parts[0].text
   return JSON.parse(text) as T
 }
@@ -153,6 +154,7 @@ async function _callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResu
   }
 
   const data = await res.json()
+  if (!data.candidates?.length) throw new Error('Gemini returned no candidates — content may have been blocked by safety filters.')
   const text: string = data.candidates[0].content.parts[0].text
   const chunks: Array<{ web?: { title?: string; uri?: string } }> =
     data.candidates[0].groundingMetadata?.groundingChunks ?? []
@@ -213,8 +215,8 @@ const CRITIQUE_SCHEMA = {
     type: 'object',
     properties: {
       content: { type: 'string' },
-      severity: { type: 'number' },
-      kind: { type: 'string', enum: ['contradiction', 'gap', 'assumption', 'factual'] },
+      severity: { type: 'number', description: '0.0 = negligible, 1.0 = fatal flaw' },
+      kind: { type: 'string', enum: ['contradiction', 'gap', 'assumption', 'factual'], description: 'contradiction = logical clash, gap = missing piece, assumption = unstated premise, factual = verifiable claim' },
     },
     required: ['content', 'severity', 'kind'],
   },
@@ -224,7 +226,7 @@ const CRITIQUE_SYSTEM = `You are a smart, skeptical person who just read this id
 Identify the most direct, natural problems — the kind a thoughtful person would voice out loud right after reading.
 Short sentences. Plain language. No formal analysis, no jargon.
 Think: "But that assumes...", "What happens when...", "This falls apart if...", "Who would actually..."
-Score each problem 0.0–1.0. Return only problems that genuinely arise from this specific content. Return empty array if the idea holds up.
+Score each problem 0.0–1.0: 0.3 = minor concern, 0.6 = significant problem, 0.9 = near-fatal flaw. Return only problems that genuinely arise from this specific content. Return empty array if the idea holds up.
 Do NOT pad to reach a number. Do NOT invent problems. If one real problem exists, return one. If four exist, return four.
 Each problem: 1–2 sentences max.`
 
@@ -260,6 +262,7 @@ Write the single most obvious follow-up question — the thing a curious person 
 Short. Direct. Conversational. No jargon. Think "How?" not "How will the system ensure...?"
 Often the best questions are just one or two words: "How exactly?", "Why not X?", "What's the catch?", "Compared to what?"
 Do not ask about anything already answered or addressed in the node body.
+Set yesNo to true only if the question can be fully resolved by Yes or No alone.
 Return only the question. No preamble.`
 
 export async function questionNode(contextPrompt: string): Promise<QuestionItem> {
@@ -295,6 +298,12 @@ TONE — this is critical:
 - If the notes are casual and personal, write casually. If they're technical or formal, match that.
 - Never impose a tone that doesn't match the source — don't formalize casual content or casualize formal content.
 - Write like the person who wrote the original notes — same vocabulary, same energy.`
+
+const TONE_BLOCK = `TONE — this is critical:
+- Match the voice and register of the existing content exactly.
+- If the note is casual and personal, write casually. If technical, match that.
+- Never impose a formal, corporate, or robotic tone onto casual content.
+- Write like the person who wrote the original note — same vocabulary, same energy.`
 
 const EXPAND_SYSTEM = `You are helping develop ideas on an ideation board.
 The BOARD SKELETON shows ALL ideas that already exist — do not duplicate or paraphrase any of them.
@@ -333,14 +342,15 @@ export async function proposeIdeas(contextPrompt: string): Promise<IdeaItem[]> {
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 const SUMMARY_SYSTEM = `You are a precise summarizer.
-Write exactly 1-2 sentences capturing the core insight of this idea/description.
+Write 1-2 sentences capturing the core insight of this idea/description.
 Be concrete and specific — no filler like "this section discusses" or "this explores".
+Do not restate or paraphrase the title — assume the reader can already see it.
 The summary will be shown as a preview on an ideation card.`
 
 export async function generateSummary(title: string, body: string): Promise<string> {
   const result = await callAI<{ summary: string }>({
     systemInstruction: SUMMARY_SYSTEM,
-    userPrompt: `Title: ${title}\n\n${body}`,
+    userPrompt: `Title: ${title}\n\nBody:\n${body}`,
     responseSchema: {
       type: 'object',
       properties: { summary: { type: 'string' } },
@@ -356,11 +366,7 @@ const INTEGRATE_SYSTEM = `You are updating a personal note on an ideation board.
 Receive: a node (title + body), a question asked about it, and the answer given.
 Task: rewrite the body incorporating the new knowledge.
 
-TONE — this is critical:
-- Match the voice and register of the existing content exactly.
-- If the note is casual and personal ("thinking about moving", "not sure yet"), write casually.
-- If it's technical or formal, match that. Never impose a formal, corporate, or robotic tone onto casual content.
-- Write like the person who wrote the original note would write it — same vocabulary, same energy.
+${TONE_BLOCK}
 
 FORMAT — proper markdown:
 - Bullet lists for facts, thoughts, constraints. Each bullet on its own line starting with "- ".
@@ -422,9 +428,7 @@ const INTEGRATE_IDEA_SYSTEM = `You are updating a personal note on an ideation b
 Receive: a node (title + body) and one specific idea being merged into it.
 Task: rewrite the body to adopt the idea as the accepted direction. The idea represents the user's decision — treat it as the authoritative new input. If the existing body contradicts the idea, the idea wins: remove or rewrite the contradicting content so the body aligns with the idea. Do not keep both sides of a contradiction. Do not pull in, summarize, or reference other nodes visible in the board skeleton — they are context only, not input.
 
-TONE — this is critical:
-- Match the voice and register of the existing content exactly.
-- If the note is casual and personal, write casually. If technical, match that.
+${TONE_BLOCK}
 
 FORMAT — proper markdown:
 - Bullet lists for facts, thoughts, constraints. Each bullet on its own line starting with "- ".
@@ -432,6 +436,12 @@ FORMAT — proper markdown:
 - Use ## headings only when content naturally falls into distinct sections.
 - Each bullet = 1–2 sentences max. Be terse.
 - No filler openers. No top-level title.
+
+CROSS-REFERENCES:
+- You may link to IDEA nodes from the BOARD SKELETON using: [Node Title](node:NODE_ID)
+  The NODE_ID is the full UUID in the first brackets of each skeleton entry.
+- Only link ideas that are genuinely conceptually related — not just adjacent.
+- Do NOT link to questions, answers, problems, or core nodes — ideas only.
 
 TITLE: Only provide a new title if the idea fundamentally renames the concept (under 60 chars). Otherwise leave blank.`
 
@@ -460,9 +470,11 @@ Task: briefly note this concern in the body — as a known limitation, caveat, o
 Rules:
 - Do not solve the problem or elaborate extensively — just acknowledge it exists or has been considered.
 - Only integrate the provided problem. Do not pull in other nodes visible in the board skeleton.
-- Match the voice and tone of the existing content exactly.
 - No filler openers ("Note that...", "It is worth...").
 - No top-level title.
+
+${TONE_BLOCK}
+
 TITLE: Only provide a new title if the concern fundamentally reframes the concept (under 60 chars). Otherwise leave blank.`
 
 export async function acknowledgeProblem(
@@ -489,7 +501,8 @@ An idea that was spawned from it is being rejected.
 If the idea's content was already integrated into the body, remove that integration first.
 Then append one brief sentence noting the idea was considered and rejected.
 Rules: one added sentence max. Start with "Considered " or "Explored ". Do not editorialize.
-Format: return the full updated body only.`
+
+${TONE_BLOCK}`
 
 export async function rejectIdea(
   contextPrompt: string,
@@ -512,7 +525,8 @@ Receive: a node (title + body), a question that was asked, and an answer that wa
 The answer may have already been integrated into the body — if so, remove that integration first.
 Task: rewrite the body removing any content that came from the rejected answer, then append one brief sentence noting it was considered and rejected.
 Rules: preserve all content that did NOT come from the rejected answer. One added sentence max. Start with "Considered " or "Explored ". Do not editorialize.
-Format: return the full updated body only.`
+
+${TONE_BLOCK}`
 
 export async function integrateRejection(
   contextPrompt: string,
@@ -564,7 +578,7 @@ export async function detectConflicts(
 ): Promise<ConflictItem[]> {
   if (otherNodes.length === 0) return []
   const others = otherNodes
-    .map(n => `[${n.id}] (${n.type}) "${n.title}": ${n.summary || n.body.slice(0, 200)}`)
+    .map(n => `[${n.id}] [${n.type}] "${n.title}": ${n.summary || n.body.slice(0, 200)}`)
     .join('\n')
   const items = await callAI<ConflictItem[]>({
     systemInstruction: CONFLICT_SYSTEM,
@@ -621,7 +635,7 @@ export async function resolveConflict(
           items: {
             type: 'object',
             properties: {
-              summary: { type: 'string' },
+              summary: { type: 'string', description: 'One sentence (max 12 words) naming the decision direction' },
               body:    { type: 'string' },
               title:   { type: 'string' },
             },
@@ -647,9 +661,10 @@ const PROPAGATE_SCHEMA = {
 
 const PROPAGATE_SYSTEM = `You are a knowledge propagation assistant for an ideation board.
 A Q&A was just approved, enriching one idea node with new knowledge.
-Given a board skeleton, identify UP TO 3 other idea/core/problem nodes (not directly connected to the updated node) that would meaningfully benefit from this same insight.
+Given a board skeleton, identify UP TO 3 other nodes (not directly connected to the updated node) that would meaningfully benefit from this same insight.
 Only return nodes where the insight genuinely changes or extends their content — not just tangentially related.
 Return an empty array if no other nodes are affected.
+Only return nodeId values for idea, core, or problem nodes — never questions, answers, or notes.
 Use exact nodeId values from the board.`
 
 export async function findRelatedNodes(
@@ -676,7 +691,7 @@ const ARGUE_SYSTEM = `You are a sharp reader who just heard this answer and imme
 Identify the most natural, direct problems — what a smart skeptic would say out loud right after reading.
 Short sentences. Plain language. No formal analysis.
 Think: "But that doesn't explain...", "That only works if...", "You're ignoring...", "This breaks when..."
-Score 0.0–1.0. Return empty array if no real problems exist.
+Score 0.0–1.0: 0.3 = minor concern, 0.6 = significant problem, 0.9 = near-fatal flaw. Return empty array if no real problems exist.
 Each problem: 1–2 sentences max.`
 
 export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> {
@@ -693,7 +708,6 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
 const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
 Answer with the fewest words that fully cover the question — one sentence if it's enough, two if genuinely needed, never more.
 Do not pad. Do not add context the question didn't ask for. Stop as soon as the answer is complete.
-Use web search when the question benefits from current or factual information.
 No preamble, no filler, no sign-off.
 Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.
 If existing answers are already connected to this question (visible in context), provide a different angle — do not repeat what's already there.`
