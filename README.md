@@ -2,7 +2,7 @@
 
 **[thonkboard.com](https://thonkboard.com)** - a spatial canvas for building and pressure-testing ideas. No backend, no accounts, no server. Everything runs in the browser.
 
-![ThonkBoard](.github/screenshot.png)
+![ThonkBoard](public/thonkboard-og.png)
 
 ## What it does
 
