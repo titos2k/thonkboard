@@ -597,20 +597,22 @@ export async function detectConflicts(
 // ── Conflict resolution ───────────────────────────────────────────────────────
 
 const RESOLVE_CONFLICT_SYSTEM = `You are helping resolve a content conflict on an ideation board.
-The user is merging an idea that directly contradicts the node's current content.
+The user is merging an idea that directly contradicts part of the node's current content.
 Generate exactly 2 distinct resolution paths. They MUST be genuinely different — not two versions of the same stance.
 
-Option A — New direction wins: Fully adopt the incoming idea. Replace the contradicting existing content. The new idea is now the position.
-Option B — Existing direction wins: Keep the existing position. Acknowledge the incoming idea was considered but reject it, noting why briefly.
+Option A — New direction wins: Keep ALL existing body content that is not directly about the contradiction. Only remove or rewrite the specific sentence(s) or bullet(s) that directly conflict with the idea. Add the idea's direction in their place.
+Option B — Existing direction wins: Keep the existing body exactly as-is. Add at most 1 short bullet acknowledging the incoming idea was considered and why it was not adopted.
 
 These options must be clearly opposites. Do NOT let both options lean the same way.
+
+CRITICAL — Do NOT drop content unrelated to the conflict. The body you produce must contain everything from the existing body EXCEPT the contradicting part(s). This is a surgical edit, not a rewrite.
 
 Rules:
 - Match the voice and register of the existing content exactly.
 - Bullet lists for facts/constraints. Each bullet on its own line starting with "- ". NEVER put multiple bullets on one line.
 - No filler openers. No top-level title.
 - summary: One direct sentence (max 12 words) that clearly names which direction this takes. Do NOT start with "This path" or "This option" — state the decision directly.
-- body: Full rewritten body in markdown.
+- body: The updated body. Must preserve all existing non-conflicting content — only the contradicting part changes.
 - title: New title only if the concept fundamentally shifts (optional, max 60 chars).`
 
 export interface ConflictOption {
