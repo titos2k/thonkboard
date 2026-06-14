@@ -1,16 +1,18 @@
 import { useState, useEffect } from 'react'
 
-interface ToastItem { id: number; message: string }
+interface ToastItem { id: number; message: string; type: 'error' | 'success' }
 
 export function Toaster() {
   const [toasts, setToasts] = useState<ToastItem[]>([])
 
   useEffect(() => {
     const handler = (e: Event) => {
-      const message = (e as CustomEvent<string>).detail
+      const raw = (e as CustomEvent).detail
+      const message: string = typeof raw === 'string' ? raw : raw.message
+      const type: 'error' | 'success' = typeof raw === 'string' ? 'error' : (raw.type ?? 'error')
       const id = Date.now()
-      setToasts(prev => [...prev, { id, message }])
-      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), 10000)
+      setToasts(prev => [...prev, { id, message, type }])
+      setTimeout(() => setToasts(prev => prev.filter(t => t.id !== id)), type === 'success' ? 3000 : 10000)
     }
     window.addEventListener('thonk:toast', handler)
     return () => window.removeEventListener('thonk:toast', handler)
@@ -24,7 +26,7 @@ export function Toaster() {
         <div
           key={t.id}
           onClick={() => setToasts(prev => prev.filter(x => x.id !== t.id))}
-          className="bg-red-600 text-white text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-xs leading-snug pointer-events-auto cursor-pointer"
+          className={`text-white text-sm px-4 py-2.5 rounded-lg shadow-lg max-w-xs leading-snug pointer-events-auto cursor-pointer ${t.type === 'success' ? 'bg-gray-800' : 'bg-red-600'}`}
         >
           {t.message}
         </div>

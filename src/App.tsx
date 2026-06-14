@@ -46,6 +46,7 @@ import { hasActiveKey } from '@/ai/gemini'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
+import { showToast } from '@/lib/toast'
 
 const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent }
 
@@ -311,8 +312,10 @@ export default function App() {
         return
       }
     }
+    const h = handle!
     try {
-      await saveGraphToFileHandle(handle, graph, activeBoardId, boardName)
+      await saveGraphToFileHandle(h, graph, activeBoardId, boardName)
+      showToast(`Saved: ${h.name}`, 'success')
     } catch {
       fileHandlesRef.current.delete(activeBoardId)
     }
@@ -333,6 +336,7 @@ export default function App() {
     }
     try {
       await saveGraphToFileHandle(handle, graph, activeBoardId, boardName)
+      showToast(`Saved: ${handle.name}`, 'success')
     } catch {
       fileHandlesRef.current.delete(activeBoardId)
     }
@@ -742,6 +746,19 @@ export default function App() {
     }
     reader.readAsText(file)
   }, [boards, switchToBoard])
+
+  // PWA File Handling API — open .thonk files launched from the OS
+  const handleImportRef = useRef(handleImport)
+  useEffect(() => { handleImportRef.current = handleImport }, [handleImport])
+  useEffect(() => {
+    if (!('launchQueue' in window)) return
+    ;(window as { launchQueue?: { setConsumer: (fn: (p: { files: FileSystemFileHandle[] }) => void) => void } }).launchQueue!
+      .setConsumer(async ({ files }) => {
+        if (!files.length) return
+        const file = await files[0].getFile()
+        handleImportRef.current(file)
+      })
+  }, [])
 
   const handleExportPng = useCallback(() => {
     const nodes = rfInstance.current?.getNodes() ?? []

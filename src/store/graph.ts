@@ -70,6 +70,16 @@ export function deleteBoard(boardId: string): void {
 
 // ── Graph persistence ──────────────────────────────────────────────────────────
 
+declare global {
+  interface Window {
+    showSaveFilePicker(options?: {
+      suggestedName?: string
+      excludeAcceptAllOption?: boolean
+      types?: Array<{ description?: string; accept: Record<string, string[]> }>
+    }): Promise<FileSystemFileHandle>
+  }
+}
+
 export const fsaSupported = 'showSaveFilePicker' in window
 
 export function exportGraphToFile(graph: ThonkGraph, boardId: string, boardName: string): void {
