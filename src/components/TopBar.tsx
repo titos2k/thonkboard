@@ -1,5 +1,5 @@
 import { useRef, useState, memo, useEffect } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Github } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -352,6 +352,11 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             </>
           )}
           <DropdownMenuSeparator />
+          <DropdownMenuItem asChild>
+            <a href="https://github.com/titos2k/thonk" target="_blank" rel="noopener noreferrer">
+              <Github className="w-4 h-4 text-muted-foreground" /> View on GitHub
+            </a>
+          </DropdownMenuItem>
           <DropdownMenuItem asChild>
             <a href="https://buymeacoffee.com/titos2k" target="_blank" rel="noopener noreferrer">
               <Coffee className="w-4 h-4 text-muted-foreground" /> Buy me a coffee

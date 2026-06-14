@@ -1307,7 +1307,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 if (e.key === 'Escape') { setEditTitle(thonk.title); setEditing(false) }
               }}
               placeholder={
-                thonk.type === 'core'     ? 'Your idea, core problem, topic, plan, next project…' :
+                thonk.type === 'core'     ? 'Your core idea, problem, or topic…' :
                 thonk.type === 'idea'     ? 'Describe the idea…' :
                 thonk.type === 'problem'  ? 'What\'s the problem?' :
                 thonk.type === 'question' ? 'Ask a question…' :
@@ -1327,7 +1327,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               )}
               onDoubleClick={thonk.type === 'question' ? (thonk.title.trim() ? () => setActionState('answering') : enterEdit) : enterEdit}
             >
-              {thonk.title ? linkifyText(thonk.title) : <span className="opacity-40">{thonk.type === 'core' ? 'Your idea, core problem, topic, plan, next project…' : 'Untitled'}</span>}
+              {thonk.title ? linkifyText(thonk.title) : <span className="opacity-40">{thonk.type === 'core' ? 'Your core idea, problem, or topic…' : 'Untitled'}</span>}
             </p>
           )}
 
