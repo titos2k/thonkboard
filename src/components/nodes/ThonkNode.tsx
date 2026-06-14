@@ -955,7 +955,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const parentNode = findSpawnParent(graph, thonk.id)
       if (!parentNode) return
       // Pre-check: does this idea conflict with the target's current content?
-      const pre = await detectConflicts(thonk.title, thonk.body, [{
+      const pre = await detectConflicts(thonk.title, thonk.body || thonk.title, [{
         id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
       }])
       const parentConflict = pre.find(c => c.nodeId === parentNode.id)
@@ -980,7 +980,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const graph = graphRef.current
       const parentNode = findSpawnParent(graph, thonk.id)
       if (!parentNode) return
-      const pre = await detectConflicts(thonk.title, thonk.body, [{
+      const pre = await detectConflicts(thonk.title, thonk.body || thonk.title, [{
         id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
       }])
       const parentConflict = pre.find(c => c.nodeId === parentNode.id)

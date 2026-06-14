@@ -225,3 +225,10 @@ body {
   border: 1px solid var(--color-border);
   border-radius: var(--radius);
 }
+
+.dark .react-flow__attribution {
+  background: rgba(0, 0, 0, 0.5);
+}
+.dark .react-flow__attribution a {
+  color: hsl(240, 5%, 35%);
+}
