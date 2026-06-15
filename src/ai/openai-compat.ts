@@ -107,6 +107,33 @@ export async function callOpenAICompat<T>(provider: OAICompatProvider, req: AIRe
   return (isArraySchema ? parsed.items : parsed) as T
 }
 
+export async function callOpenAISearch(req: Omit<AIRequest, 'responseSchema'>): Promise<string> {
+  assertKey('openai')
+  const { model } = resolveUrlAndModel('openai')
+
+  const res = await fetch('https://api.openai.com/v1/responses', {
+    method: 'POST',
+    headers: buildHeaders('openai'),
+    body: JSON.stringify({
+      model,
+      input: `${req.systemInstruction}\n\n${req.userPrompt}`,
+      tools: [{ type: 'web_search' }],
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`openai error ${res.status}: ${err}`)
+  }
+
+  const data = await res.json()
+  const message = (data.output as Array<{ type: string; content?: unknown[] }>)
+    ?.find(o => o.type === 'message')
+  const textContent = (message?.content as Array<{ type: string; text?: string }>)
+    ?.find(c => c.type === 'output_text')
+  return textContent?.text ?? ''
+}
+
 export async function callOpenAICompatText(
   provider: OAICompatProvider,
   req: Omit<AIRequest, 'responseSchema'>,

@@ -13,11 +13,6 @@ export interface ConflictEntry {
   description: string
 }
 
-export interface GroundingChunk {
-  title: string
-  uri: string
-}
-
 export interface ThonkNode {
   id: string
   type: NodeType
@@ -35,7 +30,6 @@ export interface ThonkNode {
     revisionOf: string | null // id of prior core this replaces
     aiGenerated?: boolean     // true for AI-proposed answers
     yesNo?: boolean           // true when AI classified this as a yes/no question
-    sources?: GroundingChunk[] // web sources when Gemini used search grounding
     aiDepth?: number          // AI generation depth; absent/0 = human-authored
   }
 }

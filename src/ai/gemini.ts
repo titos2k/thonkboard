@@ -1,7 +1,9 @@
-import type { GroundingChunk, ThonkGraph } from '@/store/types'
+import type { ThonkGraph } from '@/store/types'
 import type { AIRequest, Provider } from './types'
-import { callOpenAICompat, callOpenAICompatText, type OAICompatProvider } from './openai-compat'
-import { callAnthropic, callAnthropicText } from './anthropic'
+import { callOpenAICompat, callOpenAICompatText, callOpenAISearch, type OAICompatProvider } from './openai-compat'
+import { callAnthropic, callAnthropicSearch } from './anthropic'
+
+interface GroundingChunk { title: string; uri: string }
 
 // ── Models ────────────────────────────────────────────────────────────────────
 
@@ -168,13 +170,9 @@ async function _callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResu
 async function callAISearch(req: SearchCallRequest): Promise<SearchResult> {
   const p = getProvider()
   if (p === 'gemini') return _callGeminiWithSearch(req)
-  let text: string
-  if (p === 'anthropic') {
-    text = await callAnthropicText(req)
-  } else {
-    text = await callOpenAICompatText(p as OAICompatProvider, req)
-  }
-  return { text, sources: [] }
+  if (p === 'anthropic') return { text: await callAnthropicSearch(req), sources: [] }
+  if (p === 'openai') return { text: await callOpenAISearch(req), sources: [] }
+  return { text: await callOpenAICompatText(p as OAICompatProvider, req), sources: [] }
 }
 
 // ── Grammar fix ───────────────────────────────────────────────────────────────
@@ -712,22 +710,24 @@ Answer with the fewest words that fully cover the question — one sentence if i
 Do not pad. Do not add context the question didn't ask for. Stop as soon as the answer is complete.
 No preamble, no filler, no sign-off.
 Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.
-If existing answers are already connected to this question (visible in context), provide a different angle — do not repeat what's already there.`
+If existing answers are already connected to this question (visible in context), provide a different angle — do not repeat what's already there.
+Weave any current facts or names you find naturally into your answer. Do not include URLs, links, footnotes, or source citations of any kind.`
 
-export async function answerQuestion(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
+export async function answerQuestion(contextPrompt: string): Promise<{ answer: string }> {
   const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
-  return { answer: result.text, sources: result.sources }
+  return { answer: result.text }
 }
 
 const SOLUTION_SYSTEM = `You are a direct, practical colleague in a brainstorming session.
 Propose one concrete solution or next step. One sentence if it's enough — stop there.
 No analysis, no restating the problem, no preamble, no elaboration beyond the solution itself.
 Match the tone of the content — casual stays casual.
-If existing solutions are already connected to this problem (visible in context), provide a different approach — do not repeat what's already there.`
+If existing solutions are already connected to this problem (visible in context), provide a different approach — do not repeat what's already there.
+Weave any current facts or names you find naturally into your answer. Do not include URLs, links, footnotes, or source citations of any kind.`
 
-export async function generateSolution(contextPrompt: string): Promise<{ answer: string; sources: GroundingChunk[] }> {
+export async function generateSolution(contextPrompt: string): Promise<{ answer: string }> {
   const result = await callAISearch({ systemInstruction: SOLUTION_SYSTEM, userPrompt: contextPrompt })
-  return { answer: result.text, sources: result.sources }
+  return { answer: result.text }
 }
 
 // ── Correct an answer ─────────────────────────────────────────────────────────

@@ -27,7 +27,6 @@ import {
   Loader2,
   FileText,
   TriangleAlert,
-  Globe,
   ArrowDownUp,
   GitBranch,
   Brain,
@@ -79,7 +78,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
   onBatchEnd: () => void
 }
 
-type ActionState = 'idle' | 'loading' | 'answering' | 'correcting' | 'asking'
+type ActionState = 'idle' | 'loading' | 'searching' | 'answering' | 'correcting' | 'asking'
 
 type QAPair = { qNode: import('@/store/types').ThonkNode; aNode: import('@/store/types').ThonkNode }
 
@@ -432,6 +431,17 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
+  const withSearchLoading = useCallback(async (fn: () => Promise<void>) => {
+    setActionState('searching')
+    d.onBatchStart()
+    try { await fn() }
+    catch (e) { showToast(e instanceof Error ? e.message : String(e)) }
+    finally {
+      d.onBatchEnd()
+      setActionState('idle')
+    }
+  }, []) // eslint-disable-line react-hooks/exhaustive-deps
+
   const ctx = () => {
     const c = assembleContext(graphRef.current, thonk.id)
     if (!c) throw new Error('Node not found in graph')
@@ -568,10 +578,10 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     const question = askText.trim()
     if (!question) return
     setAskText('')
-    withLoading(async () => {
+    withSearchLoading(async () => {
       const c = assembleContext(graphRef.current, thonk.id)
       if (!c) return
-      const { answer, sources } = await answerQuestion(`${contextToPrompt(c)}\n\nQUESTION: ${question}`)
+      const { answer } = await answerQuestion(`${contextToPrompt(c)}\n\nQUESTION: ${question}`)
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { dx, dy } = dirOffset(dir, nodeH())
       const { sourceHandle, targetHandle } = dirHandles(dir)
@@ -582,7 +592,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const aPos = findFreePos(graphRef.current.nodes, { x: qPos.x + adx, y: qPos.y + ady }, adx, ady, dir)
       const aNode = d.onAddNode('answer', answer, answer, aPos, {
         aiGenerated: true,
-        sources: sources.length > 0 ? sources : undefined,
       })
       d.onAddEdge(qNode.id, aNode.id, 'answers', sourceHandle, targetHandle)
       panToSpawned([qNode.id, aNode.id])
@@ -613,29 +622,27 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   }
 
   const handleIdeateAnswer = () =>
-    withLoading(async () => {
-      const { answer, sources } = await answerQuestion(ctx())
+    withSearchLoading(async () => {
+      const { answer } = await answerQuestion(ctx())
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { dx, dy } = dirOffset(dir, nodeH())
       const { sourceHandle, targetHandle } = dirHandles(dir)
       const aNode = d.onAddNode('answer', answer, answer, spawnPos(dx, dy), {
         aiGenerated: true,
-        sources: sources.length > 0 ? sources : undefined,
       })
       d.onAddEdge(thonk.id, aNode.id, 'answers', sourceHandle, targetHandle)
       panToSpawned([aNode.id])
     })
 
   const handleGenerateFix = () =>
-    withLoading(async () => {
-      const { answer, sources } = await generateSolution(ctx())
+    withSearchLoading(async () => {
+      const { answer } = await generateSolution(ctx())
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { dx, dy } = dirOffset(dir, nodeH())
       const { sourceHandle, targetHandle } = dirHandles(dir)
       const aNode = d.onAddNode('answer', answer, answer, spawnPos(dx, dy), {
         aiGenerated: true,
         aiDepth: thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0,
-        sources: sources.length > 0 ? sources : undefined,
       })
       d.onAddEdge(thonk.id, aNode.id, 'fixes', sourceHandle, targetHandle)
       panToSpawned([aNode.id])
@@ -1113,7 +1120,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const ideaParentHidden    = !!d.hiddenNodeIds?.has(ideaParentNode?.id    ?? '')
   const problemParentHidden = !!d.hiddenNodeIds?.has(problemParentNode?.id ?? '')
 
-  const isLoading = actionState === 'loading'
+  const isLoading = actionState === 'loading' || actionState === 'searching'
   const isLight = thonk.type === 'question' || thonk.type === 'idea'
 
   const aiDepth = thonk.meta.aiDepth ?? 0
@@ -1331,24 +1338,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             </p>
           )}
 
-          {thonk.type === 'answer' && (thonk.meta.sources ?? []).length > 0 && (
-            <div className="pt-1 flex flex-wrap gap-1">
-              {(thonk.meta.sources ?? []).map((s, i) => (
-                <a
-                  key={i}
-                  href={s.uri}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  title={s.title}
-                  className="nodrag inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded bg-emerald-900/40 text-emerald-200 hover:bg-emerald-900/60 transition-colors max-w-[160px] overflow-hidden"
-                  onClick={e => e.stopPropagation()}
-                >
-                  <Globe className="w-3 h-3 shrink-0" />
-                  <span className="truncate">{s.title || (() => { try { return new URL(s.uri).hostname } catch { return s.uri } })()}</span>
-                </a>
-              ))}
-            </div>
-          )}
 
         </div>
 
@@ -1452,7 +1441,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
         {isLoading && (
           <div className="flex items-center gap-1.5 px-3 pb-2 text-sm opacity-60">
-            <Loader2 className="w-5 h-5 animate-spin" /> Thinking…
+            <Loader2 className="w-5 h-5 animate-spin" /> {actionState === 'searching' ? 'Researching…' : 'Thinking…'}
           </div>
         )}
     </NodeShell>

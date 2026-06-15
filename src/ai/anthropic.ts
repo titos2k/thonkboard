@@ -66,6 +66,33 @@ export async function callAnthropic<T>(req: AIRequest): Promise<T> {
   return (wrapped ? (block.input as { items: T }).items : block.input) as T
 }
 
+export async function callAnthropicSearch(req: Omit<AIRequest, 'responseSchema'>): Promise<string> {
+  assertKey()
+
+  const res = await fetch(`${BASE}/messages`, {
+    method: 'POST',
+    headers: headers(),
+    body: JSON.stringify({
+      model: getModel(),
+      max_tokens: 2048,
+      system: req.systemInstruction,
+      tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
+      messages: [{ role: 'user', content: req.userPrompt }],
+    }),
+  })
+
+  if (!res.ok) {
+    const err = await res.text()
+    throw new Error(`Anthropic error ${res.status}: ${err}`)
+  }
+
+  const data = await res.json()
+  return data.content
+    .filter((b: { type: string }) => b.type === 'text')
+    .map((b: { text: string }) => b.text)
+    .join('\n')
+}
+
 export async function callAnthropicText(req: Omit<AIRequest, 'responseSchema'>): Promise<string> {
   assertKey()
 
