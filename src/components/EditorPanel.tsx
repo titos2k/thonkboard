@@ -1,7 +1,8 @@
 import { useState, useCallback, useEffect, useRef } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { X, Eye, Edit3, Loader2, Sparkles, Bold, Italic, Heading2, List, Code2, Copy, Check } from 'lucide-react'
+import { X, Eye, Edit3, Sparkles, Bold, Italic, Heading2, List, Code2, Copy, Check } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 import type { ThonkNode } from '@/store/types'
 import { generateSummary } from '@/ai/gemini'
 import { Button } from '@/components/ui/button'
@@ -147,7 +148,7 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
       {(node.summary || summarizing) && (
         <div className="px-4 py-3 bg-muted/50 border-b border-border text-sm text-muted-foreground flex items-start gap-2.5 shrink-0">
           {summarizing
-            ? <><Loader2 className="w-5 h-5 animate-spin mt-0.5 shrink-0" /><span>Generating summary…</span></>
+            ? <><Spinner className="w-5 h-5 mt-0.5 shrink-0 opacity-60" /><span>Generating summary…</span></>
             : <><Sparkles className="w-5 h-5 mt-0.5 shrink-0 text-primary/70" /><span>{node.summary}</span></>
           }
         </div>

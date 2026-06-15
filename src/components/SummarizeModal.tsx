@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { RefreshCw, Download, FileText, Loader2 } from 'lucide-react'
+import { RefreshCw, Download, FileText } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
 import { generateBrief } from '@/ai/gemini'
@@ -127,7 +128,7 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
         <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
           {status === 'loading' && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
-              <Loader2 className="w-4 h-4 animate-spin" />
+              <Spinner className="w-6 h-6 opacity-60" />
               Writing…
             </div>
           )}

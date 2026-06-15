@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { NodeToolbar, Position, type NodeProps } from '@xyflow/react'
-import { Trash2, ArrowDownUp, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, MessageCircle, SpellCheck, Loader2, GripHorizontal, Pencil } from 'lucide-react'
+import { Trash2, ArrowDownUp, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, MessageCircle, SpellCheck, GripHorizontal, Pencil } from 'lucide-react'
+import { Spinner } from '@/components/ui/spinner'
 import { NodeShell } from './NodeShell'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
@@ -146,7 +147,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
                 disabled={fixing}
                 className="nodrag w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer disabled:opacity-40"
               >
-                {fixing ? <Loader2 className="w-5 h-5 animate-spin" /> : <SpellCheck className="w-5 h-5" />}
+                {fixing ? <Spinner className="w-5 h-5 opacity-60" /> : <SpellCheck className="w-5 h-5" />}
               </button>
             </TooltipTrigger>
             <TooltipContent side="top" sideOffset={10} className="text-sm">Fix Grammar</TooltipContent>

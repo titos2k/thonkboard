@@ -24,7 +24,6 @@ import {
   MessageCircleReply,
   Trash2,
   Pencil,
-  Loader2,
   FileText,
   TriangleAlert,
   ArrowDownUp,
@@ -40,6 +39,7 @@ import {
 } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
+import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
@@ -1470,7 +1470,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
         {isLoading && (
           <div className="flex items-center gap-1.5 px-3 pb-2 text-sm opacity-60">
-            <Loader2 className="w-5 h-5 animate-spin" /> {actionState === 'searching' ? 'Researching…' : 'Thinking…'}
+            <Spinner className="w-5 h-5 opacity-60" /> {actionState === 'searching' ? 'Researching…' : 'Thinking…'}
           </div>
         )}
     </NodeShell>
@@ -1771,7 +1771,7 @@ function ToolBtn({
             className,
           )}
         >
-          <span className={isHeatBlocked ? 'opacity-25' : undefined}>{icon}</span>
+          <span>{icon}</span>
           {showHeatBadge && (
             <span className={cn('absolute -top-0.5 -right-0.5 w-2 h-2 rounded-full', heat >= 1 ? 'bg-red-400' : heat >= 2/3 ? 'bg-orange-400' : 'bg-yellow-400')} />
           )}
