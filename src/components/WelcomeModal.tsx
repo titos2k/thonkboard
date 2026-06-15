@@ -7,9 +7,10 @@ interface WelcomeModalProps {
   open: boolean
   onConnectAI: () => void
   onSkip: () => void
+  onSeeExample?: () => void
 }
 
-export function WelcomeModal({ open, onConnectAI, onSkip }: WelcomeModalProps) {
+export function WelcomeModal({ open, onConnectAI, onSkip, onSeeExample }: WelcomeModalProps) {
   const isMobile = useIsMobile()
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onSkip() }}>
@@ -56,6 +57,11 @@ export function WelcomeModal({ open, onConnectAI, onSkip }: WelcomeModalProps) {
             <Button size="sm" variant="ghost" onClick={onSkip} className="w-full h-9 text-sm text-muted-foreground cursor-pointer gap-2">
               Try without AI <MoveRight className="w-4 h-4" />
             </Button>
+            {onSeeExample && (
+              <Button size="sm" variant="ghost" onClick={onSeeExample} className="w-full h-9 text-sm text-muted-foreground cursor-pointer gap-2">
+                See example board <MoveRight className="w-4 h-4" />
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>
