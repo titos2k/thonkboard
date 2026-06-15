@@ -22,12 +22,15 @@ Add an AI key via the "Set AI key" button in the top bar. Keys are stored in `lo
 | Provider | Free tier | Notes |
 |----------|-----------|-------|
 | Google Gemini | Yes | Default. Gemini 3.1 Flash Lite / Gemini 3.5 Flash. |
-| OpenAI | No | GPT-4o mini / GPT-4o |
-| Anthropic | No | Claude Haiku / Claude Sonnet |
+| OpenAI | No | GPT-4.1 mini / GPT-4.1 |
+| Anthropic | No | Claude Haiku 4.5 / Claude Sonnet 4.6 |
 | DeepSeek | No | deepseek-chat / deepseek-reasoner. |
 | Ollama | Local only | Requires running ThonkBoard locally - Ollama blocks cross-origin requests (CORS). |
 
-**Turbo Thonking** switches to the smarter model for the active provider.
+The **AI Settings** cog (next to the key button) has two toggles:
+
+- **Turbo Thonking** — switches to the smarter model for the active provider
+- **Web Search** — Gemini, OpenAI, Anthropic only. Enriches answers with current facts. Adds cost per query.
 
 ## Browser & installation
 
