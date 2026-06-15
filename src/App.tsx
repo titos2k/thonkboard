@@ -240,6 +240,7 @@ export default function App() {
   const examplePrevViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null)
   const [hideResolved, setHideResolved] = useState(() => localStorage.getItem('hideResolved') === 'true')
 
+  const [pendingLink, setPendingLink] = useState<{ url: string; x: number; y: number } | null>(null)
   const [welcomed, setWelcomed] = useState(() => !!localStorage.getItem('thonk.welcomed'))
   const [aiConnected, setAiConnected] = useState(hasActiveKey)
   const [keyOpen, setKeyOpen] = useState(() => {
@@ -261,6 +262,12 @@ export default function App() {
   const [fileDirty, setFileDirty] = useState(false)
 
   // Restore file handle name from IDB on mount so the UI reflects the link after a page refresh
+  useEffect(() => {
+    const handler = (e: Event) => setPendingLink((e as CustomEvent<{ url: string; x: number; y: number }>).detail)
+    window.addEventListener('thonk:openlink', handler)
+    return () => window.removeEventListener('thonk:openlink', handler)
+  }, [])
+
   useEffect(() => {
     restoreFileHandle(activeBoardId).then(h => {
       if (h) {
@@ -1161,6 +1168,23 @@ export default function App() {
             </div>
           </DialogContent>
         </Dialog>
+      {pendingLink && (
+        <>
+          <div className="fixed inset-0 z-[9998]" onClick={() => setPendingLink(null)} />
+          <div
+            className="fixed z-[9999] px-3 py-2 rounded-lg bg-neutral-900 border border-neutral-700 shadow-xl text-sm max-w-xs"
+            style={{ left: pendingLink.x, top: pendingLink.y - 48, transform: 'translateX(-50%)' }}
+          >
+            <a
+              href={pendingLink.url}
+              target="_blank"
+              rel="noopener noreferrer"
+              onClick={() => setPendingLink(null)}
+              className="text-neutral-200 truncate block decoration-dotted underline underline-offset-2 hover:text-white"
+            >{pendingLink.url}</a>
+          </div>
+        </>
+      )}
       <Toaster />
     </TooltipProvider>
   )

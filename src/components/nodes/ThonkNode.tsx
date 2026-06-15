@@ -191,7 +191,7 @@ function stopDeletePropagation(e: React.KeyboardEvent) {
   if (e.key === 'Delete' || e.key === 'Backspace') e.stopPropagation()
 }
 
-const URL_RE = /https?:\/\/[^\s)>\],"']+/g
+const URL_RE = /https?:\/\/[^\s)>\],"']+|(?<!\w)(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/[^\s)>\],"']*)?/gi
 function linkifyText(text: string): React.ReactNode {
   const parts: React.ReactNode[] = []
   let last = 0
@@ -199,11 +199,12 @@ function linkifyText(text: string): React.ReactNode {
   URL_RE.lastIndex = 0
   while ((m = URL_RE.exec(text)) !== null) {
     if (m.index > last) parts.push(text.slice(last, m.index))
-    const url = m[0]
+    const url = m[0].replace(/[.,;:!?)"']+$/, '')
+    const href = url.startsWith('http') ? url : `https://${url}`
     parts.push(
-      <a key={m.index} href={url} target="_blank" rel="noopener noreferrer"
-        className="underline text-blue-300 hover:text-blue-200 break-all"
-        onClick={e => e.stopPropagation()}
+      <a key={m.index} href={href}
+        className="underline text-blue-300 hover:text-blue-200 break-all cursor-pointer"
+        onClick={e => { e.preventDefault(); e.stopPropagation(); window.dispatchEvent(new CustomEvent('thonk:openlink', { detail: { url: href, x: e.clientX, y: e.clientY } })) }}
       >{url}</a>
     )
     last = m.index + url.length

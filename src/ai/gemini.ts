@@ -167,12 +167,29 @@ async function _callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResu
   return { text, sources }
 }
 
+const NATURALIZE_SYSTEM = `You are a text editor. Clean up the input text:
+- Remove all markdown link syntax and bare URLs
+- If a source domain name appears as a citation, weave it into the sentence naturally (e.g. "according to macrumors.com") — only if it fits naturally, otherwise drop it
+- Preserve the original length and all information
+Output only the cleaned text, nothing else.`
+
+async function naturalizeSearchText(raw: string): Promise<string> {
+  const result = await callAI<{ text: string }>({
+    systemInstruction: NATURALIZE_SYSTEM,
+    userPrompt: raw,
+    responseSchema: { type: 'object', properties: { text: { type: 'string' } }, required: ['text'] },
+  })
+  return result.text
+}
+
 async function callAISearch(req: SearchCallRequest): Promise<SearchResult> {
   const p = getProvider()
   if (p === 'gemini') return _callGeminiWithSearch(req)
-  if (p === 'anthropic') return { text: await callAnthropicSearch(req), sources: [] }
-  if (p === 'openai') return { text: await callOpenAISearch(req), sources: [] }
-  return { text: await callOpenAICompatText(p as OAICompatProvider, req), sources: [] }
+  let raw: string
+  if (p === 'anthropic') raw = await callAnthropicSearch(req)
+  else if (p === 'openai') raw = await callOpenAISearch(req)
+  else return { text: await callOpenAICompatText(p as OAICompatProvider, req), sources: [] }
+  return { text: await naturalizeSearchText(raw), sources: [] }
 }
 
 // ── Grammar fix ───────────────────────────────────────────────────────────────
