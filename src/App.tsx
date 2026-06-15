@@ -1087,7 +1087,7 @@ export default function App() {
               { color: 'bg-[#f4f6f6] border border-black/10',   label: 'Question'     },
               { color: 'bg-[#00ae60]',                          label: 'Answer'       },
               { color: 'bg-[#00836d]',                          label: 'Answer AI'    },
-              { color: 'bg-[#ffffff]',                          label: 'Note'         },
+              { color: 'bg-[#f7efd0] border border-black/10',   label: 'Note'         },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-2.5">
                 <span className={`inline-block w-3 h-3 rounded shrink-0 ${color}`} />

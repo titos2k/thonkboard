@@ -272,6 +272,27 @@ function dirHandles(dir: Dir): { sourceHandle: string; targetHandle: string } {
   }
 }
 
+// Pre-compute N spread positions perpendicular to dir, centered on origin + primary offset.
+// For down/up directions, nodes fan out left-right. For left/right, they fan out up-down.
+function spawnFan(
+  origin: { x: number; y: number },
+  dir: Dir,
+  count: number,
+  primaryDist: number,
+  spacing = 300,
+): { x: number; y: number }[] {
+  const half = (count - 1) / 2
+  return Array.from({ length: count }, (_, i) => {
+    const perp = (i - half) * spacing
+    switch (dir) {
+      case 'up':    return { x: origin.x + perp, y: origin.y - primaryDist }
+      case 'left':  return { x: origin.x - primaryDist, y: origin.y + perp }
+      case 'right': return { x: origin.x + primaryDist, y: origin.y + perp }
+      default:      return { x: origin.x + perp, y: origin.y + primaryDist }
+    }
+  })
+}
+
 // Find a position near `origin + (dx, dy)` that doesn't collide with existing nodes.
 function findFreePos(
   nodes: { position: { x: number; y: number } }[],
@@ -510,12 +531,13 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const problems = await critiqueNode(ctx())
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { sourceHandle, targetHandle } = dirHandles(dir)
-      const { dx, dy } = dirOffset(dir, nodeH())
       const childDepth = thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0
+      const anchors = spawnFan(livePos(), dir, problems.length, nodeH())
       const placed: { position: { x: number; y: number } }[] = []
       const ids: string[] = []
-      for (const p of problems) {
-        const pos = findFreePos([...graphRef.current.nodes, ...placed], livePos(), dx, dy, dir)
+      for (let i = 0; i < problems.length; i++) {
+        const p = problems[i]
+        const pos = findFreePos([...graphRef.current.nodes, ...placed], anchors[i], 0, 0, dir)
         placed.push({ position: pos })
         const node = d.onAddNode('problem', p.content, p.content, pos, { severity: p.severity, aiGenerated: true, aiDepth: childDepth })
         d.onAddEdge(thonk.id, node.id, 'argues', sourceHandle, targetHandle)
@@ -567,11 +589,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const ideas = await proposeIdeas(ctx())
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { sourceHandle, targetHandle } = dirHandles(dir)
-      const { dx, dy } = dirOffset(dir, nodeH())
+      const anchors = spawnFan(livePos(), dir, ideas.length, nodeH())
       const placed: { position: { x: number; y: number } }[] = []
       const ids: string[] = []
-      for (const idea of ideas) {
-        const pos = findFreePos([...graphRef.current.nodes, ...placed], livePos(), dx, dy, dir)
+      for (let i = 0; i < ideas.length; i++) {
+        const idea = ideas[i]
+        const pos = findFreePos([...graphRef.current.nodes, ...placed], anchors[i], 0, 0, dir)
         placed.push({ position: pos })
         const node = d.onAddNode('idea', idea.title, idea.body, pos, { aiGenerated: true, aiDepth: thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0 })
         d.onAddEdge(thonk.id, node.id, 'spawns', sourceHandle, targetHandle)
