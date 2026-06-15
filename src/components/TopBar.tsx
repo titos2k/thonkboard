@@ -1,5 +1,5 @@
 import { useRef, useState, memo, useEffect } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -7,7 +7,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from './ui/tooltip'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger, DropdownMenuSeparator, DropdownMenuSub, DropdownMenuSubTrigger, DropdownMenuSubContent } from './ui/dropdown-menu'
 import { EXAMPLES } from '@/examples'
 import {
-  setApiKey, getHighIQ, setHighIQ,
+  setApiKey, getHighIQ, setHighIQ, getWebSearch, setWebSearch,
   getProvider, setProvider, getProviderKey, setProviderKey, hasActiveKey,
 } from '@/ai/gemini'
 import { getOllamaBaseUrl, getOllamaModel, setOllamaConfig, PROVIDER_MODEL_LITE, PROVIDER_MODEL_SMART } from '@/ai/openai-compat'
@@ -76,7 +76,7 @@ const PROVIDER_MODELS: Record<Provider, { lite: string; smart: string }> = {
 }
 
 function apiKeyButtonLabel(provider: Provider): string {
-  return hasActiveKey() ? `${PROVIDER_LABELS[provider]} ✓` : 'Set AI key'
+  return hasActiveKey() ? PROVIDER_LABELS[provider] : 'Set AI key'
 }
 
 function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode }: TopBarProps) {
@@ -91,6 +91,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
 
   const [saved, setSaved] = useState(false)
   const [highIQ, setHighIQState] = useState(getHighIQ)
+  const [webSearch, setWebSearchState] = useState(getWebSearch)
 
   // Dialog-local state — reset each time dialog opens
   const [dialogProvider, setDialogProvider] = useState<Provider>(getProvider)
@@ -158,6 +159,12 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
     const next = !highIQ
     setHighIQ(next)
     setHighIQState(next)
+  }
+
+  const toggleWebSearch = () => {
+    const next = !webSearch
+    setWebSearch(next)
+    setWebSearchState(next)
   }
 
   const openKeyDialog = () => {
@@ -374,6 +381,14 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   <MiniToggle on={highIQ} />
                 </DropdownMenuItem>
               )}
+              {committedProvider !== 'ollama' && committedProvider !== 'deepseek' && (
+                <DropdownMenuItem onClick={toggleWebSearch} className="justify-between">
+                  <span className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-muted-foreground" /> Web Search
+                  </span>
+                  <MiniToggle on={webSearch} />
+                </DropdownMenuItem>
+              )}
               <DropdownMenuItem onClick={onToggleHideResolved} className="justify-between">
                 <span className="flex items-center gap-2">
                   <EyeOff className="w-4 h-4 text-muted-foreground" /> Hide resolved
@@ -505,29 +520,6 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
           </TooltipContent>
         </Tooltip>
 
-        {committedProvider !== 'ollama' && (
-          <Tooltip>
-            <TooltipTrigger asChild>
-              <button
-                onClick={toggleHighIQ}
-                className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-              >
-                {isNarrow
-                  ? <Brain className="w-4 h-4 text-muted-foreground" />
-                  : <span className="text-sm font-medium text-muted-foreground select-none">Turbo Thonking</span>}
-                <div className={`relative w-8 h-4 rounded-full transition-colors ${highIQ ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                  <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${highIQ ? 'translate-x-4' : 'translate-x-0.5'}`} />
-                </div>
-              </button>
-            </TooltipTrigger>
-            <TooltipContent side="bottom" className="max-w-[200px] text-center">
-              {highIQ
-                ? `Using ${PROVIDER_MODELS[committedProvider].smart} - smarter, slower, costs more`
-                : `Using ${PROVIDER_MODELS[committedProvider].lite} - fast and cheap. Enable for deeper reasoning.`}
-            </TooltipContent>
-          </Tooltip>
-        )}
-
         <Tooltip>
           <TooltipTrigger asChild>
             <Button
@@ -537,12 +529,53 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             >
               <Astroid className="w-5 h-5" />
               {!isNarrow && <span className="text-sm">{apiKeyButtonLabel(committedProvider)}</span>}
+              {!isNarrow && hasActiveKey() && <Check className="w-3.5 h-3.5" />}
             </Button>
           </TooltipTrigger>
           {isNarrow && (
             <TooltipContent side="bottom">{apiKeyButtonLabel(committedProvider)}</TooltipContent>
           )}
         </Tooltip>
+
+        {committedProvider !== 'ollama' && (
+          <DropdownMenu>
+            <DropdownMenuTrigger asChild>
+              <Button size="sm" variant="ghost" className="h-9 w-9 p-0">
+                <Settings className="w-5 h-5" />
+              </Button>
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end" className="w-72" onCloseAutoFocus={e => e.preventDefault()}>
+              <DropdownMenuItem onSelect={e => e.preventDefault()} onClick={toggleHighIQ} className="justify-between gap-6">
+                <span className="flex items-center gap-2">
+                  <Zap className="w-4 h-4 text-muted-foreground shrink-0" />
+                  <span>
+                    <div className="text-sm">Turbo Thonking</div>
+                    <div className="text-xs text-muted-foreground">
+                      {highIQ
+                        ? `Switch to ${PROVIDER_MODELS[committedProvider].lite}, faster and cheaper`
+                        : `Switch to ${PROVIDER_MODELS[committedProvider].smart}, smarter and slower`}
+                    </div>
+                  </span>
+                </span>
+                <MiniToggle on={highIQ} />
+              </DropdownMenuItem>
+              {committedProvider !== 'deepseek' && (
+                <DropdownMenuItem onSelect={e => e.preventDefault()} onClick={toggleWebSearch} className="justify-between gap-6">
+                  <span className="flex items-center gap-2">
+                    <Globe className="w-4 h-4 text-muted-foreground shrink-0" />
+                    <span>
+                      <div className="text-sm">Web Search</div>
+                      <div className="text-xs text-muted-foreground">
+                        {webSearch ? 'Current facts in answers, turn off to save costs' : 'Current facts in answers, higher cost per query'}
+                      </div>
+                    </span>
+                  </span>
+                  <MiniToggle on={webSearch} />
+                </DropdownMenuItem>
+              )}
+            </DropdownMenuContent>
+          </DropdownMenu>
+        )}
 
         <Tooltip>
           <TooltipTrigger asChild>

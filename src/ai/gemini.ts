@@ -1,6 +1,6 @@
 import type { ThonkGraph } from '@/store/types'
 import type { AIRequest, Provider } from './types'
-import { callOpenAICompat, callOpenAICompatText, callOpenAISearch, type OAICompatProvider } from './openai-compat'
+import { callOpenAICompat, callOpenAISearch, type OAICompatProvider } from './openai-compat'
 import { callAnthropic, callAnthropicSearch } from './anthropic'
 
 interface GroundingChunk { title: string; uri: string }
@@ -12,9 +12,10 @@ const MODEL_SMART = 'gemini-3.5-flash'
 
 // ── Storage keys ──────────────────────────────────────────────────────────────
 
-const STORAGE_KEY      = 'thonk.apikey'
-const STORAGE_HI_KEY   = 'thonk.highiq'
-const STORAGE_PROVIDER = 'thonk.provider'
+const STORAGE_KEY           = 'thonk.apikey'
+const STORAGE_HI_KEY        = 'thonk.highiq'
+const STORAGE_PROVIDER      = 'thonk.provider'
+const STORAGE_WEBSEARCH_KEY = 'thonk.websearch'
 
 // ── Provider helpers ─────────────────────────────────────────────────────────
 
@@ -65,6 +66,14 @@ export function getHighIQ(): boolean {
 
 export function setHighIQ(on: boolean): void {
   localStorage.setItem(STORAGE_HI_KEY, on ? '1' : '0')
+}
+
+export function getWebSearch(): boolean {
+  return localStorage.getItem(STORAGE_WEBSEARCH_KEY) !== '0'
+}
+
+export function setWebSearch(on: boolean): void {
+  localStorage.setItem(STORAGE_WEBSEARCH_KEY, on ? '1' : '0')
 }
 
 function getApiBase(): string {
@@ -184,12 +193,18 @@ async function naturalizeSearchText(raw: string): Promise<string> {
 
 async function callAISearch(req: SearchCallRequest): Promise<SearchResult> {
   const p = getProvider()
-  if (p === 'gemini') return _callGeminiWithSearch(req)
-  let raw: string
-  if (p === 'anthropic') raw = await callAnthropicSearch(req)
-  else if (p === 'openai') raw = await callOpenAISearch(req)
-  else return { text: await callOpenAICompatText(p as OAICompatProvider, req), sources: [] }
-  return { text: await naturalizeSearchText(raw), sources: [] }
+  if (getWebSearch()) {
+    if (p === 'gemini') return _callGeminiWithSearch(req)
+    if (p === 'anthropic') return { text: await naturalizeSearchText(await callAnthropicSearch(req)), sources: [] }
+    if (p === 'openai') return { text: await naturalizeSearchText(await callOpenAISearch(req)), sources: [] }
+  }
+  // search disabled or deepseek/ollama — plain AI call, no search
+  const result = await callAI<{ answer: string }>({
+    systemInstruction: req.systemInstruction,
+    userPrompt: req.userPrompt,
+    responseSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+  })
+  return { text: result.answer, sources: [] }
 }
 
 // ── Grammar fix ───────────────────────────────────────────────────────────────
