@@ -22,13 +22,13 @@ import {
   type ReactFlowInstance,
 } from '@xyflow/react'
 import { toPng } from 'html-to-image'
-import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2 } from 'lucide-react'
+import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2, X, Star } from 'lucide-react'
 import '@xyflow/react/dist/style.css'
 
 import { useGraph } from '@/store/useGraph'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
-  exportGraphToFile, parseImportedGraph, saveGraph, loadGraph,
+  exportGraphToFile, parseImportedGraph, saveGraph, loadGraph, makeInitialGraph,
   migrateToMultiBoard,
   loadBoards, saveBoards, getActiveBoardId, setActiveBoardId as persistActiveBoardId, deleteBoard,
   loadViewport, saveViewport,
@@ -48,6 +48,7 @@ import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/comp
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
 import { Button } from '@/components/ui/button'
 import { showToast } from '@/lib/toast'
+import { EXAMPLES } from '@/examples'
 
 const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent }
 
@@ -233,6 +234,10 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
   const [panelNodeId, setPanelNodeId] = useState<string | null>(null)
+  const pendingPanelIdRef = useRef<string | null>(null)
+  const [examplePreview, setExamplePreview] = useState<{ name: string } | null>(null)
+  const examplePrevBoardIdRef = useRef<string | null>(null)
+  const examplePrevViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null)
   const [hideResolved, setHideResolved] = useState(() => localStorage.getItem('hideResolved') === 'true')
 
   const [welcomed, setWelcomed] = useState(() => !!localStorage.getItem('thonk.welcomed'))
@@ -310,6 +315,17 @@ export default function App() {
       return () => clearTimeout(id)
     }
   }, [autoEditId])
+
+  // Open panel once the pending new-board Core node gets a title
+  useEffect(() => {
+    const id = pendingPanelIdRef.current
+    if (!id) return
+    const node = graph.nodes.find(n => n.id === id)
+    if (node?.title.trim()) {
+      pendingPanelIdRef.current = null
+      setPanelNodeId(id)
+    }
+  }, [graph.nodes])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -418,11 +434,15 @@ export default function App() {
       if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return
       if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'z') { e.preventDefault(); undo() }
       if ((e.ctrlKey || e.metaKey) && (e.key === 'y' || (e.shiftKey && e.key === 'z'))) { e.preventDefault(); redo() }
-      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 's') { e.preventDefault(); handleCtrlSSave() }
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 's') {
+        e.preventDefault()
+        if (examplePreview) { showToast('Viewing an example — click Keep to add it to your boards'); return }
+        handleCtrlSSave()
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo, handleCtrlSSave])
+  }, [undo, redo, handleCtrlSSave, examplePreview])
 
   const openPanel = useCallback((id: string | null) => setPanelNodeId(id), [])
 
@@ -470,13 +490,17 @@ export default function App() {
 
   const handleCreateBoard = useCallback(() => {
     const id = uuidv4()
+    const initialGraph = makeInitialGraph()
+    const coreId = initialGraph.nodes[0].id
     const board: BoardMeta = { id, name: `Board ${boards.length + 1}`, createdAt: new Date().toISOString() }
     const next = [...boards, board]
     setBoards(next)
     saveBoards(next)
     persistActiveBoardId(id)
     setActiveBoardIdState(id)
-    switchToBoard(id)
+    switchToBoard(id, initialGraph)
+    setAutoEditId(coreId)
+    pendingPanelIdRef.current = coreId
   }, [boards, switchToBoard])
 
   const handleDeleteBoard = useCallback((id: string) => {
@@ -788,7 +812,7 @@ export default function App() {
     }) ?? { x: 400, y: 300 }
   }, [])
 
-  const handleAddCore     = useCallback(() => { const n = addNode('core',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
+  const handleAddCore     = useCallback(() => { const n = addNode('core',     '', '', viewCenter());                    setAutoEditId(n.id); openPanel(n.id) }, [addNode, setAutoEditId, viewCenter, openPanel])
   const handleAddIdea     = useCallback(() => { const n = addNode('idea',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddProblem  = useCallback(() => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 }); setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddQuestion = useCallback(() => { const n = addNode('question', '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
@@ -836,6 +860,46 @@ export default function App() {
     }
     reader.readAsText(file)
   }, [boards, switchToBoard])
+
+  const handleLoadExample = useCallback((raw: string, name: string) => {
+    try {
+      const { graph: imported } = parseImportedGraph(raw)
+      examplePrevBoardIdRef.current = activeBoardId
+      examplePrevViewportRef.current = rfInstance.current?.getViewport() ?? null
+      switchToBoard('__example__', imported)
+      setExamplePreview({ name })
+    } catch {
+      showToast('Failed to load example', 'error')
+    }
+  }, [activeBoardId, switchToBoard])
+
+  const handleExitExample = useCallback(() => {
+    const prev = examplePrevBoardIdRef.current ?? activeBoardId
+    switchToBoard(prev)
+    setActiveBoardIdState(prev)
+    persistActiveBoardId(prev)
+    const vp = examplePrevViewportRef.current
+    if (vp) setTimeout(() => rfInstance.current?.setViewport(vp, { duration: 0 }), 0)
+    examplePrevBoardIdRef.current = null
+    examplePrevViewportRef.current = null
+    setExamplePreview(null)
+  }, [activeBoardId, switchToBoard])
+
+  const handleCloneExample = useCallback(() => {
+    if (!examplePreview) return
+    const id = uuidv4()
+    const board: BoardMeta = { id, name: examplePreview.name, createdAt: new Date().toISOString() }
+    const next = [...boards, board]
+    setBoards(next)
+    saveBoards(next)
+    saveGraph(graph, id)
+    persistActiveBoardId(id)
+    setActiveBoardIdState(id)
+    switchToBoard(id, graph)
+    examplePrevBoardIdRef.current = null
+    examplePrevViewportRef.current = null
+    setExamplePreview(null)
+  }, [examplePreview, boards, graph, switchToBoard])
 
   // PWA File Handling API — open .thonk files launched from the OS
   const handleImportRef = useRef(handleImport)
@@ -899,7 +963,7 @@ export default function App() {
   return (
     <TooltipProvider delayDuration={0} disableHoverableContent>
       <div style={{ width: '100vw', height: '100dvh', position: 'relative' }}>
-        <WelcomeModal open={!welcomed} onConnectAI={handleWelcomeConnectAI} onSkip={handleWelcomeSkip} />
+        <WelcomeModal open={!welcomed} onConnectAI={handleWelcomeConnectAI} onSkip={handleWelcomeSkip} onSeeExample={EXAMPLES.length ? () => { handleWelcomeSkip(); handleLoadExample(EXAMPLES[0].raw, EXAMPLES[0].name) } : undefined} />
         <TopBar
           onAddCore={handleAddCore}
           onAddIdea={handleAddIdea}
@@ -928,8 +992,19 @@ export default function App() {
           onAiConnected={handleAiConnected}
           darkMode={darkMode}
           onToggleDarkMode={() => setDarkMode(d => !d)}
+          onLoadExample={handleLoadExample}
+          exampleMode={!!examplePreview}
         />
         <div style={{ width: '100%', height: '100%', paddingTop: 44 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
+        {examplePreview && (
+          <div className="absolute top-[60px] left-2 z-50 flex items-center gap-2 bg-foreground text-background rounded-md px-3 py-2 shadow-md nodrag">
+            <Star className="w-4 h-4 text-background/60 shrink-0" />
+            <span className="font-medium text-sm">{examplePreview.name}</span>
+            <span className="text-background/50 text-sm">example</span>
+            <Button className="ml-1 cursor-pointer" onClick={handleCloneExample}>Keep</Button>
+            <Button size="icon" variant="ghost" className="h-9 w-9 text-background/70 hover:text-background hover:bg-white/10 cursor-pointer" onClick={handleExitExample}><X className="w-4 h-4" /></Button>
+          </div>
+        )}
           <ReactFlow
             nodes={rfNodes}
             edges={rfEdges}

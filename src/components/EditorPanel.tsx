@@ -55,11 +55,14 @@ function insertLine(ta: HTMLTextAreaElement, prefix: string, setter: (v: string)
 export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNode }: EditorPanelProps) {
   const [title, setTitle] = useState(node.title)
   const [body, setBody] = useState(node.body)
-  const [tab, setTab] = useState<'write' | 'preview'>('preview')
+  const [tab, setTab] = useState<'write' | 'preview'>(
+    node.type === 'core' && !node.body.trim() ? 'write' : 'preview'
+  )
   const [dirty, setDirty] = useState(false)
   const [summarizing, setSummarizing] = useState(false)
   const [copied, setCopied] = useState(false)
   const taRef = useRef<HTMLTextAreaElement>(null)
+  const didAutoFocus = useRef(false)
 
   const handleCopy = () => {
     const text = [title, body].filter(Boolean).join('\n\n')
@@ -76,6 +79,14 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
       setBody(node.body)
     }
   }, [node.title, node.body, dirty])
+
+  // Auto-focus textarea on mount when opening in write mode
+  useEffect(() => {
+    if (tab === 'write' && !didAutoFocus.current) {
+      didAutoFocus.current = true
+      taRef.current?.focus()
+    }
+  }, [tab])
 
   const handleSave = useCallback(async () => {
     onSave(node.id, { title, body })
@@ -117,7 +128,7 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
   return (
     <div className="fixed right-0 top-0 bottom-0 w-full md:w-[560px] bg-card border-l border-border shadow-2xl z-20 flex flex-col">
       {/* Header */}
-      <div className="flex items-center gap-2 px-3 py-2.5 border-b border-border shrink-0">
+      <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
         <span className={cn('text-sm font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0', TYPE_BADGE[node.type] ?? 'bg-muted text-muted-foreground')}>
           {node.type}
         </span>
@@ -186,21 +197,32 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
       {/* Content area */}
       <div className="flex-1 overflow-hidden">
         {tab === 'write' ? (
-          <textarea
-            ref={taRef}
-            value={body}
-            onChange={e => markBody(e.target.value)}
-            onKeyDown={e => {
-              if (e.key === 'Delete' || e.key === 'Backspace') e.stopPropagation()
-              if ((e.ctrlKey || e.metaKey) && e.key === 's') {
-                e.preventDefault()
-                handleSave()
-              }
-            }}
-            className="w-full h-full resize-none py-4 pl-4 pr-4 md:pr-6 text-sm font-mono leading-relaxed outline-none bg-transparent"
-            placeholder={'Write your description in Markdown…\n\n## Supports\n- **bold**, _italic_, `code`\n- Headers, lists, blockquotes\n\nCtrl+S to save'}
-            spellCheck
-          />
+          <div className="relative h-full">
+            <textarea
+              ref={taRef}
+              value={body}
+              onChange={e => markBody(e.target.value)}
+              onKeyDown={e => {
+                if (e.key === 'Delete' || e.key === 'Backspace') e.stopPropagation()
+                if ((e.ctrlKey || e.metaKey) && e.key === 's') {
+                  e.preventDefault()
+                  handleSave()
+                }
+              }}
+              className="w-full h-full resize-none py-4 pl-4 pr-4 md:pr-6 text-sm font-mono leading-relaxed outline-none bg-transparent"
+              placeholder={'Write your description in Markdown…\n\n## Supports\n- **bold**, _italic_, `code`\n- Headers, lists, blockquotes\n\nCtrl+S to save'}
+              spellCheck
+            />
+            {node.type === 'core' && !body.trim() && (
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-3 pointer-events-none select-none">
+                <img src="/wizard-head2.png" alt="" className="w-48 h-28 object-contain opacity-50" />
+                <div className="text-center px-6">
+                  <p className="text-base font-medium text-muted-foreground">Add some context</p>
+                  <p className="text-sm text-muted-foreground/60 mt-1 text-balance">Goals, constraints, background - the more detail here, the better AI can help you think.</p>
+                </div>
+              </div>
+            )}
+          </div>
         ) : (
           <div className="h-full overflow-auto py-4 pl-4 pr-4 md:pr-6 md-preview text-sm">
             {body.trim()

@@ -1,4 +1,3 @@
-import { MoveRight } from 'lucide-react'
 import { Dialog, DialogContent } from './ui/dialog'
 import { Button } from './ui/button'
 import { useIsMobile } from '@/hooks/useIsMobile'
@@ -7,9 +6,10 @@ interface WelcomeModalProps {
   open: boolean
   onConnectAI: () => void
   onSkip: () => void
+  onSeeExample?: () => void
 }
 
-export function WelcomeModal({ open, onConnectAI, onSkip }: WelcomeModalProps) {
+export function WelcomeModal({ open, onConnectAI, onSkip, onSeeExample }: WelcomeModalProps) {
   const isMobile = useIsMobile()
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onSkip() }}>
@@ -53,9 +53,14 @@ export function WelcomeModal({ open, onConnectAI, onSkip }: WelcomeModalProps) {
             <Button size="sm" onClick={onConnectAI} className="w-full h-9 text-sm cursor-pointer">
               Connect AI to get started
             </Button>
-            <Button size="sm" variant="ghost" onClick={onSkip} className="w-full h-9 text-sm text-muted-foreground cursor-pointer gap-2">
-              Try without AI <MoveRight className="w-4 h-4" />
+            <Button size="sm" variant="outline" onClick={onSkip} className="w-full h-9 text-sm cursor-pointer">
+              Try without AI
             </Button>
+            {onSeeExample && (
+              <Button size="sm" variant="outline" onClick={onSeeExample} className="w-full h-9 text-sm cursor-pointer">
+                See example board
+              </Button>
+            )}
           </div>
         </div>
       </DialogContent>

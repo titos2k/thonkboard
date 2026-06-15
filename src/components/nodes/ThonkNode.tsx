@@ -1314,7 +1314,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                                             'Write your answer…'
               }
               className={cn(
-                'nodrag w-full bg-transparent outline-none border-none font-medium text-sm leading-snug text-inherit p-0 m-0 resize-none overflow-hidden',
+                'nodrag w-full bg-transparent outline-none border-none font-medium text-sm leading-snug text-inherit p-0 m-0 resize-none overflow-hidden break-words',
                 thonk.type === 'core' && 'text-[17.5px] text-center',
                 isLight ? 'placeholder:text-gray-400/60' : 'placeholder:text-white/40',
               )}
@@ -1322,7 +1322,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
           ) : (
             <p
               className={cn(
-                'select-none font-medium text-sm leading-snug cursor-grab active:cursor-grabbing text-pretty',
+                'select-none font-medium text-sm leading-snug cursor-grab active:cursor-grabbing text-pretty break-words',
                 thonk.type === 'core' && 'text-[17.5px] text-center',
               )}
               onDoubleClick={thonk.type === 'question' ? (thonk.title.trim() ? () => setActionState('answering') : enterEdit) : enterEdit}

@@ -1,0 +1,1441 @@
+{
+  "boardId": "f5e16fe6-73e9-4530-be82-f4719a3c0fdb",
+  "boardName": "ThonkBoard",
+  "nodes": [
+    {
+      "id": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "type": "core",
+      "title": "ThonkBoard",
+      "body": "- AI-powered mind map builder designed to help you think.\n- Start by creating a core node for your idea, project, or topic, then branch out with questions, ideas, and problems.\n- Build paths on an infinite canvas, easily moving and reattaching nodes as your thoughts evolve.\n- Master the interface with deep keyboard-first navigation, using a spatial algorithm that selects the node with the closest centroid projection along the selected axis of movement.\n- Keep keyboard controls as an opt-in power user feature to ensure the experience remains intuitive for casual users.\n- Use AI to challenge your ideas or suggest new directions; the system maintains coherence in large projects by feeding the model relevant local neighborhoods of your graph rather than linear tokens.\n- Resolve nodes once you've finished a thought; it's a \"fire and forget\" way to clear clutter while the board keeps the project context for you.\n- Export your entire thought process to JSON or markdown to save your progress elsewhere or share your maps.\n- It is free to use, though there is a button in the top corner if you feel like buying me a coffee.\n- Everything stays private because there is no backend; all data is stored locally in your browser's localStorage.\n- While local storage keeps things simple and avoids backend costs, you can manually save your work to your own drive to prevent data loss.\n- While primarily browser-based, you can run it offline using local tools like Ollama, provided your hardware has enough power to support the AI models.",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 702.6035583611176,
+        "y": 133.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-12T21:57:31.392Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": false,
+        "yesNo": false
+      },
+      "unread": false
+    },
+    {
+      "id": "04cbb1ee-c74a-4f4b-a8be-366f08cd5474",
+      "type": "question",
+      "title": "What is it?",
+      "body": "What is it?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 702.6035583611176,
+        "y": 268.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-12T21:57:45.643Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "58795089-e09e-4d49-85da-ada8082fec60",
+      "type": "answer",
+      "title": "It is an AI powered mind map builder that helps you think.",
+      "body": "its a AI powered mind map builder that helps you think",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 677.9769209465383,
+        "y": 366.2835680889172
+      },
+      "meta": {
+        "createdAt": "2026-06-12T21:58:15.282Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "4595b85c-b3e7-423a-a014-0759d233fff7",
+      "type": "question",
+      "title": "How does it work?",
+      "body": "How does it work?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 665.6636022392486,
+        "y": 487.29875284507705
+      },
+      "meta": {
+        "createdAt": "2026-06-12T21:58:23.894Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "2ee3fa98-19ec-4334-9eba-868b6ade8ed8",
+      "type": "answer",
+      "title": "You add nodes on canvas to explore each path, ask AI to challenge you, find issues, or propose some other paths.",
+      "body": "you add nodes on canvas to explore each path, ask AI to challenge you, find issues or propose some other paths",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 705.0514544343207,
+        "y": 568.6879953331656
+      },
+      "meta": {
+        "createdAt": "2026-06-12T21:59:53.382Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "b312777c-64bc-464d-986d-66e4eb52cd01",
+      "type": "problem",
+      "title": "This assumes the user already knows what paths to explore, but the AI might be needed to start the structure instead of just reacting to it.",
+      "body": "This assumes the user already knows what paths to explore, but the AI might be needed to start the structure instead of just reacting to it.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 996.0362696781608,
+        "y": 429.9426604553409
+      },
+      "meta": {
+        "createdAt": "2026-06-12T21:59:57.129Z",
+        "severity": 0.6,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "a02648db-1e21-4587-bf12-4bdc3506ac74",
+      "type": "problem",
+      "title": "What happens when the canvas gets crowded? Managing complex node paths could quickly become more confusing than helpful.",
+      "body": "What happens when the canvas gets crowded? Managing complex node paths could quickly become more confusing than helpful.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 988.0514544343207,
+        "y": 610.6879953331656
+      },
+      "meta": {
+        "createdAt": "2026-06-12T21:59:57.129Z",
+        "severity": 0.7,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "4a6a315f-685d-48e8-b039-95870290d5d6",
+      "type": "problem",
+      "title": "Asking an AI to challenge you assumes the AI has a high-level understanding of your goal, which is often difficult for current models without deep context.",
+      "body": "Asking an AI to challenge you assumes the AI has a high-level understanding of your goal, which is often difficult for current models without deep context.",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 964.39514265393,
+        "y": 760.0903371378894
+      },
+      "meta": {
+        "createdAt": "2026-06-12T21:59:57.129Z",
+        "severity": 0.8,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      }
+    },
+    {
+      "id": "c9404bf8-3b78-45d1-96b0-048dbba81ebd",
+      "type": "answer",
+      "title": "thats why its a graph on canvas - its great in providing most efficient context of thoughts",
+      "body": "thats why its a graph on canvas - its great in providing most efficient context search",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 1264.39514265393,
+        "y": 760.0903371378894
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:00:54.162Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": false,
+        "yesNo": false
+      }
+    },
+    {
+      "id": "74d4c501-5b0d-4e54-a901-8b573f924d7b",
+      "type": "question",
+      "title": "How do you keep it organized?",
+      "body": "How do you keep it organized?",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 1528.5745791418144,
+        "y": 751.1351962598604
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:01:39.278Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      }
+    },
+    {
+      "id": "7aaf2476-7c24-4b88-a449-8987a95c9224",
+      "type": "answer",
+      "title": "depends, the bigger the mind map the more nuanced and on-point AI help might be.",
+      "body": "depends, the bigger the mind map the more nuanced and on-point AI help might be.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1296.0362696781608,
+        "y": 429.9426604553409
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:02:49.299Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "7aeca3ed-f65a-44a7-abf5-68c9bfb2b1c6",
+      "type": "question",
+      "title": "So, how do I start it?",
+      "body": "So, how do I start it?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1596.0362696781608,
+        "y": 429.9426604553409
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:02:52.986Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "47f4752a-4dd7-4d6d-9c55-f4ed140a2a7a",
+      "type": "question",
+      "title": "How much does it cost?",
+      "body": "How much does it cost?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 982.0075032802254,
+        "y": 213.50498603307528
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:03:04.795Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "50150696-f613-42e0-aaad-8881fa92c6b2",
+      "type": "answer",
+      "title": "Nothing. I mean you can buy me a coffee if you want; there is a button in the top corner to do so.",
+      "body": "nothing. I mean you can buy me a coffee if you want there is a button in top corner to do so.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1282.0075032802254,
+        "y": 213.50498603307528
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:03:43.621Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "97cd2600-c484-431a-be91-72bf8b47a02f",
+      "type": "answer",
+      "title": "As any good mindmap, you branch from main core node, ideas, questions. And then, by resolving it, you update the full project context.",
+      "body": "as any good mindmap you branch from main core node, ideas, questions. and then by resolving it you update the full project context",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 1828.5745791418144,
+        "y": 751.1351962598604
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:05:08.712Z",
+        "severity": null,
+        "revisionOf": null
+      }
+    },
+    {
+      "id": "57f2c3d4-7251-4b3f-81dc-7bfe0c50bf21",
+      "type": "answer",
+      "title": "canvas is infinite, and moving nodes around and reattaching them is easy",
+      "body": "canvas is infinite, and moving nodes around and reattaching them is easy",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1288.0514544343207,
+        "y": 610.6879953331656
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:05:54.019Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "a4f8b108-61bb-4fdd-b4bc-a8a2879e2b65",
+      "type": "problem",
+      "title": "An infinite canvas doesn't solve the problem of visual clutter; it just makes it easier to get lost and lose track of how things connect.",
+      "body": "An infinite canvas doesn't solve the problem of visual clutter; it just makes it easier to get lost and lose track of how things connect.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1556.2403575270378,
+        "y": 505.72696234310945
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:05:58.055Z",
+        "severity": 0.8,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "146be163-3fa4-4519-9500-2284f4f25452",
+      "type": "problem",
+      "title": "Just because moving nodes is technically easy doesn't mean it's cognitively easy to restructure complex thoughts without losing the project's logic.",
+      "body": "Just because moving nodes is technically easy doesn't mean it's cognitively easy to restructure complex thoughts without losing the project's logic.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1836.084489487262,
+        "y": 593.3198103549344
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:05:58.055Z",
+        "severity": 0.7,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "resolvedAs": "closed"
+    },
+    {
+      "id": "6f2783b8-a52b-410b-af21-e18d85993119",
+      "type": "answer",
+      "title": "Thats why resolving is handy, you can fire and forget, the board keeps track for you.",
+      "body": "thats why resolving is handy, you can fire and forget, the board keeps track for you",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1909.390293609811,
+        "y": 492.2285658776433
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:06:51.103Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "8fd96696-3368-4994-883e-ffb1374335b4",
+      "type": "question",
+      "title": "Is my data private?",
+      "body": "Is my data private?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1002.6035583611176,
+        "y": 33.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:07:11.749Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": true
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "b83a6dc0-2b29-4e46-82c5-7ac30889a356",
+      "type": "answer",
+      "title": "Yes, we have no backend so no data is stored. Everything is stored in your browser's localstorage.",
+      "body": "yes, we have no backend so no data is stored. Everything is stored in your browsers localStorage.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1302.6035583611176,
+        "y": 33.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:07:50.353Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "c0f06b61-5c25-4b51-a7f8-15d4d0e2302f",
+      "type": "answer",
+      "title": "you create the core node with idea, topic, project and you start branching with questions ideas and problems to solve",
+      "body": "you create the core node with idea, topic, project and you start branching with questions ideas and problems to solve",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1820.1077895599133,
+        "y": 305.92614292887015
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:08:34.643Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "ff2e9d74-b3b0-4efa-b59e-5a1910372532",
+      "type": "idea",
+      "title": "Exporting your thought process",
+      "body": "Since everything is local, adding a way to export the entire canvas to JSON or markdown would let users save their progress elsewhere or share their thought maps.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 334.48521078788747,
+        "y": 67.48574361866974
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:08:52.848Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": false,
+        "aiDepth": 0,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "1b4eebc9-7ed3-4c99-84f7-e0b37deb37b2",
+      "type": "idea",
+      "title": "Visualizing unresolved nodes",
+      "body": "Maybe we could have a sidebar or list view that highlights all open, unresolved nodes so you can keep track of what still needs attention without scouring the infinite canvas.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 777.7498051936902,
+        "y": -53.27676507146657
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:08:52.848Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "ac481272-c953-4b76-b5ba-ef3fabb78317",
+      "type": "idea",
+      "title": "Keyboard-first navigation",
+      "body": "- Deep keyboard shortcuts would let power users navigate nodes, branch out, and resolve items faster without touching the mouse.\n- To make keyboard-first navigation viable, implement a spatial algorithm that selects the target node by finding the closest centroid projection along the selected axis of movement.\n- Need to keep this as an opt-in power user feature to avoid overwhelming casual users with a steep learning curve.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 546.8790523186594,
+        "y": -52.10117243615264
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:08:52.848Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "resolvedAs": "merged",
+      "unread": false
+    },
+    {
+      "id": "fe7556af-83bd-4df8-8a08-1de9c115e070",
+      "type": "idea",
+      "title": "Templates for common structures",
+      "body": "- Offering starter templates helps jumpstart the structure for those who feel overwhelmed by a blank slate.\n- Useful options include SWOT analysis, decision trees, project briefs, feature requirements, meeting agendas, and five-whys root cause analysis.",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 1206.1734747083362,
+        "y": -140.40697655870136
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:08:52.848Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "unread": true
+    },
+    {
+      "id": "e6d8fd76-c996-4247-9012-2ce9141654bd",
+      "type": "question",
+      "title": "Which templates?",
+      "body": "Which templates?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1500.1734747083362,
+        "y": -173.40697655870136
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:09:32.804Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "2c8c5b0f-89d6-4b4f-9ccc-4553912a35cf",
+      "type": "answer",
+      "title": "Beyond SWOT and decision trees, we could include project briefs, feature requirements, meeting agendas, and five-whys root cause analysis.",
+      "body": "Beyond SWOT and decision trees, we could include project briefs, feature requirements, meeting agendas, and five-whys root cause analysis.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1704.8410496709812,
+        "y": -127.00623870866127
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:09:38.245Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": false,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "b848227e-d3f4-4615-9003-5bcf13293500",
+      "type": "problem",
+      "title": "A sidebar list of unresolved nodes might just replicate the clutter you're trying to escape if the project becomes large enough.",
+      "body": "A sidebar list of unresolved nodes might just replicate the clutter you're trying to escape if the project becomes large enough.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 1071.3101003337063,
+        "y": -308.57663723701296
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:09:47.877Z",
+        "severity": 0.6,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 1
+      },
+      "resolvedAs": "closed"
+    },
+    {
+      "id": "53ca659d-7030-4408-99d7-b0f2f6ce9fd7",
+      "type": "problem",
+      "title": "Keyboard shortcuts for complex, nested node structures often require a steep learning curve that actually slows down new or casual users.",
+      "body": "Keyboard shortcuts for complex, nested node structures often require a steep learning curve that actually slows down new or casual users.",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [
+        {
+          "nodeId": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+          "description": "ThonkBoard claims keyboard controls remain intuitive for casual users as an opt-in feature, while the problem node asserts that complex keyboard shortcuts inherently create a steep learning curve that slows down casual users."
+        }
+      ],
+      "position": {
+        "x": 782.6346646895278,
+        "y": -340.9223727317712
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:11:31.381Z",
+        "severity": 0.6,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 1
+      }
+    },
+    {
+      "id": "da3bef9d-e9dc-4fcd-9b8b-a963356c3641",
+      "type": "problem",
+      "title": "Navigation on an infinite canvas using only a keyboard is notoriously difficult; you still need a mouse to quickly pan and zoom to distant nodes.",
+      "body": "Navigation on an infinite canvas using only a keyboard is notoriously difficult; you still need a mouse to quickly pan and zoom to distant nodes.",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [
+        {
+          "nodeId": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+          "description": "The updated node claims you can master the interface without touching the mouse, which directly contradicts the claim that a mouse is necessary for panning and zooming on an infinite canvas."
+        }
+      ],
+      "position": {
+        "x": 473.23344465835476,
+        "y": -260.5968440136842
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:11:31.381Z",
+        "severity": 0.8,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 1
+      }
+    },
+    {
+      "id": "2b30c51e-4f3f-416d-9f26-fc525b733341",
+      "type": "answer",
+      "title": "It should be a power-user thing, but not sure how to detect direction.",
+      "body": "it should be a power-user thing but not sure how to detect direction",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 455.73825526195617,
+        "y": -400.6160864280897
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:12:05.290Z",
+        "severity": null,
+        "revisionOf": null
+      }
+    },
+    {
+      "id": "5aa9cc73-651e-4e15-a14e-1db99146540b",
+      "type": "question",
+      "title": "how to detect to which node to jump with keyboard cursors?",
+      "body": "how to detect to which node to jump with keyboard cursors?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 353.73825526195617,
+        "y": -551.6160864280897
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:16:31.706Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": false,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "f0e921f5-636e-463d-95e2-6f93fcf3ea15",
+      "type": "answer",
+      "title": "Use a spatial algorithm that selects the node with the closest centroid projection along the selected axis of movement.",
+      "body": "Use a spatial algorithm that selects the node with the closest centroid projection along the selected axis of movement.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 348.73825526195617,
+        "y": -711.6160864280897
+      },
+      "meta": {
+        "createdAt": "2026-06-12T22:16:54.275Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "3d253dde-e797-4eb3-ab91-f8c8035a7937",
+      "type": "question",
+      "title": "Can I use it offline?",
+      "body": "Can I use it offline?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 224.60355836111762,
+        "y": 332.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:23:13.035Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": true
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "5d6c60eb-5cb6-4bb9-acfe-66153a54d9bc",
+      "type": "answer",
+      "title": "Not yet, also it would require a powerful computer to run a decent AI model. But yes, I tested it with local Ollama and it works.",
+      "body": "not yet, also it would require powerful computer to run a decent AI model. But yes i tested it with local ollama and it works.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": -75.39644163888238,
+        "y": 332.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:24:23.104Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "f340c370-d9e7-4fc2-aa4a-9454af28c4a6",
+      "type": "question",
+      "title": "Which models run best locally?",
+      "body": "Which models run best locally?",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": -370.3964416388824,
+        "y": 417.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:24:43.513Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      }
+    },
+    {
+      "id": "06d7c183-b89b-42a6-9032-6e03f3304f77",
+      "type": "answer",
+      "title": "gemma4 was ok-ish. But it requires a lot of RAM",
+      "body": "gemma4 was ok-ish. But it requires a lot of RAM",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": -670.3964416388824,
+        "y": 417.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:25:10.103Z",
+        "severity": null,
+        "revisionOf": null
+      }
+    },
+    {
+      "id": "bdb6ec21-4d8c-4e39-8aa9-8a45248b2904",
+      "type": "question",
+      "title": "Which browser is best?",
+      "body": "Which browser is best?",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 108.60355836111762,
+        "y": 88.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:26:16.692Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      }
+    },
+    {
+      "id": "343497c1-2e6c-4893-b6de-bfb28e2e9a2b",
+      "type": "answer",
+      "title": "It works fine with any browser that supports localStorage.",
+      "body": "it works fine with any browser that supports localStorage",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": -191.39644163888238,
+        "y": 88.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:26:48.306Z",
+        "severity": null,
+        "revisionOf": null
+      }
+    },
+    {
+      "id": "a013c231-520e-4807-a50a-318b0e68a70b",
+      "type": "problem",
+      "title": "Storing data only in localStorage means if a user clears their browser cache or uses a different device, they lose their entire mind map with no way to recover it.",
+      "body": "Storing data only in localStorage means if a user clears their browser cache or uses a different device, they lose their entire mind map with no way to recover it.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 287.6035583611176,
+        "y": 462.34222167403175
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:32:23.042Z",
+        "severity": 0.9,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "63910fe8-fdd1-410e-a9f5-e96e192ae2e9",
+      "type": "problem",
+      "title": "Expecting an AI to be more 'nuanced and on-point' simply because a map grows ignores that most LLMs have limited context windows and often struggle to maintain coherence across very large, unstructured datasets.",
+      "body": "Expecting an AI to be more 'nuanced and on-point' simply because a map grows ignores that most LLMs have limited context windows and often struggle to maintain coherence across very large, unstructured datasets.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 464.6035583611176,
+        "y": 655.3422216740317
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:32:23.042Z",
+        "severity": 0.6,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "aiDepth": 0
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "6fd9bc17-55cb-47a8-b0d9-053a4b7332f5",
+      "type": "answer",
+      "title": "That is the case in text inputs, but when data has graph structure your context window is way more efficient.",
+      "body": "thats the case in text inputs, but when data has graph structure your context window is way more efficient",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 446.51553944641705,
+        "y": 887.538436002374
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:44:02.698Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "f2c9c07d-0377-4cf7-ae79-1886652b7a7f",
+      "type": "question",
+      "title": "How exactly?",
+      "body": "How exactly?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 466.86456072545525,
+        "y": 1026.3037188965059
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:44:14.161Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "46d62072-e3c2-425a-a582-d6326b8a4fe3",
+      "type": "answer",
+      "title": "By representing information as linked nodes rather than linear tokens, the system only feeds the model relevant local neighborhoods of your graph, drastically reducing noise while maintaining structural coherence.",
+      "body": "By representing information as linked nodes rather than linear tokens, the system only feeds the model relevant local neighborhoods of your graph, drastically reducing noise while maintaining structural coherence.",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": 477.4159050923639,
+        "y": 1113.8520088836503
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:44:34.621Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "7d0d80ed-f2ee-4a3d-a548-0953c7fa6001",
+      "type": "answer",
+      "title": "true but it also removes a lot of friction for users and costs of this project",
+      "body": "true but it also removes a lot of friction for users and costs of this project",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": -3.5840949076361426,
+        "y": 598.2486960795069
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:46:22.328Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "a6074713-1a96-4404-814c-f6a94c8db2b2",
+      "type": "question",
+      "title": "So, how do I save my work?",
+      "body": "So, how do I save my work?",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": -281.46673635470205,
+        "y": 693.2517504592711
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:46:34.489Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": false
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "2d9ca596-5b2b-4fc4-b948-da6b811e295d",
+      "type": "answer",
+      "title": "on your drive if you want",
+      "body": "on your drive if you want",
+      "summary": "",
+      "resolved": true,
+      "conflicts": [],
+      "position": {
+        "x": -524.9416772462628,
+        "y": 736.210795381685
+      },
+      "meta": {
+        "createdAt": "2026-06-13T22:47:04.264Z",
+        "severity": null,
+        "revisionOf": null
+      },
+      "resolvedAs": "merged"
+    },
+    {
+      "id": "9301e58b-0575-4294-9b66-701b804e73c2",
+      "type": "note",
+      "title": "Maybe pros and cons too?",
+      "body": "Maybe pros and cons too?",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 1936.687955600056,
+        "y": -131.13921394848
+      },
+      "meta": {
+        "createdAt": "2026-06-13T23:05:06.485Z",
+        "severity": null,
+        "revisionOf": null
+      }
+    },
+    {
+      "id": "c2fabd07-8917-4b09-86e5-d1d6afbef139",
+      "type": "question",
+      "title": "Does it have a mobile app?",
+      "body": "Does it have a mobile app?",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": 114.60355836111762,
+        "y": -86.65777832596825
+      },
+      "meta": {
+        "createdAt": "2026-06-13T23:08:44.943Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": true,
+        "yesNo": true
+      }
+    },
+    {
+      "id": "eeb0598b-9484-4c7a-9502-9938d385e42f",
+      "type": "answer",
+      "title": "No, but this editor should be usable on mobile.",
+      "body": "No",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": {
+        "x": -197.39644163888238,
+        "y": -164.65777832596825
+      },
+      "meta": {
+        "createdAt": "2026-06-13T23:09:00.897Z",
+        "severity": null,
+        "revisionOf": null,
+        "aiGenerated": false,
+        "yesNo": false
+      }
+    }
+  ],
+  "edges": [
+    {
+      "id": "6f425e1a-5d33-4c22-82a4-5b838b1359be",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "04cbb1ee-c74a-4f4b-a8be-366f08cd5474",
+      "relation": "questions",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "c21efb73-f746-46ab-9818-4f70cffcf054",
+      "source": "04cbb1ee-c74a-4f4b-a8be-366f08cd5474",
+      "target": "58795089-e09e-4d49-85da-ada8082fec60",
+      "relation": "answers",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "f7cc2bc1-b8f8-4bdb-8822-fedf580b3702",
+      "source": "58795089-e09e-4d49-85da-ada8082fec60",
+      "target": "4595b85c-b3e7-423a-a014-0759d233fff7",
+      "relation": "questions",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "d4bfdd7e-436a-42aa-9632-8570961b528a",
+      "source": "4595b85c-b3e7-423a-a014-0759d233fff7",
+      "target": "2ee3fa98-19ec-4334-9eba-868b6ade8ed8",
+      "relation": "answers",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "11ff5306-63c5-42d1-8d0b-c095de7b6595",
+      "source": "2ee3fa98-19ec-4334-9eba-868b6ade8ed8",
+      "target": "b312777c-64bc-464d-986d-66e4eb52cd01",
+      "relation": "argues",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "909da636-0d6e-40ee-a36a-9f1717ec0bcc",
+      "source": "2ee3fa98-19ec-4334-9eba-868b6ade8ed8",
+      "target": "a02648db-1e21-4587-bf12-4bdc3506ac74",
+      "relation": "argues",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "384f0d29-8cbe-40b5-9eb9-dd819be94eb4",
+      "source": "2ee3fa98-19ec-4334-9eba-868b6ade8ed8",
+      "target": "4a6a315f-685d-48e8-b039-95870290d5d6",
+      "relation": "argues",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "665a0aad-c71b-447a-bde4-1d7e3879e0ac",
+      "source": "4a6a315f-685d-48e8-b039-95870290d5d6",
+      "target": "c9404bf8-3b78-45d1-96b0-048dbba81ebd",
+      "relation": "fixes",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "d75a2b76-386c-42ca-aad5-6595ea3f3702",
+      "source": "c9404bf8-3b78-45d1-96b0-048dbba81ebd",
+      "target": "74d4c501-5b0d-4e54-a901-8b573f924d7b",
+      "relation": "questions",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "919d279c-2737-4e50-a5f3-a5d3e7b6490d",
+      "source": "b312777c-64bc-464d-986d-66e4eb52cd01",
+      "target": "7aaf2476-7c24-4b88-a449-8987a95c9224",
+      "relation": "fixes",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "2c77db48-2739-4da4-92cd-ce826fe6a64b",
+      "source": "7aaf2476-7c24-4b88-a449-8987a95c9224",
+      "target": "7aeca3ed-f65a-44a7-abf5-68c9bfb2b1c6",
+      "relation": "questions",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "f5eca16e-d2b4-4e2a-9a02-5f6bba15fe9a",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "47f4752a-4dd7-4d6d-9c55-f4ed140a2a7a",
+      "relation": "questions",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "4c76a51f-9a22-44a2-9041-4e507297d266",
+      "source": "47f4752a-4dd7-4d6d-9c55-f4ed140a2a7a",
+      "target": "50150696-f613-42e0-aaad-8881fa92c6b2",
+      "relation": "answers",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "40529a29-dd72-4ce5-9f71-8f4982843a57",
+      "source": "74d4c501-5b0d-4e54-a901-8b573f924d7b",
+      "target": "97cd2600-c484-431a-be91-72bf8b47a02f",
+      "relation": "answers",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "a9d11d14-1602-4114-80e9-bc5e6082a902",
+      "source": "a02648db-1e21-4587-bf12-4bdc3506ac74",
+      "target": "57f2c3d4-7251-4b3f-81dc-7bfe0c50bf21",
+      "relation": "fixes",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "0bb7f501-0ba5-40c4-850d-0d48f13c28f6",
+      "source": "57f2c3d4-7251-4b3f-81dc-7bfe0c50bf21",
+      "target": "a4f8b108-61bb-4fdd-b4bc-a8a2879e2b65",
+      "relation": "argues",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "4a4755b9-7a61-4ba8-afcc-bf23a5fc90d2",
+      "source": "57f2c3d4-7251-4b3f-81dc-7bfe0c50bf21",
+      "target": "146be163-3fa4-4519-9500-2284f4f25452",
+      "relation": "argues",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "d0650c97-7c46-4bc9-928f-bcc16d468e31",
+      "source": "a4f8b108-61bb-4fdd-b4bc-a8a2879e2b65",
+      "target": "6f2783b8-a52b-410b-af21-e18d85993119",
+      "relation": "fixes",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "de0a4aa3-4557-4a68-b529-1537ff5398e8",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "8fd96696-3368-4994-883e-ffb1374335b4",
+      "relation": "questions",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "9a4de200-d5ec-4921-af81-99ab31cf5884",
+      "source": "7aeca3ed-f65a-44a7-abf5-68c9bfb2b1c6",
+      "target": "c0f06b61-5c25-4b51-a7f8-15d4d0e2302f",
+      "relation": "answers",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "d8d777e6-f245-497b-a5d7-17eacca2f956",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "fe7556af-83bd-4df8-8a08-1de9c115e070",
+      "relation": "spawns",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "09d9e2d4-a800-43f9-8ac9-1a5dbd26d2b8",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "ac481272-c953-4b76-b5ba-ef3fabb78317",
+      "relation": "spawns",
+      "sourceHandle": "s-top",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "0a619cd0-4d0d-4342-8c4f-a2a38ac7c2c6",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "ff2e9d74-b3b0-4efa-b59e-5a1910372532",
+      "relation": "spawns",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "659ff09d-f6ef-4351-8e5e-f39364b0365e",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "1b4eebc9-7ed3-4c99-84f7-e0b37deb37b2",
+      "relation": "spawns",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "ca0fcb46-f051-4f32-9806-154c113be6cc",
+      "source": "fe7556af-83bd-4df8-8a08-1de9c115e070",
+      "target": "e6d8fd76-c996-4247-9012-2ce9141654bd",
+      "relation": "questions",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "89b6199f-a8eb-42b4-90d8-cc48bd4b6d54",
+      "source": "e6d8fd76-c996-4247-9012-2ce9141654bd",
+      "target": "2c8c5b0f-89d6-4b4f-9ccc-4553912a35cf",
+      "relation": "answers",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "f5cba836-89fe-4765-82d4-a15c83598895",
+      "source": "1b4eebc9-7ed3-4c99-84f7-e0b37deb37b2",
+      "target": "b848227e-d3f4-4615-9003-5bcf13293500",
+      "relation": "argues",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "b515ea88-46e3-4bf7-b700-a73bf8c28d2e",
+      "source": "ac481272-c953-4b76-b5ba-ef3fabb78317",
+      "target": "53ca659d-7030-4408-99d7-b0f2f6ce9fd7",
+      "relation": "argues",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    },
+    {
+      "id": "ec2c42cb-e64a-4a3c-a7ad-f1092fc5374e",
+      "source": "ac481272-c953-4b76-b5ba-ef3fabb78317",
+      "target": "da3bef9d-e9dc-4fcd-9b8b-a963356c3641",
+      "relation": "argues",
+      "sourceHandle": "s-top",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "db7512f1-9d14-44d2-b510-aa25cc257195",
+      "source": "da3bef9d-e9dc-4fcd-9b8b-a963356c3641",
+      "target": "2b30c51e-4f3f-416d-9f26-fc525b733341",
+      "relation": "fixes",
+      "sourceHandle": "s-top",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "0f80b7ed-81ee-4857-ba69-f00502503c1a",
+      "source": "53ca659d-7030-4408-99d7-b0f2f6ce9fd7",
+      "target": "2b30c51e-4f3f-416d-9f26-fc525b733341",
+      "relation": "spawns",
+      "sourceHandle": "s-top",
+      "targetHandle": null
+    },
+    {
+      "id": "bbd455ef-7977-4698-889e-87e5be35ea99",
+      "source": "2b30c51e-4f3f-416d-9f26-fc525b733341",
+      "target": "5aa9cc73-651e-4e15-a14e-1db99146540b",
+      "relation": "questions",
+      "sourceHandle": "s-top",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "a58b382c-794b-4b6e-892c-ac6e6ccc8497",
+      "source": "5aa9cc73-651e-4e15-a14e-1db99146540b",
+      "target": "f0e921f5-636e-463d-95e2-6f93fcf3ea15",
+      "relation": "answers",
+      "sourceHandle": "s-top",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "6c67f4d1-c82e-4b2b-ba36-f0179a112bb4",
+      "source": "3d253dde-e797-4eb3-ab91-f8c8035a7937",
+      "target": "5d6c60eb-5cb6-4bb9-acfe-66153a54d9bc",
+      "relation": "answers",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-right"
+    },
+    {
+      "id": "3ef80d32-9088-4d46-bef4-f7ba4992238c",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "3d253dde-e797-4eb3-ab91-f8c8035a7937",
+      "relation": "questions",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "5d4bc9d4-a90a-43aa-972e-653638dd294d",
+      "source": "5d6c60eb-5cb6-4bb9-acfe-66153a54d9bc",
+      "target": "f340c370-d9e7-4fc2-aa4a-9454af28c4a6",
+      "relation": "questions",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-right"
+    },
+    {
+      "id": "f7e0d8eb-70f6-4c1c-b3f2-35a8b0d575b5",
+      "source": "f340c370-d9e7-4fc2-aa4a-9454af28c4a6",
+      "target": "06d7c183-b89b-42a6-9032-6e03f3304f77",
+      "relation": "answers",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-right"
+    },
+    {
+      "id": "74081e6b-b869-4edd-ba2f-bcd1a477f4ba",
+      "source": "bdb6ec21-4d8c-4e39-8aa9-8a45248b2904",
+      "target": "343497c1-2e6c-4893-b6de-bfb28e2e9a2b",
+      "relation": "answers",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-right"
+    },
+    {
+      "id": "b3ee1dea-057a-4d11-b47c-3ad6122048d5",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "bdb6ec21-4d8c-4e39-8aa9-8a45248b2904",
+      "relation": "questions",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "17be4869-cbe3-482e-a4b9-d6ae14bd2636",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "a013c231-520e-4807-a50a-318b0e68a70b",
+      "relation": "argues",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "c2718f48-2549-431a-a48d-b8fc6f1953ba",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "63910fe8-fdd1-410e-a9f5-e96e192ae2e9",
+      "relation": "argues",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "d6164ee4-385d-473c-943c-236c971ded57",
+      "source": "63910fe8-fdd1-410e-a9f5-e96e192ae2e9",
+      "target": "6fd9bc17-55cb-47a8-b0d9-053a4b7332f5",
+      "relation": "fixes",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "c8697a4e-ffd1-4032-922e-0782ddd7cb34",
+      "source": "6fd9bc17-55cb-47a8-b0d9-053a4b7332f5",
+      "target": "f2c9c07d-0377-4cf7-ae79-1886652b7a7f",
+      "relation": "questions",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "bda4a5b6-1b3c-40cb-80ec-1de0f455966e",
+      "source": "f2c9c07d-0377-4cf7-ae79-1886652b7a7f",
+      "target": "46d62072-e3c2-425a-a582-d6326b8a4fe3",
+      "relation": "answers",
+      "sourceHandle": "s-bottom",
+      "targetHandle": "t-top"
+    },
+    {
+      "id": "ed1c9392-62b5-4293-b92f-78ff04045ad4",
+      "source": "a013c231-520e-4807-a50a-318b0e68a70b",
+      "target": "7d0d80ed-f2ee-4a3d-a548-0953c7fa6001",
+      "relation": "fixes",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-right"
+    },
+    {
+      "id": "9d0d34b5-7251-4d23-b911-3cb89f140135",
+      "source": "7d0d80ed-f2ee-4a3d-a548-0953c7fa6001",
+      "target": "a6074713-1a96-4404-814c-f6a94c8db2b2",
+      "relation": "questions",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-right"
+    },
+    {
+      "id": "228f8bb0-c849-4025-af16-f8a2292815c7",
+      "source": "a6074713-1a96-4404-814c-f6a94c8db2b2",
+      "target": "2d9ca596-5b2b-4fc4-b948-da6b811e295d",
+      "relation": "answers",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-right"
+    },
+    {
+      "id": "abbec7cb-d421-44f7-a8e3-1bb27020dafc",
+      "source": "9585653e-0c73-4db3-bbde-d5cf7733f9fa",
+      "target": "c2fabd07-8917-4b09-86e5-d1d6afbef139",
+      "relation": "questions",
+      "sourceHandle": "s-top",
+      "targetHandle": "t-bottom"
+    },
+    {
+      "id": "81c2238d-f810-4083-ae0f-b1a932afee61",
+      "source": "c2fabd07-8917-4b09-86e5-d1d6afbef139",
+      "target": "eeb0598b-9484-4c7a-9502-9938d385e42f",
+      "relation": "answers",
+      "sourceHandle": "s-left",
+      "targetHandle": "t-right"
+    },
+    {
+      "id": "3ffed765-05c9-43aa-97e8-3f0f20050031",
+      "source": "8fd96696-3368-4994-883e-ffb1374335b4",
+      "target": "b83a6dc0-2b29-4e46-82c5-7ac30889a356",
+      "relation": "answers",
+      "sourceHandle": "s-right",
+      "targetHandle": "t-left"
+    }
+  ]
+}
