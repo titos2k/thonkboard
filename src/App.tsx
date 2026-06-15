@@ -449,7 +449,7 @@ export default function App() {
   // Update page title to reflect active board name
   useEffect(() => {
     const name = boards.find(b => b.id === activeBoardId)?.name
-    document.title = name ? `ThonkBoard - ${name}` : 'ThonkBoard - Spatial Thinking Canvas'
+    document.title = name ?? 'Spatial Thinking Canvas'
   }, [activeBoardId, boards])
 
   // Restore viewport when active board changes; fit view if no saved viewport
