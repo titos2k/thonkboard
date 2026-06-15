@@ -308,7 +308,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                 })}
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem onClick={onCreateBoard}>
+              <DropdownMenuItem onClick={() => exampleMode ? toastExampleBlocked() : onCreateBoard()}>
                 <Plus className="w-4 h-4 text-muted-foreground" /> New board
               </DropdownMenuItem>
             </DropdownMenuSubContent>

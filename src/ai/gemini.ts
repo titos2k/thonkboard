@@ -228,6 +228,7 @@ Rules — follow all strictly:
       properties: { fixed: { type: 'string' } },
       required: ['fixed'],
     },
+    maxTokens: 200,
   })
 }
 
@@ -236,7 +237,6 @@ Rules — follow all strictly:
 export interface CritiqueItem {
   content: string
   severity: number
-  kind: 'contradiction' | 'gap' | 'assumption' | 'factual'
 }
 
 const CRITIQUE_SCHEMA = {
@@ -246,9 +246,8 @@ const CRITIQUE_SCHEMA = {
     properties: {
       content: { type: 'string' },
       severity: { type: 'number', description: '0.0 = negligible, 1.0 = fatal flaw' },
-      kind: { type: 'string', enum: ['contradiction', 'gap', 'assumption', 'factual'], description: 'contradiction = logical clash, gap = missing piece, assumption = unstated premise, factual = verifiable claim' },
     },
-    required: ['content', 'severity', 'kind'],
+    required: ['content', 'severity'],
   },
 }
 
@@ -267,6 +266,7 @@ export async function critiqueNode(contextPrompt: string): Promise<CritiqueItem[
     systemInstruction: CRITIQUE_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: CRITIQUE_SCHEMA,
+    maxTokens: 800,
   })
   return items.filter(i => i.severity >= SEVERITY_THRESHOLD)
 }
@@ -300,6 +300,7 @@ export async function questionNode(contextPrompt: string): Promise<QuestionItem>
     systemInstruction: QUESTION_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: QUESTION_SCHEMA,
+    maxTokens: 300,
   })
 }
 
@@ -322,18 +323,7 @@ const IDEA_SCHEMA = {
   },
 }
 
-const IDEA_TONE = `
-TONE — this is critical:
-- Match the voice and register of the existing content exactly.
-- If the notes are casual and personal, write casually. If they're technical or formal, match that.
-- Never impose a tone that doesn't match the source — don't formalize casual content or casualize formal content.
-- Write like the person who wrote the original notes — same vocabulary, same energy.`
-
-const TONE_BLOCK = `TONE — this is critical:
-- Match the voice and register of the existing content exactly.
-- If the note is casual and personal, write casually. If technical, match that.
-- Never impose a formal, corporate, or robotic tone onto casual content.
-- Write like the person who wrote the original note — same vocabulary, same energy.`
+const TONE_BLOCK = `TONE — critical: Match the voice and register of the existing content exactly. Casual stays casual; technical stays technical. Write like the person who wrote the original — same vocabulary, same energy.`
 
 const EXPAND_SYSTEM = `You are helping develop ideas on an ideation board.
 The BOARD SKELETON shows ALL ideas that already exist — do not duplicate or paraphrase any of them.
@@ -342,7 +332,7 @@ If the content strongly suggests one direction, return one. If it opens several 
 Do NOT pad to reach a number. Each idea must earn its place.
 Each idea must be distinct from everything in the skeleton. Avoid generic brainstorming platitudes.
 Keep titles under 60 characters. Titles must be self-contained: a reader who sees only the title (not the parent body) must understand the idea — no pronouns ("this", "it"), no vague referents ("the approach", "the solution"), no implicit callbacks to the parent body. Bodies should be 1-2 sentences.
-${IDEA_TONE}`
+${TONE_BLOCK}`
 
 const PROPOSE_SYSTEM = `You are helping find new ideas related to a concept on an ideation board.
 The BOARD SKELETON shows ALL ideas that already exist — do not duplicate or paraphrase any of them.
@@ -351,13 +341,14 @@ No fixed count. If one strong angle exists, return one. If several distinct appr
 Do NOT pad to reach a number. Each idea must earn its place.
 Each idea must be distinct from everything in the skeleton.
 Keep titles under 60 characters. Titles must be self-contained: a reader who sees only the title (not the parent body) must understand the idea — no pronouns ("this", "it"), no vague referents ("the approach", "the solution"), no implicit callbacks to the parent body. Bodies should be 1-2 sentences.
-${IDEA_TONE}`
+${TONE_BLOCK}`
 
 export async function expandNode(contextPrompt: string): Promise<IdeaItem[]> {
   return callAI<IdeaItem[]>({
     systemInstruction: EXPAND_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: IDEA_SCHEMA,
+    maxTokens: 1000,
   })
 }
 
@@ -366,6 +357,7 @@ export async function proposeIdeas(contextPrompt: string): Promise<IdeaItem[]> {
     systemInstruction: PROPOSE_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: IDEA_SCHEMA,
+    maxTokens: 1000,
   })
 }
 
@@ -386,6 +378,7 @@ export async function generateSummary(title: string, body: string): Promise<stri
       properties: { summary: { type: 'string' } },
       required: ['summary'],
     },
+    maxTokens: 200,
   })
   return result.summary
 }
@@ -430,6 +423,7 @@ export async function integrateQA(
       },
       required: ['body'],
     },
+    maxTokens: 1500,
   })
 }
 
@@ -451,6 +445,7 @@ export async function integrateAllQA(
       },
       required: ['body'],
     },
+    maxTokens: 1500,
   })
 }
 
@@ -491,6 +486,7 @@ export async function integrateIdea(
       },
       required: ['body'],
     },
+    maxTokens: 1500,
   })
 }
 
@@ -523,6 +519,7 @@ export async function acknowledgeProblem(
       },
       required: ['body'],
     },
+    maxTokens: 1500,
   })
 }
 
@@ -547,6 +544,7 @@ export async function rejectIdea(
       properties: { body: { type: 'string' } },
       required: ['body'],
     },
+    maxTokens: 800,
   })
 }
 
@@ -571,6 +569,7 @@ export async function integrateRejection(
       properties: { body: { type: 'string' } },
       required: ['body'],
     },
+    maxTokens: 1500,
   })
 }
 
@@ -614,6 +613,7 @@ export async function detectConflicts(
     systemInstruction: CONFLICT_SYSTEM,
     userPrompt: `UPDATED NODE:\nTitle: ${updatedTitle}\nBody: ${updatedBody}\n\nOTHER NODES:\n${others}`,
     responseSchema: CONFLICT_SCHEMA,
+    maxTokens: 600,
   })
   return items.map(item => ({
     ...item,
@@ -642,13 +642,11 @@ Rules:
 - Bullet lists for facts/constraints. Each bullet on its own line starting with "- ". NEVER put multiple bullets on one line.
 - No filler openers. No top-level title.
 - summary: One direct sentence (max 12 words) that clearly names which direction this takes. Do NOT start with "This path" or "This option" — state the decision directly.
-- body: The updated body. Must preserve all existing non-conflicting content — only the contradicting part changes.
-- title: New title only if the concept fundamentally shifts (optional, max 60 chars).`
+- body: The updated body. Must preserve all existing non-conflicting content — only the contradicting part changes.`
 
 export interface ConflictOption {
   summary: string
   body: string
-  title?: string
 }
 
 export async function resolveConflict(
@@ -669,7 +667,6 @@ export async function resolveConflict(
             properties: {
               summary: { type: 'string', description: 'One sentence (max 12 words) naming the decision direction' },
               body:    { type: 'string' },
-              title:   { type: 'string' },
             },
             required: ['summary', 'body'],
           },
@@ -677,6 +674,7 @@ export async function resolveConflict(
       },
       required: ['options'],
     },
+    maxTokens: 2000,
   })
 }
 
@@ -713,6 +711,7 @@ export async function findRelatedNodes(
     systemInstruction: PROPAGATE_SYSTEM,
     userPrompt: `Q: ${question}\nA: ${answer}\n\nUPDATED NODE ID: ${updatedNodeId}\n\nBOARD:\n${skeleton}`,
     responseSchema: PROPAGATE_SCHEMA,
+    maxTokens: 300,
   })
   return result.map(r => r.nodeId).filter(id => id !== updatedNodeId)
 }
@@ -731,6 +730,7 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
     systemInstruction: ARGUE_SYSTEM,
     userPrompt: contextPrompt,
     responseSchema: CRITIQUE_SCHEMA,
+    maxTokens: 800,
   })
   return items.filter(i => i.severity >= SEVERITY_THRESHOLD)
 }
@@ -781,6 +781,7 @@ export async function correctAnswer(
       properties: { answer: { type: 'string' } },
       required: ['answer'],
     },
+    maxTokens: 300,
   })
 }
 

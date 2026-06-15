@@ -26,6 +26,7 @@ function headers(): Record<string, string> {
     'x-api-key': getKey(),
     'anthropic-version': '2023-06-01',
     'anthropic-dangerous-direct-browser-access': 'true',
+    'anthropic-beta': 'prompt-caching-2024-07-31',
   }
 }
 
@@ -43,8 +44,8 @@ export async function callAnthropic<T>(req: AIRequest): Promise<T> {
     headers: headers(),
     body: JSON.stringify({
       model: getModel(),
-      max_tokens: 4096,
-      system: req.systemInstruction,
+      max_tokens: req.maxTokens ?? 4096,
+      system: [{ type: 'text', text: req.systemInstruction, cache_control: { type: 'ephemeral' } }],
       tools: [{
         name: 'output',
         description: 'Return the result in the required format.',
@@ -75,7 +76,7 @@ export async function callAnthropicSearch(req: Omit<AIRequest, 'responseSchema'>
     body: JSON.stringify({
       model: getModel(),
       max_tokens: 2048,
-      system: req.systemInstruction,
+      system: [{ type: 'text', text: req.systemInstruction, cache_control: { type: 'ephemeral' } }],
       tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
       messages: [{ role: 'user', content: req.userPrompt }],
     }),
@@ -102,7 +103,7 @@ export async function callAnthropicText(req: Omit<AIRequest, 'responseSchema'>):
     body: JSON.stringify({
       model: getModel(),
       max_tokens: 2048,
-      system: req.systemInstruction,
+      system: [{ type: 'text', text: req.systemInstruction, cache_control: { type: 'ephemeral' } }],
       messages: [{ role: 'user', content: req.userPrompt }],
     }),
   })

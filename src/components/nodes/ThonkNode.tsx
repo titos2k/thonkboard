@@ -44,7 +44,7 @@ import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
-import { assembleContext, contextToPrompt } from '@/ai/context'
+import { assembleContext, contextToPrompt, assembleContextSemantic } from '@/ai/context'
 import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, resolveConflict, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
 import type { ConflictOption } from '@/ai/gemini'
 import type { ThonkGraph, ConflictEntry } from '@/store/types'
@@ -456,6 +456,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     })
   }
 
+  const ctxSemantic = () => {
+    const prompt = assembleContextSemantic(graphRef.current, thonk.id)
+    if (!prompt) throw new Error('Node not found in graph')
+    return prompt
+  }
+
   const saveTitle = useCallback(() => {
     if (editTitle.trim() !== thonk.title) {
       const newTitle = editTitle.trim() || thonk.title
@@ -521,8 +527,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const handleQuestion = () =>
     withLoading(async () => {
-      const c = assembleContext(graphRef.current, thonk.id)
-      if (!c) throw new Error('Node not found in graph')
+      const semanticCtx = ctxSemantic()
       const connectedIds = new Set(
         graphRef.current.edges
           .filter(e => e.source === thonk.id || e.target === thonk.id)
@@ -533,8 +538,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         .map(n => n.title)
         .filter(Boolean) as string[]
       const prompt = existingQs.length > 0
-        ? `${contextToPrompt(c)}\n\nALREADY ASKED (do not repeat or rephrase): ${existingQs.join(' / ')}`
-        : contextToPrompt(c)
+        ? `${semanticCtx}\n\nALREADY ASKED (do not repeat or rephrase): ${existingQs.join(' / ')}`
+        : semanticCtx
       const result = await questionNode(prompt)
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { dx, dy } = dirOffset(dir, nodeH())
@@ -580,9 +585,9 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     if (!question) return
     setAskText('')
     withSearchLoading(async () => {
-      const c = assembleContext(graphRef.current, thonk.id)
-      if (!c) return
-      const { answer } = await answerQuestion(`${contextToPrompt(c)}\n\nQUESTION: ${question}`)
+      const semanticCtx = assembleContextSemantic(graphRef.current, thonk.id)
+      if (!semanticCtx) return
+      const { answer } = await answerQuestion(`${semanticCtx}\n\nQUESTION: ${question}`)
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { dx, dy } = dirOffset(dir, nodeH())
       const { sourceHandle, targetHandle } = dirHandles(dir)
@@ -624,7 +629,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const handleIdeateAnswer = () =>
     withSearchLoading(async () => {
-      const { answer } = await answerQuestion(ctx())
+      const { answer } = await answerQuestion(ctxSemantic())
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { dx, dy } = dirOffset(dir, nodeH())
       const { sourceHandle, targetHandle } = dirHandles(dir)
@@ -637,7 +642,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const handleGenerateFix = () =>
     withSearchLoading(async () => {
-      const { answer } = await generateSolution(ctx())
+      const { answer } = await generateSolution(ctxSemantic())
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { dx, dy } = dirOffset(dir, nodeH())
       const { sourceHandle, targetHandle } = dirHandles(dir)
@@ -654,7 +659,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     if (!text) return
     setCorrectionText('')
     withLoading(async () => {
-      const { answer } = await correctAnswer(ctx(), thonk.title, text)
+      const { answer } = await correctAnswer(ctxSemantic(), thonk.title, text)
       d.onUpdate(thonk.id, { title: answer, body: answer })
     })
   }
