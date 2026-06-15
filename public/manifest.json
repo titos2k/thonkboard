@@ -1,0 +1,23 @@
+{
+  "name": "ThonkBoard - Spatial Thinking Canvas",
+  "short_name": "ThonkBoard",
+  "description": "An AI-powered spatial canvas for thinking through ideas. Map your thoughts, ask questions, and let AI help you reason.",
+  "start_url": "/",
+  "display": "standalone",
+  "background_color": "#eeece8",
+  "theme_color": "#eeece8",
+  "icons": [
+    {
+      "src": "/favicon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any maskable"
+    },
+    {
+      "src": "/favicon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any maskable"
+    }
+  ]
+}
