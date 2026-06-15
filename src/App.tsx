@@ -192,7 +192,7 @@ function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
   const resolved = target?.resolved || source?.resolved
   const stroke   = NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8'
   const aiDepth  = Math.max(target?.meta.aiDepth ?? 0, source?.meta.aiDepth ?? 0)
-  const dash     = (target?.meta.aiGenerated && source?.meta.aiGenerated) ? `5 ${3 + aiDepth * 4}` : undefined
+  const dash     = target?.meta.aiGenerated ? `5 ${3 + aiDepth * 4}` : undefined
   return {
     id: e.id,
     source: e.source,
