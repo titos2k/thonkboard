@@ -52,4 +52,5 @@ export interface BoardMeta {
   id: string
   name: string
   createdAt: string
+  isNamed?: boolean
 }

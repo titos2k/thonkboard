@@ -453,9 +453,10 @@ export default function App() {
 
   const openPanel = useCallback((id: string | null) => setPanelNodeId(id), [])
 
-  // Update page title to reflect active board name
+  // Update page title to reflect active board name (only once explicitly named)
   useEffect(() => {
-    const name = boards.find(b => b.id === activeBoardId)?.name
+    const board = boards.find(b => b.id === activeBoardId)
+    const name = board?.isNamed ? board.name : undefined
     const isPwa = window.matchMedia('(display-mode: standalone)').matches || !!(navigator as any).standalone
     document.title = name ? (isPwa ? name : `${name} - ThonkBoard`) : 'ThonkBoard'
   }, [activeBoardId, boards])
@@ -528,7 +529,7 @@ export default function App() {
   }, [boards, activeBoardId, switchToBoard])
 
   const handleRenameBoard = useCallback((id: string, name: string) => {
-    const next = boards.map(b => b.id === id ? { ...b, name } : b)
+    const next = boards.map(b => b.id === id ? { ...b, name, isNamed: true } : b)
     setBoards(next)
     saveBoards(next)
   }, [boards])
