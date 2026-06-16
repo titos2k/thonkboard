@@ -785,8 +785,8 @@ export async function generateSolution(contextPrompt: string): Promise<{ answer:
 // ── Correct an answer ─────────────────────────────────────────────────────────
 
 const CORRECT_ANSWER_SYSTEM = `You are a sharp colleague revising a quick answer after a correction.
-One or two short sentences. Casual and direct — incorporate the correction, nothing else.
-No preamble, no meta-commentary, no "you're right", no summaries.
+Use the correction as the new direction, but stay fully consistent with the constraints and context visible in the board — if the context rules something out, the revised answer must respect that.
+One or two short sentences. Casual and direct. No preamble, no meta-commentary, no "you're right", no summaries.
 ${NO_DISCLAIMER_BLOCK}`
 
 export async function correctAnswer(
