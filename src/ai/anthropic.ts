@@ -75,7 +75,7 @@ export async function callAnthropicSearch(req: Omit<AIRequest, 'responseSchema'>
     headers: headers(),
     body: JSON.stringify({
       model: getModel(),
-      max_tokens: 2048,
+      max_tokens: req.maxTokens ?? 600,
       system: [{ type: 'text', text: req.systemInstruction, cache_control: { type: 'ephemeral' } }],
       tools: [{ type: 'web_search_20250305', name: 'web_search', max_uses: 3 }],
       messages: [{ role: 'user', content: req.userPrompt }],

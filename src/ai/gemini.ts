@@ -127,6 +127,7 @@ async function callAI<T>(req: AIRequest): Promise<T> {
 interface SearchCallRequest {
   systemInstruction: string
   userPrompt: string
+  maxTokens?: number
 }
 
 interface SearchResult {
@@ -251,13 +252,16 @@ const CRITIQUE_SCHEMA = {
   },
 }
 
+const NO_DISCLAIMER_BLOCK = `Never explain what you as an AI cannot do. Never disclaim your AI nature or capabilities. Treat yourself as a knowledgeable colleague — if a question touches something physical or outside a typical AI scope, give the best practical advice anyway.`
+
 const CRITIQUE_SYSTEM = `You are a smart, skeptical person who just read this idea and immediately noticed something wrong.
 Identify the most direct, natural problems — the kind a thoughtful person would voice out loud right after reading.
 Short sentences. Plain language. No formal analysis, no jargon.
 Think: "But that assumes...", "What happens when...", "This falls apart if...", "Who would actually..."
 Score each problem 0.0–1.0: 0.3 = minor concern, 0.6 = significant problem, 0.9 = near-fatal flaw. Return only problems that genuinely arise from this specific content. Return empty array if the idea holds up.
 Do NOT pad to reach a number. Do NOT invent problems. If one real problem exists, return one. If four exist, return four.
-Each problem: 1–2 sentences max.`
+Each problem: 1–2 sentences max.
+${NO_DISCLAIMER_BLOCK}`
 
 const SEVERITY_THRESHOLD = 0.5
 
@@ -293,7 +297,8 @@ Short. Direct. Conversational. No jargon. Think "How?" not "How will the system 
 Often the best questions are just one or two words: "How exactly?", "Why not X?", "What's the catch?", "Compared to what?"
 Do not ask about anything already answered or addressed in the node body.
 Set yesNo to true only if the question can be fully resolved by Yes or No alone.
-Return only the question. No preamble.`
+Return only the question. No preamble.
+${NO_DISCLAIMER_BLOCK}`
 
 export async function questionNode(contextPrompt: string): Promise<QuestionItem> {
   return callAI<QuestionItem>({
@@ -332,7 +337,8 @@ If the content strongly suggests one direction, return one. If it opens several 
 Do NOT pad to reach a number. Each idea must earn its place.
 Each idea must be distinct from everything in the skeleton. Avoid generic brainstorming platitudes.
 Keep titles under 60 characters. Titles must be self-contained: a reader who sees only the title (not the parent body) must understand the idea — no pronouns ("this", "it"), no vague referents ("the approach", "the solution"), no implicit callbacks to the parent body. Bodies should be 1-2 sentences.
-${TONE_BLOCK}`
+${TONE_BLOCK}
+${NO_DISCLAIMER_BLOCK}`
 
 const PROPOSE_SYSTEM = `You are helping find new ideas related to a concept on an ideation board.
 The BOARD SKELETON shows ALL ideas that already exist — do not duplicate or paraphrase any of them.
@@ -341,7 +347,8 @@ No fixed count. If one strong angle exists, return one. If several distinct appr
 Do NOT pad to reach a number. Each idea must earn its place.
 Each idea must be distinct from everything in the skeleton.
 Keep titles under 60 characters. Titles must be self-contained: a reader who sees only the title (not the parent body) must understand the idea — no pronouns ("this", "it"), no vague referents ("the approach", "the solution"), no implicit callbacks to the parent body. Bodies should be 1-2 sentences.
-${TONE_BLOCK}`
+${TONE_BLOCK}
+${NO_DISCLAIMER_BLOCK}`
 
 export async function expandNode(contextPrompt: string): Promise<IdeaItem[]> {
   return callAI<IdeaItem[]>({
@@ -367,7 +374,8 @@ const SUMMARY_SYSTEM = `You are a precise summarizer.
 Write 1-2 sentences capturing the core insight of this idea/description.
 Be concrete and specific — no filler like "this section discusses" or "this explores".
 Do not restate or paraphrase the title — assume the reader can already see it.
-The summary will be shown as a preview on an ideation card.`
+The summary will be shown as a preview on an ideation card.
+${NO_DISCLAIMER_BLOCK}`
 
 export async function generateSummary(title: string, body: string): Promise<string> {
   const result = await callAI<{ summary: string }>({
@@ -405,7 +413,8 @@ CROSS-REFERENCES:
 - Only link ideas that are genuinely conceptually related — not just adjacent.
 - Do NOT link to questions, answers, problems, or core nodes — ideas only.
 
-TITLE: Only provide a new title if the answer fundamentally renames the concept (under 60 chars). Otherwise leave blank.`
+TITLE: Only provide a new title if the answer fundamentally renames the concept (under 60 chars). Otherwise leave blank.
+${NO_DISCLAIMER_BLOCK}`
 
 export async function integrateQA(
   contextPrompt: string,
@@ -468,7 +477,8 @@ CROSS-REFERENCES:
 - Only link ideas that are genuinely conceptually related — not just adjacent.
 - Do NOT link to questions, answers, problems, or core nodes — ideas only.
 
-TITLE: Only provide a new title if the idea fundamentally renames the concept (under 60 chars). Otherwise leave blank.`
+TITLE: Only provide a new title if the idea fundamentally renames the concept (under 60 chars). Otherwise leave blank.
+${NO_DISCLAIMER_BLOCK}`
 
 export async function integrateIdea(
   contextPrompt: string,
@@ -501,7 +511,8 @@ Rules:
 
 ${TONE_BLOCK}
 
-TITLE: Only provide a new title if the concern fundamentally reframes the concept (under 60 chars). Otherwise leave blank.`
+TITLE: Only provide a new title if the concern fundamentally reframes the concept (under 60 chars). Otherwise leave blank.
+${NO_DISCLAIMER_BLOCK}`
 
 export async function acknowledgeProblem(
   contextPrompt: string,
@@ -529,7 +540,8 @@ If the idea's content was already integrated into the body, remove that integrat
 Then append one brief sentence noting the idea was considered and rejected.
 Rules: one added sentence max. Start with "Considered " or "Explored ". Do not editorialize.
 
-${TONE_BLOCK}`
+${TONE_BLOCK}
+${NO_DISCLAIMER_BLOCK}`
 
 export async function rejectIdea(
   contextPrompt: string,
@@ -554,7 +566,8 @@ The answer may have already been integrated into the body — if so, remove that
 Task: rewrite the body removing any content that came from the rejected answer, then append one brief sentence noting it was considered and rejected.
 Rules: preserve all content that did NOT come from the rejected answer. One added sentence max. Start with "Considered " or "Explored ". Do not editorialize.
 
-${TONE_BLOCK}`
+${TONE_BLOCK}
+${NO_DISCLAIMER_BLOCK}`
 
 export async function integrateRejection(
   contextPrompt: string,
@@ -723,7 +736,8 @@ Identify the most natural, direct problems — what a smart skeptic would say ou
 Short sentences. Plain language. No formal analysis.
 Think: "But that doesn't explain...", "That only works if...", "You're ignoring...", "This breaks when..."
 Score 0.0–1.0: 0.3 = minor concern, 0.6 = significant problem, 0.9 = near-fatal flaw. Return empty array if no real problems exist.
-Each problem: 1–2 sentences max.`
+Each problem: 1–2 sentences max.
+${NO_DISCLAIMER_BLOCK}`
 
 export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> {
   const items = await callAI<CritiqueItem[]>({
@@ -741,24 +755,30 @@ const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
 Answer with the fewest words that fully cover the question — one sentence if it's enough, two if genuinely needed, never more.
 Do not pad. Do not add context the question didn't ask for. Stop as soon as the answer is complete.
 No preamble, no filler, no sign-off.
+${NO_DISCLAIMER_BLOCK}
+Never use bullet points, numbered lists, bold headers, or any markdown formatting. Plain prose only.
+Never structure your response as options, choices, or "what I can / what you need to do" breakdowns — a single direct answer only.
 Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.
 If existing answers are already connected to this question (visible in context), provide a different angle — do not repeat what's already there.
 Weave any current facts or names you find naturally into your answer. Do not include URLs, links, footnotes, or source citations of any kind.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string }> {
-  const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt })
+  const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt, maxTokens: 400 })
   return { answer: result.text }
 }
 
 const SOLUTION_SYSTEM = `You are a direct, practical colleague in a brainstorming session.
 Propose one concrete solution or next step. One sentence if it's enough — stop there.
 No analysis, no restating the problem, no preamble, no elaboration beyond the solution itself.
+Never use bullet points, numbered lists, bold headers, or any markdown formatting. Plain prose only.
+Never structure your response as options or choices — one direct proposal only.
+${NO_DISCLAIMER_BLOCK}
 Match the tone of the content — casual stays casual.
 If existing solutions are already connected to this problem (visible in context), provide a different approach — do not repeat what's already there.
 Weave any current facts or names you find naturally into your answer. Do not include URLs, links, footnotes, or source citations of any kind.`
 
 export async function generateSolution(contextPrompt: string): Promise<{ answer: string }> {
-  const result = await callAISearch({ systemInstruction: SOLUTION_SYSTEM, userPrompt: contextPrompt })
+  const result = await callAISearch({ systemInstruction: SOLUTION_SYSTEM, userPrompt: contextPrompt, maxTokens: 400 })
   return { answer: result.text }
 }
 
@@ -766,7 +786,8 @@ export async function generateSolution(contextPrompt: string): Promise<{ answer:
 
 const CORRECT_ANSWER_SYSTEM = `You are a sharp colleague revising a quick answer after a correction.
 One or two short sentences. Casual and direct — incorporate the correction, nothing else.
-No preamble, no meta-commentary, no "you're right", no summaries.`
+No preamble, no meta-commentary, no "you're right", no summaries.
+${NO_DISCLAIMER_BLOCK}`
 
 export async function correctAnswer(
   contextPrompt: string,
