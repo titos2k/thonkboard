@@ -49,6 +49,7 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } f
 import { Button } from '@/components/ui/button'
 import { showToast } from '@/lib/toast'
 import { EXAMPLES } from '@/examples'
+import { MultiSelectToolbar } from '@/components/MultiSelectToolbar'
 
 const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent }
 
@@ -176,13 +177,14 @@ function toRFNode(
   cb: GraphCallbacks,
   aiConnected: boolean,
   hiddenNodeIds: Set<string>,
+  isMultiSelected: boolean,
 ): Node {
   return {
     id: n.id,
     type: n.type === 'note' ? 'note' : 'thonk',
     position: n.position,
     selected,
-    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, aiConnected, hiddenNodeIds, ...cb } as ThonkNodeData,
+    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, aiConnected, hiddenNodeIds, isMultiSelected, ...cb } as ThonkNodeData,
   }
 }
 
@@ -706,14 +708,14 @@ export default function App() {
     return result
   }, [hideResolved, hiddenNodeIds, graph.edges])
 
-  const storeNodes = useMemo(
-    () => visibleNodes.map(n => toRFNode(
+  const storeNodes = useMemo(() => {
+    const isMultiSelected = selectedIds.size > 1
+    return visibleNodes.map(n => toRFNode(
       n, selectedIds.has(n.id), n.id === autoEditId, n.id === panelNodeId,
       graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
-      graphRef, callbacks, aiConnected, hiddenNodeIds,
-    )),
-    [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks, aiConnected, hiddenNodeIds],
-  )
+      graphRef, callbacks, aiConnected, hiddenNodeIds, isMultiSelected,
+    ))
+  }, [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks, aiConnected, hiddenNodeIds])
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
   // Skip when the only change was a position persistence update — rfNodes already
@@ -811,6 +813,8 @@ export default function App() {
     },
     [addGraphEdge],
   )
+
+  const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
 
   const viewCenter = useCallback(() => {
     const wrap = document.getElementById('rf-wrap')
@@ -1035,9 +1039,22 @@ export default function App() {
             maxZoom={2}
             zoomOnDoubleClick={false}
             deleteKeyCode="Delete"
+            multiSelectionKeyCode="Shift"
             elevateEdgesOnSelect
             proOptions={{ hideAttribution: false }}
           >
+            {selectedIds.size > 1 && (
+              <MultiSelectToolbar
+                selectedIds={selectedIds}
+                graphRef={graphRef}
+                onBatchStart={onBatchStart}
+                onBatchEnd={onBatchEnd}
+                onDelete={deleteNode}
+                onUpdate={(id, patch) => updateNode(id, patch)}
+                onClearSelection={clearSelection}
+                aiConnected={aiConnected}
+              />
+            )}
             <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={darkMode ? 'hsl(240, 8%, 25%)' : undefined} />
             <Controls showZoom={false} showFitView={false} showInteractive={false} style={isMobile ? { bottom: 4, left: 4 } : { bottom: 24, left: 16 }}>
               <UndoButton onClick={undo} disabled={!canUndo} />

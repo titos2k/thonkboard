@@ -225,7 +225,7 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
             )}
           </div>
         ) : (
-          <div className="h-full overflow-auto py-4 pl-4 pr-4 md:pr-6 md-preview text-sm">
+          <div className="h-full overflow-auto py-4 pl-4 pr-4 md:pr-6 md-preview">
             {body.trim()
               ? (
                 <ReactMarkdown
@@ -278,7 +278,7 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
           <Button size="default" variant="ghost" onClick={handleCopy} className="gap-1.5 text-muted-foreground">
             {copied ? <><Check className="w-5 h-5" /> Copied</> : <><Copy className="w-5 h-5" /> Copy</>}
           </Button>
-          <span className="text-sm text-muted-foreground">Markdown · Ctrl+S</span>
+
         </div>
       </div>
     </div>

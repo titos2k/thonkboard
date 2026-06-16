@@ -105,7 +105,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
 
   return (
     <NodeShell nodeType="note" selected={selected} handles={false} className="cursor-default active:cursor-default">
-      <NodeToolbar isVisible={selected && !dragging} position={Position.Top} offset={8}>
+      <NodeToolbar isVisible={selected && !d.isMultiSelected && !dragging} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
           <Tooltip>
             <TooltipTrigger asChild>
@@ -213,6 +213,7 @@ export const NoteNodeComponent = React.memo(
       pd.autoEdit === nd.autoEdit &&
       pd.onUpdate === nd.onUpdate &&
       pd.onDelete === nd.onDelete &&
+      pd.isMultiSelected === nd.isMultiSelected &&
       prev.selected === next.selected &&
       prev.dragging === next.dragging
     )

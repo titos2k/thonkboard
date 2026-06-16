@@ -76,6 +76,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
   onAutoEdit: (id: string) => void
   onBatchStart: () => void
   onBatchEnd: () => void
+  isMultiSelected?: boolean
 }
 
 type ActionState = 'idle' | 'loading' | 'searching' | 'answering' | 'correcting' | 'asking'
@@ -1164,7 +1165,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     <>
     <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
-      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !editing} position={Position.Top} offset={8}>
+      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !d.isMultiSelected && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !editing} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
 
           {thonk.resolved ? (
@@ -1552,6 +1553,7 @@ export const ThonkNodeComponent = React.memo(
       pd.onOpenPanel === nd.onOpenPanel &&
       pd.panelOpen === nd.panelOpen &&
       pd.hasAnswer === nd.hasAnswer &&
+      pd.isMultiSelected === nd.isMultiSelected &&
       prev.selected === next.selected &&
       prev.dragging === next.dragging
     )
