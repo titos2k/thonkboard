@@ -487,6 +487,7 @@ export default function App() {
 
   const handleSwitchBoard = useCallback((id: string) => {
     if (id === activeBoardId) return
+    setExamplePreview(null)
     const currentVp = rfInstance.current?.getViewport()
     if (currentVp) saveViewport(currentVp, activeBoardId)
     persistActiveBoardId(id)
