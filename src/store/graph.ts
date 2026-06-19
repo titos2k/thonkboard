@@ -230,7 +230,7 @@ export function addEdge(
 export function updateNode(
   graph: ThonkGraph,
   id: string,
-  patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'unread' | 'bodyBeforeMerge'>>,
+  patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts'>>,
 ): ThonkGraph {
   return {
     ...graph,

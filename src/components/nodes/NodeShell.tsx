@@ -10,6 +10,7 @@ interface NodeShellProps {
   resolved?: boolean
   aiGenerated?: boolean
   highlighted?: boolean
+  dimmed?: boolean
   className?: string
   handles?: boolean
   onPointerDown?: (e: React.PointerEvent) => void
@@ -33,7 +34,7 @@ const TYPE_SELECTED: Record<NodeType, string> = {
   note:     'ring-2 ring-yellow-400 ring-offset-1',
 }
 
-function NodeShellBase({ nodeType, children, selected, resolved, aiGenerated, highlighted, className, handles = true, onPointerDown }: NodeShellProps) {
+function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGenerated, highlighted, dimmed, className, handles = true, onPointerDown }: NodeShellProps) {
   const isLight = nodeType === 'question' || nodeType === 'idea' || nodeType === 'note'
   const handleClass = isLight
     ? '!bg-sky-300 !border-sky-400 !w-2 !h-2'
@@ -49,7 +50,7 @@ function NodeShellBase({ nodeType, children, selected, resolved, aiGenerated, hi
       onPointerDown={onPointerDown}
       className={cn(
         'rounded-lg text-sm relative cursor-grab active:cursor-grabbing transition-opacity',
-        resolved && 'opacity-60',
+        dimmed && 'opacity-60',
         nodeType === 'question' ? 'w-fit max-w-[300px]' : nodeType === 'note' ? 'w-[128px]' : 'w-fit max-w-[220px]',
         baseStyle,
         highlighted ? 'ring-4 ring-purple-400 ring-offset-1' : (selected && TYPE_SELECTED[nodeType]),

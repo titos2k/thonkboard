@@ -1,5 +1,5 @@
 import { useRef, useState, memo, useEffect } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -23,8 +23,6 @@ interface TopBarProps {
   onAddProblem: () => void
   onAddQuestion: () => void
   onAddNote: () => void
-  hideResolved: boolean
-  onToggleHideResolved: () => void
   showLegend: boolean
   onToggleLegend: () => void
   onExport: () => void
@@ -81,7 +79,7 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? PROVIDER_LABELS[provider] : 'Set AI key'
 }
 
-function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, conflictCount }: TopBarProps) {
+function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, conflictCount }: TopBarProps) {
   const toastExampleBlocked = () => window.dispatchEvent(new CustomEvent('thonk:toast', { detail: 'Keep or exit the example before loading a board' }))
   const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -402,12 +400,6 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   <MiniToggle on={webSearch} />
                 </DropdownMenuItem>
               )}
-              <DropdownMenuItem onClick={onToggleHideResolved} className="justify-between">
-                <span className="flex items-center gap-2">
-                  <EyeOff className="w-4 h-4 text-muted-foreground" /> Hide resolved
-                </span>
-                <MiniToggle on={hideResolved} />
-              </DropdownMenuItem>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={openKeyDialog} className={!hasActiveKey() ? 'text-red-500' : undefined}>
                 <Astroid className={`w-4 h-4 ${!hasActiveKey() ? 'text-red-500' : 'text-muted-foreground'}`} />
@@ -523,25 +515,6 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             {conflictCount} Conflict{conflictCount !== 1 ? 's' : ''}
           </button>
         )}
-
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={onToggleHideResolved}
-              className="flex items-center gap-2 h-9 px-2 rounded-md hover:bg-black/5 dark:hover:bg-white/5 transition-colors"
-            >
-              {isNarrow
-                ? <EyeOff className="w-4 h-4 text-muted-foreground" />
-                : <span className="text-sm font-medium text-muted-foreground select-none">Hide resolved</span>}
-              <div className={`relative w-8 h-4 rounded-full transition-colors ${hideResolved ? 'bg-primary' : 'bg-gray-300 dark:bg-gray-600'}`}>
-                <div className={`absolute top-0.5 w-3 h-3 bg-white rounded-full shadow transition-transform ${hideResolved ? 'translate-x-4' : 'translate-x-0.5'}`} />
-              </div>
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="bottom">
-            {hideResolved ? 'Showing only active nodes' : 'Hide resolved nodes'}
-          </TooltipContent>
-        </Tooltip>
 
         <Tooltip>
           <TooltipTrigger asChild>

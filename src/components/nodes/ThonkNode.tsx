@@ -1,4 +1,4 @@
-import React, { useState, useCallback, useMemo, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
+import React, { useState, useCallback, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import { flushSync } from 'react-dom'
 
 // Module-level store: tracks which node was most recently touched.
@@ -17,38 +17,46 @@ import {
   MessageCircleQuestionMark,
   MessageCirclePlus,
   Lightbulb,
-  CheckCheck,
-  CircleCheck,
-  CircleSlash,
   MessageCircle,
   MessageCircleReply,
   Trash2,
   Pencil,
-  FileText,
   TriangleAlert,
   ArrowDownUp,
   GitBranch,
   Brain,
-  RotateCcw,
   MessagesSquare,
-  CircleCheckBig,
-  Ban,
   MoreHorizontal,
   SpellCheck,
-  EyeOff,
   Copy,
   Sparkles,
 } from 'lucide-react'
+
+function ThumbUpIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" className={className} fill="currentColor">
+      <path d="M840-640q32 0 56 24t24 56v80q0 7-1.5 15t-4.5 15L794-168q-9 20-30 34t-44 14H400q-33 0-56.5-23.5T320-200v-407q0-16 6.5-30.5T344-663l217-216q15-14 35.5-17t39.5 7q19 10 27.5 28t3.5 37l-45 184h218ZM160-120q-33 0-56.5-23.5T80-200v-360q0-33 23.5-56.5T160-640q33 0 56.5 23.5T240-560v360q0 33-23.5 56.5T160-120Z"/>
+    </svg>
+  )
+}
+
+function ThumbDownIcon({ className }: { className?: string }) {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 -960 960 960" className={className} fill="currentColor">
+      <path d="M120-320q-32 0-56-24t-24-56v-80q0-7 1.5-15t4.5-15l120-282q9-20 30-34t44-14h320q33 0 56.5 23.5T640-760v407q0 16-6.5 30.5T616-297L399-81q-15 14-35.5 17T324-71q-19-10-27.5-28t-3.5-37l45-184H120Zm680-520q33 0 56.5 23.5T880-760v360q0 33-23.5 56.5T800-320q-33 0-56.5-23.5T720-400v-360q0-33 23.5-56.5T800-840Z"/>
+    </svg>
+  )
+}
 import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
 import { assembleContext, contextToPrompt, assembleContextSemantic } from '@/ai/context'
-import { critiqueNode, questionNode, proposeIdeas, pushThinking, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, hintConflictResolution, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
-import type { ThonkGraph, ConflictEntry } from '@/store/types'
+import { critiqueNode, questionNode, proposeIdeas, pushThinking, detectConflicts, hintConflictResolution, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
+import type { ConflictEntry } from '@/store/types'
 import { showToast } from '@/lib/toast'
 
 const MAX_AI_DEPTH = 3
@@ -70,14 +78,12 @@ export interface ThonkNodeData extends Record<string, unknown> {
     meta?: Partial<TNode['meta']>,
   ) => TNode
   onAddEdge: (source: string, target: string, relation: import('@/store/types').EdgeRelation, sourceHandle?: string, targetHandle?: string) => void
-  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'unread' | 'conflicts' | 'type' | 'placeholder' | 'bodyBeforeMerge'>> & { meta?: Partial<TNode['meta']> }) => void
+  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'thumb'>> & { meta?: Partial<TNode['meta']> }) => void
   onDelete: (id: string) => void
   onVersionCore: (oldId: string, newTitle: string, newBody: string, pos: { x: number; y: number }) => TNode
-  panelOpen: boolean
   hasAnswer: boolean
   aiConnected: boolean
   hiddenNodeIds?: Set<string>
-  onOpenPanel: (id: string | null) => void
   onAutoEdit: (id: string) => void
   onBatchStart: () => void
   onBatchEnd: () => void
@@ -85,114 +91,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
   highlighted?: boolean
 }
 
-type ActionState = 'idle' | 'loading' | 'searching' | 'answering' | 'correcting' | 'asking'
-
-type QAPair = { qNode: import('@/store/types').ThonkNode; aNode: import('@/store/types').ThonkNode }
-
-// Walk UP from a specific answer, collecting unresolved Q→A pairs in this single branch.
-// Stops when it hits a core/idea/problem anchor or a branching point (answer with >1 question child).
-function collectChainPairs(
-  graph: ThonkGraph,
-  answerId: string,
-): { pairs: QAPair[]; anchor: import('@/store/types').ThonkNode | null } {
-  const pairs: QAPair[] = []
-  let currentId = answerId
-
-  while (true) {
-    const aNode = graph.nodes.find(n => n.id === currentId)
-    if (!aNode) return { pairs, anchor: null }
-
-    const qEdge =
-      graph.edges.find(e => e.target === currentId && (e.relation === 'answers' || e.relation === 'fixes')) ??
-      graph.edges.find(e => e.target === currentId && e.relation === 'spawns')
-    if (!qEdge) return { pairs, anchor: null }
-    const qNode = graph.nodes.find(n => n.id === qEdge.source)
-    if (!qNode) return { pairs, anchor: null }
-
-    if (!aNode.resolved && !qNode.resolved) pairs.unshift({ qNode, aNode })
-
-    const parentEdge =
-      graph.edges.find(e => e.target === qNode.id && (e.relation === 'questions' || e.relation === 'argues')) ??
-      graph.edges.find(e => e.target === qNode.id && e.relation === 'spawns')
-    if (!parentEdge) return { pairs, anchor: null }
-    const parentNode = graph.nodes.find(n => n.id === parentEdge.source)
-    if (!parentNode) return { pairs, anchor: null }
-
-    if (parentNode.type === 'core' || parentNode.type === 'idea' || parentNode.type === 'problem')
-      return { pairs, anchor: parentNode }
-
-    if (parentNode.type === 'answer') { currentId = parentNode.id; continue }
-    return { pairs, anchor: null }
-  }
-}
-
-// Walk up the chain to find the topmost core/idea ancestor.
-// Falls back to spawns edges so manually-drawn connections still resolve.
-// Returns null if no core/idea can be reached.
-function findChainRoot(graph: ThonkGraph, nodeId: string): import('@/store/types').ThonkNode | null {
-  const node = graph.nodes.find(n => n.id === nodeId)
-  if (!node) return null
-  if (node.type === 'core' || node.type === 'idea') return node
-
-  if (node.type === 'problem') {
-    const e =
-      graph.edges.find(e => e.target === nodeId && e.relation === 'argues') ??
-      graph.edges.find(e => e.target === nodeId && (e.relation === 'answers' || e.relation === 'fixes')) ??
-      graph.edges.find(e => e.target === nodeId && e.relation === 'spawns')
-    return e ? findChainRoot(graph, e.source) : null
-  }
-
-  if (node.type === 'question') {
-    const e =
-      graph.edges.find(e => e.target === nodeId && (e.relation === 'questions' || e.relation === 'argues')) ??
-      graph.edges.find(e => e.target === nodeId && (e.relation === 'answers' || e.relation === 'fixes')) ??
-      graph.edges.find(e => e.target === nodeId && e.relation === 'spawns')
-    return e ? findChainRoot(graph, e.source) : null
-  }
-
-  // answer — find parent (question or direct core/idea), then recurse
-  const aEdge =
-    graph.edges.find(e => e.target === nodeId && (e.relation === 'answers' || e.relation === 'fixes')) ??
-    graph.edges.find(e => e.target === nodeId && e.relation === 'spawns')
-  if (!aEdge) return null
-  const parent = graph.nodes.find(n => n.id === aEdge.source)
-  if (!parent) return null
-  if (parent.type === 'core' || parent.type === 'idea') return parent
-  return findChainRoot(graph, parent.id)
-}
-
-
-// Find the direct parent of an idea via spawns edge (core --spawns--> idea)
-function findSpawnParent(graph: ThonkGraph, nodeId: string): import('@/store/types').ThonkNode | null {
-  const e = graph.edges.find(e => e.target === nodeId && e.relation === 'spawns')
-  if (!e) return null
-  return graph.nodes.find(n => n.id === e.source) ?? null
-}
-
-
-// Walk DOWN from a node and collect all Q&A descendant IDs
-// (follow-up questions their answers, recursively — used for cascade dismissal)
-function collectQADescendants(graph: ThonkGraph, nodeId: string): string[] {
-  const result: string[] = []
-  const visited = new Set<string>()
-  function walk(id: string) {
-    if (visited.has(id)) return
-    visited.add(id)
-    for (const e of graph.edges) {
-      if (e.source === id && e.relation === 'questions') {
-        result.push(e.target)
-        for (const ae of graph.edges) {
-          if (ae.source === e.target && ae.relation === 'answers') {
-            result.push(ae.target)
-            walk(ae.target)
-          }
-        }
-      }
-    }
-  }
-  walk(nodeId)
-  return result
-}
+type ActionState = 'idle' | 'loading' | 'searching' | 'answering' | 'correcting' | 'asking' | 'pushing'
 
 function stopDeletePropagation(e: React.KeyboardEvent) {
   if (e.key === 'Delete' || e.key === 'Backspace') e.stopPropagation()
@@ -279,6 +178,13 @@ function dirHandles(dir: Dir): { sourceHandle: string; targetHandle: string } {
   }
 }
 
+function computeDir(from: { x: number; y: number }, to: { x: number; y: number }): Dir {
+  const dx = to.x - from.x
+  const dy = to.y - from.y
+  if (Math.abs(dx) > Math.abs(dy)) return dx > 0 ? 'right' : 'left'
+  return dy >= 0 ? 'down' : 'up'
+}
+
 // Pre-compute N spread positions perpendicular to dir, centered on origin + primary offset.
 // For down/up directions, nodes fan out left-right. For left/right, they fan out up-down.
 function spawnFan(
@@ -361,16 +267,18 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const [correctionText, setCorrectionText] = useState('')
 
   const [askText, setAskText] = useState('')
+  const [pushText, setPushText] = useState('')
 
-  // Close answer/correction/ask input on outside tap/click
+  // Close answer/correction/ask/push input on outside tap/click
   useEffect(() => {
-    if (actionState !== 'answering' && actionState !== 'correcting' && actionState !== 'asking') return
+    if (actionState !== 'answering' && actionState !== 'correcting' && actionState !== 'asking' && actionState !== 'pushing') return
     const handler = (e: PointerEvent) => {
       const nodeEl = document.querySelector(`[data-id="${thonk.id}"]`)
       if (nodeEl && !nodeEl.contains(e.target as Node)) {
         setAnswerText('')
         setCorrectionText('')
         setAskText('')
+        setPushText('')
         setActionState('idle')
       }
     }
@@ -413,6 +321,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const answerRef = useRef<HTMLTextAreaElement>(null)
   const correctionRef = useRef<HTMLTextAreaElement>(null)
   const askRef = useRef<HTMLTextAreaElement>(null)
+  const pushRef = useRef<HTMLTextAreaElement>(null)
 
   useEffect(() => {
     if (editing) {
@@ -445,6 +354,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const isAnswering  = actionState === 'answering'
   const isCorrecting = actionState === 'correcting'
   const isAsking     = actionState === 'asking'
+  const isPushing    = actionState === 'pushing'
 
   useEffect(() => {
     if (isAnswering) requestAnimationFrame(() => answerRef.current?.focus())
@@ -457,6 +367,10 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   useEffect(() => {
     if (isAsking) requestAnimationFrame(() => askRef.current?.focus())
   }, [isAsking])
+
+  useEffect(() => {
+    if (isPushing) requestAnimationFrame(() => pushRef.current?.focus())
+  }, [isPushing])
 
   const hasContent = thonk.body.trim().length > 0 || thonk.title.trim().length > 0
 
@@ -634,25 +548,45 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       panToSpawned(ids)
     })
 
-  const handlePushThinking = () =>
+  const handlePushThinking = (hint?: string) =>
     withLoading(async () => {
-      const items = await pushThinking(ctx())
-      const dir = nodeSpawnDir(thonk.id, graphRef.current)
-      const { sourceHandle, targetHandle } = dirHandles(dir)
-      const anchors = spawnFan(livePos(), dir, items.length, nodeH())
+      const contextPrompt = hint ? `${ctx()}\n\nFOCUS DIRECTION: ${hint}` : ctx()
+      const items = await pushThinking(contextPrompt)
+      const src = livePos()
+      const DIRS: Dir[] = ['right', 'down', 'left', 'up']
+      const primaryIdx = DIRS.indexOf(nodeSpawnDir(thonk.id, graphRef.current))
+      const typeDirs: Record<string, Dir> = {
+        idea:     DIRS[primaryIdx],
+        question: DIRS[(primaryIdx + 1) % 4],
+        problem:  DIRS[(primaryIdx + 3) % 4],
+      }
+      const byType: Record<string, typeof items> = { idea: [], question: [], problem: [] }
+      for (const item of items) byType[item.type].push(item)
+
       const placed: { position: { x: number; y: number } }[] = []
       const ids: string[] = []
       const aiDepth = thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0
-      for (let i = 0; i < items.length; i++) {
-        const item = items[i]
-        const pos = findFreePos([...graphRef.current.nodes, ...placed], anchors[i], 0, 0, dir)
-        placed.push({ position: pos })
-        const relation = item.type === 'question' ? 'questions' : item.type === 'problem' ? 'argues' : 'spawns'
-        const node = d.onAddNode(item.type, item.title, item.body, pos, { aiGenerated: true, aiDepth })
-        d.onAddEdge(thonk.id, node.id, relation, sourceHandle, targetHandle)
-        ids.push(node.id)
+
+      for (const type of ['idea', 'question', 'problem'] as const) {
+        const group = byType[type]
+        if (!group.length) continue
+        const dir = typeDirs[type]
+        const anchors = spawnFan(src, dir, group.length, nodeH())
+        for (let i = 0; i < group.length; i++) {
+          const item = group[i]
+          const pos = findFreePos([...graphRef.current.nodes, ...placed], anchors[i], 0, 0, dir)
+          placed.push({ position: pos })
+          const actualDir = computeDir(src, pos)
+          const { sourceHandle, targetHandle } = dirHandles(actualDir)
+          const relation = type === 'question' ? 'questions' : type === 'problem' ? 'argues' : 'spawns'
+          const node = d.onAddNode(type, item.title, item.body, pos, { aiGenerated: true, aiDepth })
+          d.onAddEdge(thonk.id, node.id, relation, sourceHandle, targetHandle)
+          ids.push(node.id)
+        }
       }
       panToSpawned(ids)
+      setPushText('')
+      setActionState('idle')
     })
 
   const handleAskAndAnswer = () => {
@@ -768,241 +702,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     d.onUpdate(thonk.id, { type: newType })
   }
 
-  // Merges just this Q→A pair into the ancestor.
-  const handleApply = () =>
-    withLoading(async () => {
-      const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
-      if (!qEdge) return
-      const qNode = graphRef.current.nodes.find(n => n.id === qEdge.source)
-      if (!qNode) return
-      const rootNode = findChainRoot(graphRef.current, thonk.id)
-      const syncTarget = rootNode && (rootNode.type === 'core' || rootNode.type === 'idea') ? rootNode : null
-
-      if (syncTarget) {
-        const ctx = assembleContext(graphRef.current, syncTarget.id)
-        if (!ctx) return
-        const res = await integrateQA(contextToPrompt(ctx), qNode.title, thonk.title)
-        d.onUpdate(syncTarget.id, { body: res.body, conflicts: [], unread: true, bodyBeforeMerge: syncTarget.body, meta: { conflictCheckedAt: undefined } })
-        const candidates = graphRef.current.nodes.filter(n =>
-          n.id !== syncTarget.id && n.id !== qNode.id && n.id !== thonk.id &&
-          (n.resolvedAs === 'merged' || !n.resolved) && (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-        )
-        detectConflicts(syncTarget.title, res.body, candidates.map(n => ({
-          id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-        }))).then(cs => applyConflicts(syncTarget.id, syncTarget.title, cs, candidates)).catch(() => {})
-      }
-
-      d.onUpdate(qNode.id,  { resolved: true, resolvedAs: 'merged' })
-      d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-    })
-
-  // Merges the full Q→A chain into the ancestor in one AI call.
-  const handleApplyBranch = () =>
-    withLoading(async () => {
-      const { pairs, anchor } = collectChainPairs(graphRef.current, thonk.id)
-      if (pairs.length === 0 || !anchor) {
-        // No chain above — fall back to applying this single answer
-        const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes' || e.relation === 'spawns'))
-        if (!qEdge) return
-        const qNode = graphRef.current.nodes.find(n => n.id === qEdge.source)
-        if (!qNode) return
-        const rootNode = findChainRoot(graphRef.current, thonk.id)
-        const syncTarget = rootNode && (rootNode.type === 'core' || rootNode.type === 'idea') ? rootNode : null
-        if (syncTarget) {
-          const ctx = assembleContext(graphRef.current, syncTarget.id)
-          if (ctx) {
-            const res = await integrateQA(contextToPrompt(ctx), qNode.title, thonk.title)
-            d.onUpdate(syncTarget.id, { body: res.body, conflicts: [], unread: true, bodyBeforeMerge: syncTarget.body })
-          }
-        }
-        d.onUpdate(qNode.id, { resolved: true, resolvedAs: 'merged' })
-        d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-        return
-      }
-      const c = assembleContext(graphRef.current, anchor.id)
-      if (!c) return
-
-      const { body } = await integrateAllQA(
-        contextToPrompt(c),
-        pairs.map(p => ({ question: p.qNode.title, answer: p.aNode.title })),
-      )
-      d.onUpdate(anchor.id, { body, conflicts: [], unread: true, bodyBeforeMerge: anchor.body, meta: { conflictCheckedAt: undefined } })
-      for (const { qNode: q, aNode: a } of pairs) {
-        d.onUpdate(q.id, { resolved: true, resolvedAs: 'merged' })
-        d.onUpdate(a.id, { resolved: true, resolvedAs: 'merged' })
-      }
-
-      const allPairIds = new Set(pairs.flatMap(p => [p.qNode.id, p.aNode.id]))
-      const candidates = graphRef.current.nodes.filter(n =>
-        n.id !== anchor.id && !allPairIds.has(n.id) &&
-        (n.resolvedAs === 'merged' || !n.resolved) &&
-        (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-      )
-      detectConflicts(anchor.title, body, candidates.map(n => ({
-        id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-      }))).then(cs => applyConflicts(anchor.id, anchor.title, cs, candidates)).catch(() => {})
-    })
-
-  const handleReopen = useCallback(() => {
-    const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
-    if (qEdge) d.onUpdate(qEdge.source, { resolved: false })
-    d.onUpdate(thonk.id, { resolved: false })
-  }, [thonk.id, d, graphRef])
-
-  // Close only this answer; parent question stays open
-  const handleClose = useCallback(() => {
-    const graph = graphRef.current
-    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'closed' })
-    collectQADescendants(graph, thonk.id).forEach(childId =>
-      d.onUpdate(childId, { resolved: true, resolvedAs: 'closed' })
-    )
-  }, [thonk.id, d, graphRef])
-
-  // Close this answer + parent question + all descendants
-  const handleCloseBranch = useCallback(() => {
-    const graph = graphRef.current
-    const qEdge = graph.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
-    if (qEdge) d.onUpdate(qEdge.source, { resolved: true, resolvedAs: 'closed' })
-    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'closed' })
-    collectQADescendants(graph, thonk.id).forEach(childId =>
-      d.onUpdate(childId, { resolved: true, resolvedAs: 'closed' })
-    )
-  }, [thonk.id, d, graphRef])
-
-  // Close question + all answer children + their descendants
-  const handleCloseQuestion = useCallback(() => {
-    const graph = graphRef.current
-    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'closed' })
-    graph.edges
-      .filter(e => e.source === thonk.id && (e.relation === 'answers'))
-      .forEach(e => {
-        d.onUpdate(e.target, { resolved: true, resolvedAs: 'closed' })
-        collectQADescendants(graph, e.target).forEach(childId =>
-          d.onUpdate(childId, { resolved: true, resolvedAs: 'closed' })
-        )
-      })
-  }, [thonk.id, d, graphRef])
-
-  const handleCloseProblem = useCallback(() => {
-    const graph = graphRef.current
-    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'closed' })
-    graph.edges
-      .filter(e => e.source === thonk.id && e.relation === 'fixes')
-      .forEach(e => {
-        d.onUpdate(e.target, { resolved: true, resolvedAs: 'closed' })
-        collectQADescendants(graph, e.target).forEach(childId =>
-          d.onUpdate(childId, { resolved: true, resolvedAs: 'closed' })
-        )
-      })
-  }, [thonk.id, d, graphRef])
-
-  const handleApplyProblem = () =>
-    withLoading(async () => {
-      const graph = graphRef.current
-      const parentNode = findChainRoot(graph, thonk.id)
-      if (!parentNode) return
-      const ctx = assembleContext(graph, parentNode.id)
-      if (!ctx) return
-      const res = await acknowledgeProblem(contextToPrompt(ctx), thonk.title, thonk.body)
-      d.onUpdate(parentNode.id, { body: res.body, unread: true, bodyBeforeMerge: parentNode.body, meta: { conflictCheckedAt: undefined } })
-      d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-      const candidates = graph.nodes.filter(n =>
-        n.id !== parentNode.id && n.id !== thonk.id &&
-        (n.resolvedAs === 'merged' || !n.resolved) &&
-        (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-      )
-      detectConflicts(parentNode.title, res.body, candidates.map(n => ({
-        id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-      }))).then(cs => applyConflicts(parentNode.id, parentNode.title, cs, candidates)).catch(() => {})
-    })
-
-  const handleApplyProblemBranch = () =>
-    withLoading(async () => {
-      const graph = graphRef.current
-      const parentNode = findChainRoot(graph, thonk.id)
-      if (!parentNode) return
-      const ctx = assembleContext(graph, parentNode.id)
-      if (!ctx) return
-      const res = await acknowledgeProblem(contextToPrompt(ctx), thonk.title, thonk.body)
-      d.onUpdate(parentNode.id, { body: res.body, unread: true, bodyBeforeMerge: parentNode.body, meta: { conflictCheckedAt: undefined } })
-      d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-      graph.edges
-        .filter(e => e.source === thonk.id && e.relation === 'fixes')
-        .forEach(e => {
-          d.onUpdate(e.target, { resolved: true, resolvedAs: 'merged' })
-          collectQADescendants(graph, e.target).forEach(childId =>
-            d.onUpdate(childId, { resolved: true, resolvedAs: 'merged' })
-          )
-        })
-      const candidates = graph.nodes.filter(n =>
-        n.id !== parentNode.id && n.id !== thonk.id &&
-        (n.resolvedAs === 'merged' || !n.resolved) &&
-        (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-      )
-      detectConflicts(parentNode.title, res.body, candidates.map(n => ({
-        id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-      }))).then(cs => applyConflicts(parentNode.id, parentNode.title, cs, candidates)).catch(() => {})
-    })
-
-  const handleApplyIdea = () =>
-    withLoading(async () => {
-      const graph = graphRef.current
-      const parentNode = findSpawnParent(graph, thonk.id)
-      if (!parentNode) return
-      const ctx = assembleContext(graph, parentNode.id)
-      if (!ctx) return
-      const res = await integrateIdea(contextToPrompt(ctx), thonk.title, thonk.body)
-      applyIdeaResult(parentNode, res.body, false)
-    })
-
-  const handleApplyIdeaBranch = () =>
-    withLoading(async () => {
-      const graph = graphRef.current
-      const parentNode = findSpawnParent(graph, thonk.id)
-      if (!parentNode) return
-      const ctx = assembleContext(graph, parentNode.id)
-      if (!ctx) return
-      const res = await integrateIdea(contextToPrompt(ctx), thonk.title, thonk.body)
-      applyIdeaResult(parentNode, res.body, true)
-    })
-
-  const applyIdeaResult = useCallback((parentNode: TNode, body: string, isBranch: boolean) => {
-    const graph = graphRef.current
-    d.onUpdate(parentNode.id, { body, unread: true, bodyBeforeMerge: parentNode.body, meta: { conflictCheckedAt: undefined } })
-    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-    if (isBranch) {
-      collectQADescendants(graph, thonk.id).forEach(id => d.onUpdate(id, { resolved: true, resolvedAs: 'merged' }))
-    }
-    const candidates = graph.nodes.filter(n =>
-      n.id !== parentNode.id && n.id !== thonk.id &&
-      (n.resolvedAs === 'merged' || !n.resolved) &&
-      (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-    )
-    detectConflicts(parentNode.title, body, candidates.map(n => ({
-      id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-    }))).then(cs => applyConflicts(parentNode.id, parentNode.title, cs, candidates)).catch(() => {})
-  }, [thonk.id, d, graphRef, applyConflicts])
-
-  const handleCloseIdeaBranch = useCallback(() => {
-    const graph = graphRef.current
-    d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'closed' })
-    collectQADescendants(graph, thonk.id).forEach(id =>
-      d.onUpdate(id, { resolved: true, resolvedAs: 'closed' })
-    )
-  }, [thonk.id, d, graphRef])
-
-  const handleRejectIdea = () =>
-    withLoading(async () => {
-      const graph = graphRef.current
-      const parentNode = findSpawnParent(graph, thonk.id)
-      if (!parentNode) return
-      const ctx = assembleContext(graph, parentNode.id)
-      if (!ctx) return
-      const res = await rejectIdea(contextToPrompt(ctx), thonk.title, thonk.body)
-      d.onUpdate(parentNode.id, { body: res.body, unread: true, bodyBeforeMerge: parentNode.body })
-      d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'rejected' })
-    })
-
   const handleFixGrammar = () =>
     withLoading(async () => {
       const text = thonk.title.trim()
@@ -1020,68 +719,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     showToast('Copied', 'success')
   }
 
-  const handleNoteRejection = () =>
-    withLoading(async () => {
-      const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
-      if (!qEdge) return
-      const qNode = graphRef.current.nodes.find(n => n.id === qEdge.source)
-      if (!qNode) return
-      const rootNode = findChainRoot(graphRef.current, thonk.id)
-      const noteTarget = rootNode && (rootNode.type === 'core' || rootNode.type === 'idea') ? rootNode : null
-      if (!noteTarget) return
-      const ctx = assembleContext(graphRef.current, noteTarget.id)
-      if (!ctx) return
-      const res = await integrateRejection(contextToPrompt(ctx), qNode.title, thonk.title)
-      d.onUpdate(noteTarget.id, { body: res.body, unread: true, bodyBeforeMerge: noteTarget.body })
-      d.onUpdate(qNode.id,  { resolved: true, resolvedAs: 'rejected' })
-      d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'rejected' })
-    })
-
-  const handleReopenAndAnswer = useCallback(() => {
-    const aEdge = graphRef.current.edges.find(e => e.source === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
-    if (aEdge) d.onUpdate(aEdge.target, { resolved: false })
-    d.onUpdate(thonk.id, { resolved: false })
-    setActionState('answering')
-  }, [thonk.id, d, graphRef])
-
-  // Computed for answer resolution dropdown labels — memoized so graph traversals
-  // don't re-run on renders where only dragging/selection changed (edges stable during drag).
-  const {
-    answerDescCount, ideaDescCount,
-    ideaParentNode, problemParentNode, mergeTargetNode,
-    questionChildCount, problemChildCount,
-  } = useMemo(() => {
-    const g = graphRef.current
-    const answerDescCount    = thonk.type === 'answer'   ? collectQADescendants(g, thonk.id).length : 0
-    const ideaDescCount      = thonk.type === 'idea'     ? collectQADescendants(g, thonk.id).length : 0
-    const ideaParentNode     = thonk.type === 'idea'     ? findSpawnParent(g, thonk.id) : null
-    const problemParentNode  = thonk.type === 'problem'  ? findChainRoot(g, thonk.id) : null
-    const mergeTargetNode    = thonk.type === 'answer'   ? findChainRoot(g, thonk.id) : null
-    const questionChildCount = thonk.type === 'question'
-      ? g.edges.filter(e => e.source === thonk.id && e.relation === 'answers')
-          .reduce((acc, e) => acc + 1 + collectQADescendants(g, e.target).length, 0)
-      : 0
-    const problemChildCount  = thonk.type === 'problem'
-      ? g.edges.filter(e => e.source === thonk.id && e.relation === 'fixes')
-          .reduce((acc, e) => acc + 1 + collectQADescendants(g, e.target).length, 0)
-      : 0
-    return { answerDescCount, ideaDescCount, ideaParentNode, problemParentNode, mergeTargetNode, questionChildCount, problemChildCount }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [thonk.type, thonk.id, graphRef.current.edges])
-
-  const ideaParentName = ideaParentNode?.title
-    ? (ideaParentNode.title.length > 22 ? ideaParentNode.title.slice(0, 22) + '…' : ideaParentNode.title)
-    : undefined
-  const problemParentName = problemParentNode?.title
-    ? (problemParentNode.title.length > 22 ? problemParentNode.title.slice(0, 22) + '…' : problemParentNode.title)
-    : undefined
-  const applyTargetName = mergeTargetNode?.title
-    ? (mergeTargetNode.title.length > 22 ? mergeTargetNode.title.slice(0, 22) + '…' : mergeTargetNode.title)
-    : 'canvas'
-
-  const mergeTargetHidden   = !!d.hiddenNodeIds?.has(mergeTargetNode?.id   ?? '')
-  const ideaParentHidden    = !!d.hiddenNodeIds?.has(ideaParentNode?.id    ?? '')
-  const problemParentHidden = !!d.hiddenNodeIds?.has(problemParentNode?.id ?? '')
+  const handleThumbUp   = () => d.onUpdate(thonk.id, { thumb: thonk.thumb === 'up'   ? undefined : 'up'   })
+  const handleThumbDown = () => d.onUpdate(thonk.id, { thumb: thonk.thumb === 'down' ? undefined : 'down' })
 
   const isLoading = actionState === 'loading' || actionState === 'searching'
   const isLight = thonk.type === 'question' || thonk.type === 'idea'
@@ -1092,170 +731,89 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const fixLabel   = depthHeat >= 1 ? 'Suggest Solution (AI Fatigue)' : depthHeat > 0 ? 'Suggest Solution (AI Fatigue Warning)' : 'Suggest Solution'
 
   const showEdit         = !editing
-  const showExpandDetail = thonk.type !== 'question' && thonk.type !== 'answer'
 
   return (
     <>
-    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
+    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} dimmed={thonk.thumb === 'down'} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
-      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !d.isMultiSelected && !thonk.placeholder && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !editing} position={Position.Top} offset={8}>
+      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !d.isMultiSelected && !thonk.placeholder && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !isPushing && !editing} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
 
-          {thonk.resolved ? (
-            /* Resolved: answer first (questions), then edit, details, reopen, delete */
-            <>
-              {thonk.type === 'question' && (
-                <>
-                  <button
-                    onClick={handleReopenAndAnswer}
-                    className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
-                  >
-                    <MessageCircleReply className="w-5 h-5" />
-                    Answer
-                  </button>
-                  <Sep />
-                </>
-              )}
-              {showEdit && thonk.type !== 'problem' && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
-              {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} dot={!!thonk.unread && !d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
-              <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} />
-              <Sep />
-              <ToolBtn icon={<RotateCcw className="w-5 h-5" />} label="Reopen" onClick={handleReopen} />
-              <Sep />
-              <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
-            </>
-          ) : (
-            <>
-              {/* Primary action button — Answer for questions, Reply for problems */}
-              {(thonk.type === 'question' || thonk.type === 'problem') && (
-                <>
-                  <button
-                    onClick={() => thonk.title.trim() ? setActionState('answering') : enterEdit()}
-                    className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
-                  >
-                    <MessageCircleReply className="w-5 h-5" />
-                    {thonk.type === 'problem' ? 'Reply' : 'Answer'}
-                  </button>
-                  {thonk.type === 'question' && thonk.meta.yesNo && !d.hasAnswer && (
-                    <>
-                      <button onClick={() => handleQuickAnswer('Yes')}
-                        className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer">
-                        Yes
-                      </button>
-                      <button onClick={() => handleQuickAnswer('No')}
-                        className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer">
-                        No
-                      </button>
-                    </>
-                  )}
-                  <Sep />
-                </>
-              )}
+          <>
+            {/* Primary action button — Answer for questions, Reply for problems */}
+            {(thonk.type === 'question' || thonk.type === 'problem') && (
+              <>
+                <button
+                  onClick={() => thonk.title.trim() ? setActionState('answering') : enterEdit()}
+                  className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
+                >
+                  <MessageCircleReply className="w-5 h-5" />
+                  {thonk.type === 'problem' ? 'Reply' : 'Answer'}
+                </button>
+                {thonk.type === 'question' && thonk.meta.yesNo && !d.hasAnswer && (
+                  <>
+                    <button onClick={() => handleQuickAnswer('Yes')}
+                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer">
+                      Yes
+                    </button>
+                    <button onClick={() => handleQuickAnswer('No')}
+                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer">
+                      No
+                    </button>
+                  </>
+                )}
+                <Sep />
+              </>
+            )}
 
-              {/* Section 1: AI */}
-              {(thonk.type === 'core' || thonk.type === 'idea') && (
-                <>
-                  <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Push Thinking" onClick={handlePushThinking} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-purple-400" />
-                  <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
-                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
-                  <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
-                  <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-yellow-400" />
-                </>
-              )}
-              {thonk.type === 'problem' && (
-                <>
-                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
-                  <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" heat={depthHeat} />
-                </>
-              )}
-              {thonk.type === 'question' && (
-                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-emerald-300" />
-              )}
-              {thonk.type === 'answer' && (
-                <>
-                  <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
-                  <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
-                  <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
-                  {thonk.meta.aiGenerated && <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This..." onClick={() => setActionState('correcting')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-orange-400" />}
-                </>
-              )}
+            {/* Section 1: AI */}
+            {(thonk.type === 'core' || thonk.type === 'idea') && (
+              <>
+                <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Push Thinking" onClick={() => setActionState('pushing')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-purple-400" />
+                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
+                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
+                <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
+                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-yellow-400" />
+              </>
+            )}
+            {thonk.type === 'problem' && (
+              <>
+                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
+                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" heat={depthHeat} />
+              </>
+            )}
+            {thonk.type === 'question' && (
+              <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-emerald-300" />
+            )}
+            {thonk.type === 'answer' && (
+              <>
+                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
+                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
+                <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
+                {thonk.meta.aiGenerated && <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This..." onClick={() => setActionState('correcting')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-orange-400" />}
+              </>
+            )}
 
-              {/* Section 2: Human actions */}
-              <Sep />
-              {showEdit         && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
-              {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} dot={!!thonk.unread && !d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
-              <AddDropdown nodeType={thonk.type} onAddQuestion={handleAddQuestion} onAddIdea={handleAddIdea} onAddProblem={handleAddProblem} />
-              <TransformBtn currentType={thonk.type} onTransform={handleTransform} />
-              <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} />
-              {thonk.type === 'answer' && (
-                <>
-                  <Sep />
-                  <ResolutionDropdown
-                    closeBranchCount={answerDescCount + 2}
-                    onClose={handleClose}
-                    onCloseBranch={handleCloseBranch}
-                    onApply={mergeTargetNode ? handleApply : undefined}
-                    onApplyBranch={mergeTargetNode ? handleApplyBranch : undefined}
-                    applyTargetName={applyTargetName}
-                    onNoteRejection={mergeTargetNode ? handleNoteRejection : undefined}
-                    noteRejectionTarget={applyTargetName}
-                    targetHidden={mergeTargetHidden}
-                  />
-                </>
-              )}
-              {thonk.type === 'question' && (
-                <>
-                  <Sep />
-                  <ToolBtn
-                    icon={<CircleSlash className="w-5 h-5" />}
-                    label={questionChildCount > 0 ? `Close (${questionChildCount + 1})` : 'Close question'}
-                    onClick={handleCloseQuestion}
-                  />
-                </>
-              )}
-              {thonk.type === 'problem' && (
-                <>
-                  <Sep />
-                  <ResolutionDropdown
-                    closeBranchCount={problemChildCount + 1}
-                    onClose={() => d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'closed' })}
-                    onCloseBranch={handleCloseProblem}
-                    onApply={problemParentNode ? handleApplyProblem : undefined}
-                    onApplyBranch={problemParentNode ? handleApplyProblemBranch : undefined}
-                    applyTargetName={problemParentName}
-                    targetHidden={problemParentHidden}
-                  />
-                </>
-              )}
-              {thonk.type === 'idea' && (
-                <>
-                  <Sep />
-                  <ResolutionDropdown
-                    closeBranchCount={ideaDescCount + 1}
-                    onClose={() => d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'closed' })}
-                    onCloseBranch={handleCloseIdeaBranch}
-                    onApply={ideaParentNode ? handleApplyIdea : undefined}
-                    onApplyBranch={ideaParentNode ? handleApplyIdeaBranch : undefined}
-                    applyTargetName={ideaParentName}
-                    onNoteRejection={ideaParentNode ? handleRejectIdea : undefined}
-                    noteRejectionTarget={ideaParentName}
-                    targetHidden={ideaParentHidden}
-                  />
-                </>
-              )}
+            {/* Section 2: Human actions */}
+            <Sep />
+            {showEdit && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
+            <AddDropdown nodeType={thonk.type} onAddQuestion={handleAddQuestion} onAddIdea={handleAddIdea} onAddProblem={handleAddProblem} />
+            <TransformBtn currentType={thonk.type} onTransform={handleTransform} />
+            <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} />
 
-              {/* Section 3: Delete */}
-              <Sep />
-              <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
-            </>
-          )}
+            {/* Section 3: Vote + Delete */}
+            <Sep />
+            {(thonk.type === 'idea' || thonk.type === 'problem' || thonk.type === 'question' || thonk.type === 'answer') && (
+              <>
+                <ToolBtn icon={<ThumbUpIcon className="w-5 h-5" />} label="Love it" onClick={handleThumbUp} className={thonk.thumb === 'up' ? 'text-[#00ae60]' : ''} />
+                <ToolBtn icon={<ThumbDownIcon className="w-5 h-5" />} label="Drop it" onClick={handleThumbDown} className={thonk.thumb === 'down' ? 'text-[#e95a32]' : ''} />
+                <Sep />
+              </>
+            )}
+            <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
+          </>
         </div>
       </NodeToolbar>
-
-      {/* Unread dot — top-right corner: appears when AI has updated this node's body */}
-      {thonk.unread && !thonk.resolved && (
-        <div className="absolute -top-1.5 -right-1.5 w-3 h-3 rounded-full bg-purple-500 z-10 shadow-sm ring-1 ring-white/40 pointer-events-none" />
-      )}
 
       {/* Title — inline edit with blur-to-save */}
         <div
@@ -1305,7 +863,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               }
             </p>
           )}
-
 
         </div>
 
@@ -1407,30 +964,44 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
           </div>
         )}
 
+        {(thonk.type === 'core' || thonk.type === 'idea') && isPushing && (
+          <div className="nodrag px-3 pb-2">
+            <Textarea
+              ref={pushRef}
+              placeholder="Steer the thinking… (optional)"
+              value={pushText}
+              onChange={e => setPushText(e.target.value)}
+              onKeyDown={e => {
+                stopDeletePropagation(e)
+                if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePushThinking(pushText.trim() || undefined) }
+                if (e.key === 'Escape') { setPushText(''); setActionState('idle') }
+              }}
+              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 py-1 rounded-sm shadow-none"
+              rows={3}
+            />
+            <div className="mt-1 flex gap-1">
+              <button
+                onClick={() => handlePushThinking(pushText.trim() || undefined)}
+                className="flex-1 text-sm px-2 py-1 rounded-sm bg-black hover:bg-gray-800 text-white transition-colors"
+              >
+                Push
+              </button>
+              <button
+                onClick={() => { setPushText(''); setActionState('idle') }}
+                className="text-sm px-2 py-1 rounded-sm bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+              >
+                Cancel
+              </button>
+            </div>
+          </div>
+        )}
+
         {isLoading && (
           <div className="flex items-center gap-1.5 px-3 pb-2 text-sm opacity-60">
             <Spinner className="w-5 h-5 opacity-60" /> {actionState === 'searching' ? 'Researching…' : 'Thinking…'}
           </div>
         )}
     </NodeShell>
-
-    {/* Resolved dot — outside NodeShell so opacity-60 dimming doesn't apply */}
-    {thonk.resolved && (
-      <Tooltip>
-        <TooltipTrigger asChild>
-          <div className={`absolute -bottom-2.5 -right-2.5 w-6 h-6 rounded-full flex items-center justify-center z-10 shadow-sm ring-1 ring-white/50 ${thonk.resolvedAs === 'merged' ? 'bg-[#00ae60]' : thonk.resolvedAs === 'rejected' ? 'bg-[#e95a32]' : 'bg-gray-400'}`}>
-            {thonk.resolvedAs === 'merged'
-              ? <CircleCheck className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-              : thonk.resolvedAs === 'rejected'
-              ? <Ban className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />
-              : <CircleSlash className="w-3.5 h-3.5 text-white" strokeWidth={2.5} />}
-          </div>
-        </TooltipTrigger>
-        <TooltipContent side="right" className="z-[9999] text-sm">
-          {thonk.resolvedAs === 'merged' ? 'Applied' : thonk.resolvedAs === 'rejected' ? 'Rejected' : 'Closed'}
-        </TooltipContent>
-      </Tooltip>
-    )}
 
     {/* Conflict badge — outside NodeShell so opacity-60 dimming doesn't apply */}
     {(thonk.conflicts ?? []).filter(c => !c.ignored).length > 0 && (
@@ -1439,9 +1010,9 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
           <button
             onClick={(e) => {
               e.stopPropagation()
-              window.dispatchEvent(new CustomEvent('thonk:navigate', { detail: { nodeId: thonk.id } }))
+              d.onUpdate(thonk.id, { conflicts: thonk.conflicts.map(c => ({ ...c, ignored: true })) })
             }}
-            className="nodrag cursor-pointer absolute -top-2.5 -right-2.5 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center z-10 transition-colors shadow-sm ring-1 ring-white/50"
+            className="nodrag cursor-pointer absolute -top-2.5 -right-2.5 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center z-10 transition-colors shadow-sm ring-2 ring-(--background)"
           >
             <span className="text-[10px] font-bold text-white leading-none">
               {(thonk.conflicts ?? []).filter(c => !c.ignored).length > 1 ? (thonk.conflicts ?? []).filter(c => !c.ignored).length : '!'}
@@ -1461,17 +1032,20 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 {c.description && (
                   <div className="text-sm text-muted-foreground mt-1.5">{c.description}</div>
                 )}
-                {c.hint && (
-                  <div className="mt-2">
-                    <div className="text-xs font-semibold uppercase tracking-wide opacity-40 mb-1">Suggestion</div>
-                    <div className="text-sm">{c.hint}</div>
-                  </div>
-                )}
+                <div className="text-xs text-red-400 mt-2">Click badge to dismiss</div>
               </div>
             )
           })}
         </TooltipContent>
       </Tooltip>
+    )}
+    {thonk.thumb && (
+      <div className={`absolute -bottom-3 -right-3 w-7 h-7 rounded-full flex items-center justify-center shadow-lg nodrag select-none ring-2 ring-(--background) ${thonk.thumb === 'up' ? 'bg-[#00ae60]' : 'bg-[#e95a32]'}`}>
+        {thonk.thumb === 'up'
+          ? <ThumbUpIcon className="w-4 h-4 text-white" />
+          : <ThumbDownIcon className="w-4 h-4 text-white" />
+        }
+      </div>
     )}
     </>
   )
@@ -1491,8 +1065,6 @@ export const ThonkNodeComponent = React.memo(
       pd.onUpdate === nd.onUpdate &&
       pd.onDelete === nd.onDelete &&
       pd.onVersionCore === nd.onVersionCore &&
-      pd.onOpenPanel === nd.onOpenPanel &&
-      pd.panelOpen === nd.panelOpen &&
       pd.hasAnswer === nd.hasAnswer &&
       pd.isMultiSelected === nd.isMultiSelected &&
       pd.highlighted === nd.highlighted &&
@@ -1587,75 +1159,6 @@ function TransformBtn({ currentType, onTransform }: { currentType: string; onTra
               {NODE_TYPE_LABELS[type].label}
             </DropdownMenuItem>
           ))}
-        </DropdownMenuContent>
-      </DropdownMenu>
-    </Tooltip>
-  )
-}
-
-function ResolutionDropdown({
-  closeBranchCount,
-  onClose,
-  onCloseBranch,
-  onApply,
-  onApplyBranch,
-  applyTargetName,
-  onNoteRejection,
-  noteRejectionTarget,
-  targetHidden,
-}: {
-  closeBranchCount: number
-  onClose: () => void
-  onCloseBranch: () => void
-  onApply?: () => void
-  onApplyBranch?: () => void
-  applyTargetName?: string
-  onNoteRejection?: () => void
-  noteRejectionTarget?: string
-  targetHidden?: boolean
-}) {
-  return (
-    <Tooltip>
-      <DropdownMenu>
-        <TooltipTrigger asChild>
-          <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
-              <CircleCheck className="w-5 h-5" />
-            </button>
-          </DropdownMenuTrigger>
-        </TooltipTrigger>
-        <TooltipContent side="top" sideOffset={10} className="text-sm">Resolve…</TooltipContent>
-        <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[200px]" onCloseAutoFocus={e => e.preventDefault()}>
-          {onApply && applyTargetName && (
-            <>
-              <DropdownMenuItem onClick={onApply}>
-                <CircleCheckBig className="w-4 h-4 text-[#00ae60]" />
-                Apply to {targetHidden && <span title="This node is hidden"><EyeOff className="w-4 h-4 inline text-gray-400 mr-0.5" /></span>}"{applyTargetName}"
-              </DropdownMenuItem>
-              <DropdownMenuItem onClick={onApplyBranch}>
-                <CheckCheck className="w-4 h-4 text-[#00ae60]" />
-                Apply branch to {targetHidden && <span title="This node is hidden"><EyeOff className="w-4 h-4 inline text-gray-400 mr-0.5" /></span>}"{applyTargetName}"
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
-          {onNoteRejection && (
-            <>
-              <DropdownMenuItem onClick={onNoteRejection}>
-                <Ban className="w-4 h-4 text-[#e95a32]" />
-                Reject in {targetHidden && <span title="This node is hidden"><EyeOff className="w-4 h-4 inline text-gray-400 mr-0.5" /></span>}"{noteRejectionTarget}"
-              </DropdownMenuItem>
-              <DropdownMenuSeparator />
-            </>
-          )}
-          <DropdownMenuItem onClick={onClose}>
-            <CircleSlash className="w-4 h-4 text-gray-400" />
-            Close
-          </DropdownMenuItem>
-          <DropdownMenuItem onClick={onCloseBranch}>
-            <CircleSlash className="w-4 h-4 text-gray-400" />
-            {closeBranchCount > 1 ? `Close branch (${closeBranchCount})` : 'Close branch'}
-          </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
     </Tooltip>

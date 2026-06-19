@@ -39,7 +39,6 @@ import type { ThonkNode, ThonkEdge, ThonkGraph, BoardMeta } from '@/store/types'
 import { v4 as uuidv4 } from 'uuid'
 import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
 import { NoteNodeComponent } from '@/components/nodes/NoteNode'
-import { EditorPanel } from '@/components/EditorPanel'
 import { CommandPalette } from '@/components/CommandPalette'
 import { TopBar } from '@/components/TopBar'
 import { WelcomeModal } from '@/components/WelcomeModal'
@@ -162,7 +161,6 @@ type GraphCallbacks = {
   onUpdate:      ThonkNodeData['onUpdate']
   onDelete:      ThonkNodeData['onDelete']
   onVersionCore: ThonkNodeData['onVersionCore']
-  onOpenPanel:   ThonkNodeData['onOpenPanel']
   onAutoEdit:    ThonkNodeData['onAutoEdit']
   onBatchStart:  ThonkNodeData['onBatchStart']
   onBatchEnd:    ThonkNodeData['onBatchEnd']
@@ -172,12 +170,10 @@ function toRFNode(
   n: ThonkNode,
   selected: boolean,
   autoEdit: boolean,
-  panelOpen: boolean,
   hasAnswer: boolean,
   graphRef: React.MutableRefObject<ThonkGraph>,
   cb: GraphCallbacks,
   aiConnected: boolean,
-  hiddenNodeIds: Set<string>,
   isMultiSelected: boolean,
   highlighted: boolean,
 ): Node {
@@ -186,14 +182,13 @@ function toRFNode(
     type: n.type === 'note' ? 'note' : 'thonk',
     position: n.position,
     selected,
-    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, aiConnected, hiddenNodeIds, isMultiSelected, highlighted, ...cb } as ThonkNodeData,
+    data: { thonk: n, graphRef, autoEdit, hasAnswer, aiConnected, isMultiSelected, highlighted, ...cb } as ThonkNodeData,
   }
 }
 
 function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
   const target   = nodes.find(n => n.id === e.target)
   const source   = nodes.find(n => n.id === e.source)
-  const resolved = target?.resolved || source?.resolved
   const stroke   = NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8'
   const aiDepth  = Math.max(target?.meta.aiDepth ?? 0, source?.meta.aiDepth ?? 0)
   const dash     = target?.meta.aiGenerated ? `5 ${3 + aiDepth * 4}` : undefined
@@ -203,7 +198,7 @@ function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
     target: e.target,
     sourceHandle: e.sourceHandle ?? undefined,
     targetHandle: e.targetHandle ?? undefined,
-    style: { stroke, strokeDasharray: dash, strokeWidth: 1.5, opacity: resolved ? 0.5 : 1 },
+    style: { stroke, strokeDasharray: dash, strokeWidth: 1.5 },
     className: `edge-rel-${e.relation}`,
     data: { relation: e.relation },
     interactionWidth: 20,
@@ -237,14 +232,11 @@ export default function App() {
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
-  const [panelNodeId, setPanelNodeId] = useState<string | null>(null)
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
-  const pendingPanelIdRef = useRef<string | null>(null)
   const [examplePreview, setExamplePreview] = useState<{ name: string } | null>(null)
   const examplePrevBoardIdRef = useRef<string | null>(null)
   const examplePrevViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null)
-  const [hideResolved, setHideResolved] = useState(() => localStorage.getItem('hideResolved') === 'true')
 
   const [pendingLink, setPendingLink] = useState<{ url: string; x: number; y: number } | null>(null)
   const [welcomed, setWelcomed] = useState(() => !!localStorage.getItem('thonk.welcomed'))
@@ -300,31 +292,6 @@ export default function App() {
   const isDraggingRef = useRef(false)
   const positionUpdateRef = useRef(false)
 
-  // Close panel if its node is deleted
-  useEffect(() => {
-    if (panelNodeId && !graph.nodes.find(n => n.id === panelNodeId)) {
-      setPanelNodeId(null)
-    }
-  }, [graph.nodes, panelNodeId])
-
-  // Clear unread on open; clear bodyBeforeMerge on the node we're leaving
-  const prevPanelNodeIdRef = useRef<string | null>(null)
-  useEffect(() => {
-    const prev = prevPanelNodeIdRef.current
-    prevPanelNodeIdRef.current = panelNodeId
-    if (prev && prev !== panelNodeId) updateNode(prev, { bodyBeforeMerge: undefined })
-    if (!panelNodeId) return
-    const node = graph.nodes.find(n => n.id === panelNodeId)
-    if (node?.unread) updateNode(panelNodeId, { unread: false })
-  }, [panelNodeId]) // eslint-disable-line react-hooks/exhaustive-deps
-
-  // Follow selection: if panel is already open, switch it to the newly selected node
-  useEffect(() => {
-    if (panelNodeId !== null && selectedIds.size === 1) {
-      setPanelNodeId([...selectedIds][0])
-    }
-  }, [selectedIds]) // eslint-disable-line react-hooks/exhaustive-deps
-
   // Clear autoEditId after one render cycle
   useEffect(() => {
     if (autoEditId) {
@@ -332,17 +299,6 @@ export default function App() {
       return () => clearTimeout(id)
     }
   }, [autoEditId])
-
-  // Open panel once the pending new-board Core node gets a title
-  useEffect(() => {
-    const id = pendingPanelIdRef.current
-    if (!id) return
-    const node = graph.nodes.find(n => n.id === id)
-    if (node?.title.trim()) {
-      pendingPanelIdRef.current = null
-      setPanelNodeId(id)
-    }
-  }, [graph.nodes])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -462,8 +418,6 @@ export default function App() {
     return () => window.removeEventListener('keydown', onKey)
   }, [undo, redo, handleCtrlSSave, examplePreview])
 
-  const openPanel = useCallback((id: string | null) => setPanelNodeId(id), [])
-
   // Update page title to reflect active board name (only once explicitly named)
   useEffect(() => {
     const board = boards.find(b => b.id === activeBoardId)
@@ -482,7 +436,6 @@ export default function App() {
       setTimeout(() => rfInstance.current?.fitView({ padding: 0.5, duration: 400 }), 50)
     }
     setSelectedIds(new Set())
-    setPanelNodeId(null)
   }, [activeBoardId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   const handleSwitchBoard = useCallback((id: string) => {
@@ -527,7 +480,6 @@ export default function App() {
     setActiveBoardIdState(id)
     switchToBoard(id, initialGraph)
     setAutoEditId(coreId)
-    pendingPanelIdRef.current = coreId
   }, [boards, switchToBoard])
 
   const handleDeleteBoard = useCallback((id: string) => {
@@ -562,9 +514,8 @@ export default function App() {
     return '#f5c44a'
   }, [])
 
-  const navigateToNode = useCallback((nodeId: string, opts?: { openPanel?: boolean; highlight?: boolean }) => {
-    const { openPanel = true, highlight = false } = opts ?? {}
-    if (openPanel) setPanelNodeId(nodeId)
+  const navigateToNode = useCallback((nodeId: string, opts?: { highlight?: boolean }) => {
+    const { highlight = false } = opts ?? {}
     setSelectedIds(new Set([nodeId]))
     const n = rfInstance.current?.getNode(nodeId)
     if (n) {
@@ -582,7 +533,7 @@ export default function App() {
   useEffect(() => {
     const handler = (e: Event) => {
       const { nodeId } = (e as CustomEvent<{ nodeId: string }>).detail
-      navigateToNode(nodeId, { openPanel: true, highlight: true })
+      navigateToNode(nodeId, { highlight: true })
     }
     window.addEventListener('thonk:navigate', handler)
     return () => window.removeEventListener('thonk:navigate', handler)
@@ -591,7 +542,7 @@ export default function App() {
   useEffect(() => {
     const handler = () => {
       const first = graph.nodes.find(n => (n.conflicts ?? []).some(c => !c.ignored))
-      if (first) navigateToNode(first.id, { openPanel: true, highlight: true })
+      if (first) navigateToNode(first.id, { highlight: true })
     }
     window.addEventListener('thonk:navigate-first-conflict', handler)
     return () => window.removeEventListener('thonk:navigate-first-conflict', handler)
@@ -644,12 +595,11 @@ export default function App() {
       onUpdate:      handleUpdateNode,
       onDelete:      deleteNode,
       onVersionCore: versionCore,
-      onOpenPanel:   openPanel,
       onAutoEdit:    setAutoEditId,
       onBatchStart,
       onBatchEnd,
     }),
-    [addNode, addGraphEdge, handleUpdateNode, deleteNode, versionCore, openPanel, onBatchStart, onBatchEnd],
+    [addNode, addGraphEdge, handleUpdateNode, deleteNode, versionCore, onBatchStart, onBatchEnd],
   )
 
   const conflictCount = useMemo(() => {
@@ -664,110 +614,15 @@ export default function App() {
     return pairs.size
   }, [graph.nodes])
 
-  // Compute which node IDs are hidden when hideResolved is active
-  const hiddenNodeIds = useMemo(() => {
-    if (!hideResolved) return new Set<string>()
-
-    // Build undirected adjacency map
-    const adj = new Map<string, string[]>(graph.nodes.map(n => [n.id, []]))
-    graph.edges.forEach(e => {
-      adj.get(e.source)?.push(e.target)
-      adj.get(e.target)?.push(e.source)
-    })
-
-    const hidden = new Set(graph.nodes.filter(n => n.resolved).map(n => n.id))
-
-    // Cascade: hide unresolved nodes whose every neighbor is already hidden
-    let changed = true
-    while (changed) {
-      changed = false
-      for (const node of graph.nodes) {
-        if (hidden.has(node.id)) continue
-        const neighbors = adj.get(node.id) ?? []
-        if (neighbors.length > 0 && neighbors.every(id => hidden.has(id))) {
-          hidden.add(node.id)
-          changed = true
-        }
-      }
-    }
-
-    return hidden
-  }, [graph.nodes, graph.edges, hideResolved])
-
-  // Compute nodes from store (used to sync into rfNodes when not dragging)
-  const visibleNodes = useMemo(
-    () => graph.nodes.filter(n => !hiddenNodeIds.has(n.id)),
-    [graph.nodes, hiddenNodeIds],
-  )
-  const visibleNodeIds = useMemo(() => new Set(visibleNodes.map(n => n.id)), [visibleNodes])
-
-  // Ghost connectors: grey dotted edges bridging visible nodes through hidden-node gaps
-  const ghostEdges = useMemo((): Edge[] => {
-    if (!hideResolved || hiddenNodeIds.size === 0) return []
-
-    const visited = new Set<string>()
-    const result: Edge[] = []
-
-    for (const hiddenId of hiddenNodeIds) {
-      if (visited.has(hiddenId)) continue
-
-      // BFS over connected component of hidden nodes
-      const component = new Set<string>()
-      const queue = [hiddenId]
-      const connectedVisible = new Set<string>()
-
-      while (queue.length) {
-        const curr = queue.shift()!
-        if (component.has(curr)) continue
-        component.add(curr)
-        visited.add(curr)
-
-        for (const edge of graph.edges) {
-          const neighbor = edge.source === curr ? edge.target
-                         : edge.target === curr ? edge.source
-                         : null
-          if (neighbor === null) continue
-          if (hiddenNodeIds.has(neighbor)) {
-            if (!component.has(neighbor)) queue.push(neighbor)
-          } else {
-            connectedVisible.add(neighbor)
-          }
-        }
-      }
-
-      // One ghost edge per pair of visible nodes linked through this hidden component
-      const visArr = [...connectedVisible]
-      for (let i = 0; i < visArr.length; i++) {
-        for (let j = i + 1; j < visArr.length; j++) {
-          const [src, tgt] = [visArr[i], visArr[j]]
-          result.push({
-            id: `ghost-${src}-${tgt}`,
-            source: src,
-            target: tgt,
-            style: { stroke: '#64748b', strokeWidth: 1.5, opacity: 0.3 },
-            label: component.size === 1 ? '1 hidden' : `${component.size} hidden`,
-            labelStyle: { fill: '#64748b', fontSize: 11 },
-            labelBgStyle: { fill: 'hsl(42, 15%, 92%)' },
-            labelBgPadding: [4, 2] as [number, number],
-            selectable: false,
-            focusable: false,
-            interactionWidth: 0,
-          })
-        }
-      }
-    }
-    return result
-  }, [hideResolved, hiddenNodeIds, graph.edges])
-
   const storeNodes = useMemo(() => {
     const isMultiSelected = selectedIds.size > 1
-    return visibleNodes.map(n => toRFNode(
-      n, selectedIds.has(n.id), n.id === autoEditId, n.id === panelNodeId,
+    return graph.nodes.map(n => toRFNode(
+      n, selectedIds.has(n.id), n.id === autoEditId,
       graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
-      graphRef, callbacks, aiConnected, hiddenNodeIds, isMultiSelected,
+      graphRef, callbacks, aiConnected, isMultiSelected,
       n.id === highlightedNodeId,
     ))
-  }, [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks, aiConnected, hiddenNodeIds, highlightedNodeId])
+  }, [graph.nodes, selectedIds, autoEditId, graph.edges, callbacks, aiConnected, highlightedNodeId])
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
   // Skip when the only change was a position persistence update — rfNodes already
@@ -784,15 +639,12 @@ export default function App() {
   useEffect(() => {
     setRfEdges(prev => {
       const prevById = new Map(prev.map(e => [e.id, e]))
-      const realEdges = graph.edges
-        .filter(e => visibleNodeIds.has(e.source) && visibleNodeIds.has(e.target))
-        .map(e => {
-          const existing = prevById.get(e.id)
-          return { ...toRFEdge(e, graph.nodes), selected: existing?.selected ?? false }
-        })
-      return [...realEdges, ...ghostEdges]
+      return graph.edges.map(e => {
+        const existing = prevById.get(e.id)
+        return { ...toRFEdge(e, graph.nodes), selected: existing?.selected ?? false }
+      })
     })
-  }, [graph.edges, visibleNodeIds, ghostEdges])
+  }, [graph.edges, graph.nodes])
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -877,7 +729,7 @@ export default function App() {
     }) ?? { x: 400, y: 300 }
   }, [])
 
-  const handleAddCore     = useCallback(() => { const n = addNode('core',     '', '', viewCenter());                    setAutoEditId(n.id); openPanel(n.id) }, [addNode, setAutoEditId, viewCenter, openPanel])
+  const handleAddCore     = useCallback(() => { const n = addNode('core', '', '', viewCenter()); setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddIdea     = useCallback(() => { const n = addNode('idea',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddProblem  = useCallback(() => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 }); setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddQuestion = useCallback(() => { const n = addNode('question', '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
@@ -934,7 +786,6 @@ export default function App() {
       switchToBoard('__example__', imported)
       setExamplePreview({ name })
       setSelectedIds(new Set())
-      setPanelNodeId(null)
       setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 50)
     } catch {
       showToast('Failed to load example', 'error')
@@ -1013,20 +864,7 @@ export default function App() {
     })
   }, [boards, activeBoardId])
 
-  const panelNode = useMemo(
-    () => panelNodeId ? graph.nodes.find(n => n.id === panelNodeId) : null,
-    [panelNodeId, graph.nodes],
-  )
-
-  const handleToggleHideResolved = useCallback(() => setHideResolved(v => {
-    const next = !v
-    localStorage.setItem('hideResolved', String(next))
-    return next
-  }), [])
   const handleToggleLegend = useCallback(() => setShowLegend(v => !v), [])
-
-  const handlePanelSave  = useCallback((id: string, patch: { title?: string; body?: string; summary?: string }) => updateNode(id, { ...patch, meta: { aiGenerated: false } }), [updateNode])
-  const handlePanelClose = useCallback(() => setPanelNodeId(null), [])
 
   return (
     <TooltipProvider delayDuration={0} disableHoverableContent>
@@ -1038,8 +876,6 @@ export default function App() {
           onAddProblem={handleAddProblem}
           onAddQuestion={handleAddQuestion}
           onAddNote={handleAddNote}
-          hideResolved={hideResolved}
-          onToggleHideResolved={handleToggleHideResolved}
           showLegend={showLegend}
           onToggleLegend={handleToggleLegend}
           onExport={handleCtrlSSave}
@@ -1131,26 +967,11 @@ export default function App() {
           </ReactFlow>
         </div>
 
-        {panelNode && (
-          <EditorPanel
-            node={panelNode}
-            nodes={graph.nodes}
-            onSave={handlePanelSave}
-            onClose={handlePanelClose}
-            onNavigateToNode={navigateToNode}
-            onIgnoreConflict={(conflictNodeId) => {
-              updateNode(panelNode.id, { conflicts: (panelNode.conflicts ?? []).map(c => c.nodeId === conflictNodeId ? { ...c, ignored: true } : c) })
-              const other = graph.nodes.find(n => n.id === conflictNodeId)
-              if (other) updateNode(conflictNodeId, { conflicts: (other.conflicts ?? []).map(c => c.nodeId === panelNode.id ? { ...c, ignored: true } : c) })
-            }}
-          />
-        )}
-
         <CommandPalette
           open={paletteOpen}
           onClose={() => setPaletteOpen(false)}
           nodes={graph.nodes}
-          onNavigate={id => navigateToNode(id, { openPanel: false, highlight: true })}
+          onNavigate={id => navigateToNode(id, { highlight: true })}
         />
 
         {!isMobile && (
@@ -1164,7 +985,7 @@ export default function App() {
 
         {showLegend && !isMobile && <div
           className="absolute bg-card border border-border rounded-lg px-4 py-3 text-sm shadow-sm pointer-events-none z-10"
-          style={{ top: 44 + 16, right: panelNode ? 576 + 16 : 16 }}
+          style={{ top: 44 + 16, right: 16 }}
         >
           <div className="font-semibold text-sm mb-2">Nodes</div>
           <div className="space-y-1.5 mb-4">

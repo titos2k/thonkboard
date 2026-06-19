@@ -254,6 +254,10 @@ const CRITIQUE_SCHEMA = {
 
 const NO_DISCLAIMER_BLOCK = `Never explain what you as an AI cannot do. Never disclaim your AI nature or capabilities. Treat yourself as a knowledgeable colleague — if a question touches something physical or outside a typical AI scope, give the best practical advice anyway.`
 
+const UNITS_BLOCK = /^en-US\b/.test(navigator.language)
+  ? 'Use imperial units (inches, feet, miles, °F) when giving measurements.'
+  : 'Use metric units (cm, m, km, °C) when giving measurements.'
+
 const CRITIQUE_SYSTEM = `You are a smart, skeptical person who just read this idea and immediately noticed something wrong.
 Identify the most direct, natural problems — the kind a thoughtful person would voice out loud right after reading.
 Short sentences. Plain language. No formal analysis, no jargon.
@@ -417,10 +421,9 @@ export async function pushThinking(contextPrompt: string): Promise<PushItem[]> {
 // ── Summary ───────────────────────────────────────────────────────────────────
 
 const SUMMARY_SYSTEM = `You are a precise summarizer.
-Write 1-2 sentences capturing the core insight of this idea/description.
-Be concrete and specific — no filler like "this section discusses" or "this explores".
-Do not restate or paraphrase the title — assume the reader can already see it.
-The summary will be shown as a preview on an ideation card.
+Write 2-4 short bullet points capturing the key points of this idea/description.
+Each bullet starts with "• " on its own line. Keep each bullet under 10 words.
+Be concrete — no filler, no restating the title.
 ${NO_DISCLAIMER_BLOCK}`
 
 export async function generateSummary(title: string, body: string): Promise<string> {
@@ -663,16 +666,16 @@ export interface ConflictItem {
 
 export async function detectConflicts(
   updatedTitle: string,
-  updatedBody: string,
+  _updatedBody: string,
   otherNodes: Array<{ id: string; type: string; title: string; body: string; summary: string }>,
 ): Promise<ConflictItem[]> {
   if (otherNodes.length === 0) return []
   const others = otherNodes
-    .map(n => `[${n.id}] [${n.type}] "${n.title}": ${n.summary || n.body.slice(0, 200)}`)
+    .map(n => `[${n.id}] [${n.type}] "${n.title}"`)
     .join('\n')
   const items = await callAI<ConflictItem[]>({
     systemInstruction: CONFLICT_SYSTEM,
-    userPrompt: `UPDATED NODE:\nTitle: ${updatedTitle}\nBody: ${updatedBody}\n\nOTHER NODES:\n${others}`,
+    userPrompt: `UPDATED NODE:\nTitle: ${updatedTitle}\n\nOTHER NODES:\n${others}`,
     responseSchema: CONFLICT_SCHEMA,
     maxTokens: 600,
   })
@@ -823,16 +826,17 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
 
 // ── AI-generated answer / solution (with search on Gemini) ────────────────────
 
-const ANSWER_SYSTEM = `You are a knowledgeable assistant in an ideation session.
-Answer with the fewest words that fully cover the question — one sentence if it's enough, two if genuinely needed, never more.
-Do not pad. Do not add context the question didn't ask for. Stop as soon as the answer is complete.
-No preamble, no filler, no sign-off.
+const ANSWER_SYSTEM = `You are a domain expert being asked a direct question by a colleague. Answer like one.
+Give the actual answer — specific, confident, concrete. Use real numbers, names, and facts when relevant.
+No hedging. No "it depends". No "may", "might", "could", "typically". If something is true, state it. If a number is the right answer, give it.
+One sentence if it covers it. Two if the answer genuinely has two distinct parts. Never more.
+No preamble. No sign-off. No restating the question.
 ${NO_DISCLAIMER_BLOCK}
-Never use bullet points, numbered lists, bold headers, or any markdown formatting. Plain prose only.
-Never structure your response as options, choices, or "what I can / what you need to do" breakdowns — a single direct answer only.
-Match the tone and voice of the existing content exactly — casual content gets a casual answer, formal content gets a formal one.
-If existing answers are already connected to this question (visible in context), provide a different angle — do not repeat what's already there.
-Weave any current facts or names you find naturally into your answer. Do not include URLs, links, footnotes, or source citations of any kind.`
+${UNITS_BLOCK}
+Plain prose only — no bullets, no lists, no bold, no markdown.
+Never give options or choices — commit to one answer.
+If existing answers are already on the board (visible in context), provide a different angle — do not repeat what's there.
+Do not include URLs, links, or citations.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string }> {
   const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt, maxTokens: 400 })
@@ -845,6 +849,7 @@ No analysis, no restating the problem, no preamble, no elaboration beyond the so
 Never use bullet points, numbered lists, bold headers, or any markdown formatting. Plain prose only.
 Never structure your response as options or choices — one direct proposal only.
 ${NO_DISCLAIMER_BLOCK}
+${UNITS_BLOCK}
 Match the tone of the content — casual stays casual.
 If existing solutions are already connected to this problem (visible in context), provide a different approach — do not repeat what's already there.
 Weave any current facts or names you find naturally into your answer. Do not include URLs, links, footnotes, or source citations of any kind.`
@@ -885,10 +890,11 @@ Your only job is to order the ideas so they flow and cut what's redundant. Add a
 The output should read like the person's own words put in order, not a paraphrase.
 No intro sentence, no outro, no meta-commentary. Just the ideas.
 No top-level title — return that separately.
-Separate distinct ideas with a blank line. Do not write one continuous block of text.`
+Format each idea as a markdown bullet point starting with "- ". One idea per bullet. Keep each bullet concise — one sentence max.
+Nodes tagged [ACCEPTED] were explicitly approved by the user — list them first and bold them with **text**.`
 
 export async function generateBrief(graph: ThonkGraph): Promise<{ title: string; markdown: string }> {
-  const sourceNodes = graph.nodes.filter(n => n.type === 'core' || n.type === 'idea')
+  const sourceNodes = graph.nodes.filter(n => n.type === 'core' || n.type === 'idea' || n.thumb === 'up')
 
   if (!hasActiveKey() || !sourceNodes.length) {
     const fallback = sourceNodes
@@ -898,7 +904,7 @@ export async function generateBrief(graph: ThonkGraph): Promise<{ title: string;
   }
 
   const nodeLines = sourceNodes
-    .map(n => `[${n.type}] "${n.title}"\n${n.body || ''}`)
+    .map(n => `[${n.type}]${n.thumb === 'up' ? '[ACCEPTED]' : ''} "${n.title}"\n${n.body || ''}`)
     .join('\n\n')
 
   const sourceIds = new Set(sourceNodes.map(n => n.id))

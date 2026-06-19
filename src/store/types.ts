@@ -19,14 +19,13 @@ export interface ThonkNode {
   id: string
   type: NodeType
   title: string
-  body: string        // full markdown description (edited in panel)
+  body: string        // notes/description (edited inline)
   summary: string     // AI-generated 1-2 sentence summary; empty until generated
   placeholder?: boolean     // true for template fill-in slots; AI skips these; cleared on first real edit
   placeholderText?: string  // custom hint shown when node is empty (overrides the type default)
-  resolved: boolean        // true when the Q&A pair has been closed (merged or closed)
+  resolved: boolean        // kept for backwards compat with saved boards; no longer set from UI
   resolvedAs?: 'merged' | 'closed' | 'rejected'
-  unread?: boolean         // true when AI has updated this node's body since the user last opened Details
-  bodyBeforeMerge?: string // snapshot of body before last AI merge; cleared when panel is opened
+  thumb?: 'up' | 'down'   // user reaction; 'up' = accepted, 'down' = rejected
   conflicts: ConflictEntry[]  // contradictions detected with other nodes after approval
   position: { x: number; y: number }
   meta: {

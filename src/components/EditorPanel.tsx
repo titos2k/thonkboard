@@ -293,29 +293,6 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
               </div>
             )}
           </div>
-        ) : node.bodyBeforeMerge ? (
-          <div className="h-full overflow-auto py-4 pl-6 pr-4 md:pr-6 diff-view">
-            {(() => {
-              const toUnits = (text: string) =>
-                text.split(/\n\n+/).flatMap(block => {
-                  const t = block.trim()
-                  if (!t) return []
-                  return /^[\-\*\+\d]/.test(t)
-                    ? t.split('\n').map(l => l.trim()).filter(Boolean)
-                    : [t]
-                })
-              const oldSet = new Set(toUnits(node.bodyBeforeMerge!))
-              return toUnits(body).map((unit, i) => {
-                const isNew = !oldSet.has(unit)
-                return (
-                  <div key={i} className="relative md-preview">
-                    {isNew && <span className="absolute -left-4 top-[0.45em] w-2 h-2 rounded-full bg-purple-500 dark:bg-purple-400 shrink-0" />}
-                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{unit}</ReactMarkdown>
-                  </div>
-                )
-              })
-            })()}
-          </div>
         ) : (
           <div className="h-full overflow-auto py-4 pl-4 pr-4 md:pr-6 md-preview">
             {body.trim()
