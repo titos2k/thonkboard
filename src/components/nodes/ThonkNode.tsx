@@ -69,7 +69,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
     meta?: Partial<TNode['meta']>,
   ) => TNode
   onAddEdge: (source: string, target: string, relation: import('@/store/types').EdgeRelation, sourceHandle?: string, targetHandle?: string) => void
-  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'unread' | 'conflicts' | 'type' | 'placeholder'>> & { meta?: Partial<TNode['meta']> }) => void
+  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'unread' | 'conflicts' | 'type' | 'placeholder' | 'bodyBeforeMerge'>> & { meta?: Partial<TNode['meta']> }) => void
   onDelete: (id: string) => void
   onVersionCore: (oldId: string, newTitle: string, newBody: string, pos: { x: number; y: number }) => TNode
   panelOpen: boolean
