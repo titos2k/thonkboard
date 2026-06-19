@@ -259,7 +259,7 @@ Identify the most direct, natural problems — the kind a thoughtful person woul
 Short sentences. Plain language. No formal analysis, no jargon.
 Think: "But that assumes...", "What happens when...", "This falls apart if...", "Who would actually..."
 Score each problem 0.0–1.0: 0.3 = minor concern, 0.6 = significant problem, 0.9 = near-fatal flaw. Return only problems that genuinely arise from this specific content. Return empty array if the idea holds up.
-Do NOT pad to reach a number. Do NOT invent problems. If one real problem exists, return one. If four exist, return four.
+Do NOT pad to reach a number. Do NOT invent problems. Return at most 3 problems — pick the most significant ones only.
 Each problem: 1–2 sentences max.
 ${NO_DISCLAIMER_BLOCK}`
 
@@ -365,6 +365,52 @@ export async function proposeIdeas(contextPrompt: string): Promise<IdeaItem[]> {
     userPrompt: contextPrompt,
     responseSchema: IDEA_SCHEMA,
     maxTokens: 1000,
+  })
+}
+
+// ── Push Thinking (mixed starter set) ────────────────────────────────────────
+
+export interface PushItem {
+  type: 'idea' | 'question' | 'problem'
+  title: string
+  body: string
+}
+
+const PUSH_SCHEMA = {
+  type: 'array',
+  items: {
+    type: 'object',
+    properties: {
+      type: { type: 'string', enum: ['idea', 'question', 'problem'] },
+      title: { type: 'string' },
+      body: { type: 'string' },
+    },
+    required: ['type', 'title', 'body'],
+  },
+}
+
+const PUSH_SYSTEM = `You are kicking off an ideation session on a thinking canvas.
+Generate 3-5 starter nodes that give someone immediate traction to explore the TARGET NODE from different angles.
+Mix the types — include ideas, questions, and at least one problem. No two nodes should approach the same angle or contradict each other.
+Think of these as distinct threads someone could pull on: each one opens a different door.
+Types:
+- "idea": a direction, variant, or approach worth exploring
+- "question": a key uncertainty or thing worth knowing first
+- "problem": a real obstacle, risk, or challenge to reckon with
+Rules:
+- Titles under 60 chars. Self-contained: no pronouns, no vague referents. A reader seeing only the title must understand it without context.
+- Bodies 1-2 sentences. Plain language, no jargon.
+- Do NOT duplicate anything already in the board skeleton.
+- Do NOT pad — only include nodes that genuinely earn their place.
+${TONE_BLOCK}
+${NO_DISCLAIMER_BLOCK}`
+
+export async function pushThinking(contextPrompt: string): Promise<PushItem[]> {
+  return callAI<PushItem[]>({
+    systemInstruction: PUSH_SYSTEM,
+    userPrompt: contextPrompt,
+    responseSchema: PUSH_SCHEMA,
+    maxTokens: 1200,
   })
 }
 

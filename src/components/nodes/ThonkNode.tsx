@@ -37,6 +37,7 @@ import {
   SpellCheck,
   EyeOff,
   Copy,
+  Sparkles,
 } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
@@ -46,7 +47,7 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
 import { assembleContext, contextToPrompt, assembleContextSemantic } from '@/ai/context'
-import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, hintConflictResolution, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
+import { critiqueNode, questionNode, proposeIdeas, pushThinking, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, hintConflictResolution, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
 import type { ThonkGraph, ConflictEntry } from '@/store/types'
 import { showToast } from '@/lib/toast'
 
@@ -633,6 +634,27 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       panToSpawned(ids)
     })
 
+  const handlePushThinking = () =>
+    withLoading(async () => {
+      const items = await pushThinking(ctx())
+      const dir = nodeSpawnDir(thonk.id, graphRef.current)
+      const { sourceHandle, targetHandle } = dirHandles(dir)
+      const anchors = spawnFan(livePos(), dir, items.length, nodeH())
+      const placed: { position: { x: number; y: number } }[] = []
+      const ids: string[] = []
+      const aiDepth = thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0
+      for (let i = 0; i < items.length; i++) {
+        const item = items[i]
+        const pos = findFreePos([...graphRef.current.nodes, ...placed], anchors[i], 0, 0, dir)
+        placed.push({ position: pos })
+        const relation = item.type === 'question' ? 'questions' : item.type === 'problem' ? 'argues' : 'spawns'
+        const node = d.onAddNode(item.type, item.title, item.body, pos, { aiGenerated: true, aiDepth })
+        d.onAddEdge(thonk.id, node.id, relation, sourceHandle, targetHandle)
+        ids.push(node.id)
+      }
+      panToSpawned(ids)
+    })
+
   const handleAskAndAnswer = () => {
     const question = askText.trim()
     if (!question) return
@@ -1133,6 +1155,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               {/* Section 1: AI */}
               {(thonk.type === 'core' || thonk.type === 'idea') && (
                 <>
+                  <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Push Thinking" onClick={handlePushThinking} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-purple-400" />
                   <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
                   <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
                   <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
@@ -1431,8 +1454,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             return (
               <div key={i} className={i > 0 ? 'mt-3 pt-3 border-t border-red-200 dark:border-red-800/40' : ''}>
                 <div className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-1">Conflicts with</div>
-                <div className="font-semibold text-sm flex items-center gap-1.5">
-                  {other && <span className="w-2 h-2 rounded-full shrink-0 inline-block" style={{ backgroundColor: { core: '#392946', idea: '#f5c44a', problem: '#e95a32', question: '#c8cac8', answer: '#00ae60', note: '#f7efd0' }[other.type] ?? '#888' }} />}
+                <div className="font-semibold text-sm flex items-start gap-1.5">
+                  {other && <span className="w-2 h-2 rounded-full shrink-0 inline-block mt-1.5" style={{ backgroundColor: { core: '#392946', idea: '#f5c44a', problem: '#e95a32', question: '#c8cac8', answer: '#00ae60', note: '#f7efd0' }[other.type] ?? '#888' }} />}
                   {other?.title ?? 'Unknown node'}
                 </div>
                 {c.description && (

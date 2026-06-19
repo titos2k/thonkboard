@@ -1112,7 +1112,7 @@ export default function App() {
                 aiConnected={aiConnected}
               />
             )}
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={darkMode ? 'hsl(240, 8%, 25%)' : undefined} />
+            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={darkMode ? 'hsl(240, 8%, 38%)' : undefined} />
             <Controls showZoom={false} showFitView={false} showInteractive={false} style={isMobile ? { bottom: 4, left: 4 } : { bottom: 24, left: 16 }}>
               <UndoButton onClick={undo} disabled={!canUndo} />
               <RedoButton onClick={redo} disabled={!canRedo} />
