@@ -1,5 +1,5 @@
 import { useRef, useState, memo, useEffect } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, EyeOff, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -47,6 +47,8 @@ interface TopBarProps {
   onToggleDarkMode: () => void
   onLoadExample: (raw: string, name: string) => void
   exampleMode?: boolean
+  onOpenPalette?: () => void
+  conflictCount?: number
 }
 
 function MiniToggle({ on }: { on: boolean }) {
@@ -79,7 +81,7 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? PROVIDER_LABELS[provider] : 'Set AI key'
 }
 
-function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode }: TopBarProps) {
+function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, hideResolved, onToggleHideResolved, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, conflictCount }: TopBarProps) {
   const toastExampleBlocked = () => window.dispatchEvent(new CustomEvent('thonk:toast', { detail: 'Keep or exit the example before loading a board' }))
   const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -321,7 +323,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
               <FolderOpen className="w-4 h-4 text-muted-foreground" /> File
             </DropdownMenuSubTrigger>
             <DropdownMenuSubContent className="max-w-[50vw]">
-              <DropdownMenuItem onClick={onExport} className="justify-between">
+              <DropdownMenuItem onClick={() => exampleMode ? toastExampleBlocked() : onExport()} className="justify-between">
                 <span className="flex items-center gap-2"><Save className="w-4 h-4 text-muted-foreground" /> Save board</span>
                 <Tooltip>
                   <TooltipTrigger asChild>
@@ -334,7 +336,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   )}
                 </Tooltip>
               </DropdownMenuItem>
-              <DropdownMenuItem onClick={onExportAs} disabled={!fsaSupported} className={!fsaSupported ? 'opacity-40' : undefined}>
+              <DropdownMenuItem onClick={() => exampleMode ? toastExampleBlocked() : onExportAs()} disabled={!fsaSupported} className={!fsaSupported ? 'opacity-40' : undefined}>
                 <Save className="w-4 h-4 text-muted-foreground" /> Save board as…
               </DropdownMenuItem>
               <DropdownMenuItem onClick={() => exampleMode ? toastExampleBlocked() : fileInputRef.current?.click()}>
@@ -361,7 +363,14 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                   <Star className="w-4 h-4 text-muted-foreground" /> Examples
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-w-[50vw]">
-                  {EXAMPLES.map(ex => (
+                  {EXAMPLES.filter(ex => !ex.isTemplate).map(ex => (
+                    <DropdownMenuItem key={ex.id} onClick={() => onLoadExample(ex.raw, ex.name)}>
+                      {ex.name}
+                    </DropdownMenuItem>
+                  ))}
+                  <DropdownMenuSeparator />
+                  <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Templates</div>
+                  {EXAMPLES.filter(ex => ex.isTemplate).map(ex => (
                     <DropdownMenuItem key={ex.id} onClick={() => onLoadExample(ex.raw, ex.name)}>
                       {ex.name}
                     </DropdownMenuItem>
@@ -374,6 +383,9 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
           {isMobile && (
             <>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onOpenPalette}>
+                <Search className="w-4 h-4 text-muted-foreground" /> Search nodes
+              </DropdownMenuItem>
               {committedProvider !== 'ollama' && (
                 <DropdownMenuItem onClick={toggleHighIQ} className="justify-between">
                   <span className="flex items-center gap-2">
@@ -503,6 +515,15 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
 
       {/* Right-side controls — hidden on mobile */}
       <div className={`ml-auto items-center gap-2 ${isMobile ? 'hidden' : 'flex'}`}>
+        {!!conflictCount && conflictCount > 0 && (
+          <button
+            onClick={() => window.dispatchEvent(new CustomEvent('thonk:navigate-first-conflict'))}
+            className="flex items-center px-2 py-1 rounded-md bg-red-500 text-white text-xs font-semibold hover:bg-red-600 dark:bg-red-600 dark:hover:bg-red-500 transition-colors select-none"
+          >
+            {conflictCount} Conflict{conflictCount !== 1 ? 's' : ''}
+          </button>
+        )}
+
         <Tooltip>
           <TooltipTrigger asChild>
             <button
@@ -601,6 +622,15 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             </Button>
           </TooltipTrigger>
           <TooltipContent side="bottom">Buy me a coffee</TooltipContent>
+        </Tooltip>
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={onOpenPalette}>
+              <Search className="w-5 h-5" />
+            </Button>
+          </TooltipTrigger>
+          <TooltipContent side="bottom">Search nodes (Cmd+K)</TooltipContent>
         </Tooltip>
 
         <Button size="sm" variant="ghost" className="h-9 w-9 p-0" onClick={() => setHelpOpen(true)}>

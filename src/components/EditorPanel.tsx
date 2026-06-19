@@ -15,6 +15,7 @@ interface EditorPanelProps {
   onSave: (id: string, patch: { title?: string; body?: string; summary?: string }) => void
   onClose: () => void
   onNavigateToNode?: (nodeId: string) => void
+  onIgnoreConflict?: (conflictNodeId: string) => void
 }
 
 const TYPE_BADGE: Record<string, string> = {
@@ -53,7 +54,7 @@ function insertLine(ta: HTMLTextAreaElement, prefix: string, setter: (v: string)
   })
 }
 
-export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNode }: EditorPanelProps) {
+export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNode, onIgnoreConflict }: EditorPanelProps) {
   const [title, setTitle] = useState(node.title)
   const [body, setBody] = useState(node.body)
   const [tab, setTab] = useState<'write' | 'preview'>(
@@ -62,6 +63,7 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
   const [dirty, setDirty] = useState(false)
   const [summarizing, setSummarizing] = useState(false)
   const [copied, setCopied] = useState(false)
+  const [copiedHintIdx, setCopiedHintIdx] = useState<number | null>(null)
   const taRef = useRef<HTMLTextAreaElement>(null)
   const didAutoFocus = useRef(false)
 
@@ -127,7 +129,7 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
   }
 
   return (
-    <div className="fixed right-0 top-0 bottom-0 w-full md:w-[560px] bg-card border-l border-border shadow-2xl z-20 flex flex-col">
+    <div className="fixed right-0 top-[53px] bottom-0 w-full md:w-[560px] bg-card border-l border-border shadow-2xl z-20 flex flex-col">
       {/* Header */}
       <div className="flex items-center gap-2 px-3 py-2 border-b border-border shrink-0">
         <span className={cn('text-sm font-semibold uppercase tracking-wider px-1.5 py-0.5 rounded shrink-0', TYPE_BADGE[node.type] ?? 'bg-muted text-muted-foreground')}>
@@ -151,6 +153,73 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
             ? <><Spinner className="w-5 h-5 mt-0.5 shrink-0 opacity-60" /><span>Generating summary…</span></>
             : <><Sparkles className="w-5 h-5 mt-0.5 shrink-0 text-primary/70" /><span>{node.summary}</span></>
           }
+        </div>
+      )}
+
+      {/* Conflict bar */}
+      {(node.conflicts ?? []).length > 0 && (
+        <div className="border-b border-red-200 bg-red-50 dark:border-red-800/30 dark:bg-red-950/40 shrink-0">
+          {(node.conflicts ?? []).map((c, i) => {
+            const other = nodes.find(n => n.id === c.nodeId)
+            return (
+              <div
+                key={i}
+                className={cn(
+                  'border-t first:border-t-0 border-red-200 dark:border-red-800/30 px-4 py-2.5',
+                  c.ignored && 'opacity-40',
+                )}
+              >
+                {/* Navigate row — div to avoid nesting buttons */}
+                <div
+                  className="flex items-start gap-2.5 -mx-4 -mt-2.5 px-4 pt-2.5 pb-1.5"
+                >
+                  <span className="w-5 h-5 bg-red-500 rounded-full flex items-center justify-center shrink-0 mt-0.5">
+                    <span className="text-[9px] font-bold text-white leading-none">!</span>
+                  </span>
+                  <span className="text-sm">
+                    <span className="text-xs font-semibold uppercase tracking-wide text-red-500 block mb-0.5">Conflicts with</span>
+                    <span className="font-medium text-foreground">{other?.title ?? 'Unknown node'}</span>
+                    {c.description && (
+                      <span className="block text-sm text-muted-foreground mt-1">{c.description}</span>
+                    )}
+                  </span>
+                </div>
+                <div className="ml-7 mt-1 mb-1 text-sm">
+                  {c.hint && (
+                    <span className="block text-muted-foreground mb-1.5">
+                      <span className="font-medium text-foreground">Suggestion: </span>{c.hint}
+                    </span>
+                  )}
+                  <div className="flex gap-1.5 mt-3">
+                    <button
+                      onClick={() => onNavigateToNode?.(c.nodeId)}
+                      className="flex items-center gap-1 px-3 py-1 rounded text-sm bg-card text-foreground border border-border hover:bg-muted transition-colors"
+                    >
+                      Go to Node
+                    </button>
+                    {c.hint && (
+                      <button
+                        onClick={() => {
+                          navigator.clipboard.writeText(c.hint!)
+                          setCopiedHintIdx(i)
+                          setTimeout(() => setCopiedHintIdx(null), 2000)
+                        }}
+                        className="flex items-center gap-1 px-3 py-1 rounded text-sm bg-card text-foreground border border-border hover:bg-muted transition-colors"
+                      >
+                        {copiedHintIdx === i ? 'Copied' : 'Copy Suggestion'}
+                      </button>
+                    )}
+                    <button
+                      onClick={() => onIgnoreConflict?.(c.nodeId)}
+                      className="flex items-center gap-1 px-3 py-1 rounded text-sm bg-card text-foreground border border-border hover:bg-muted transition-colors"
+                    >
+                      Ignore
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )
+          })}
         </div>
       )}
 
@@ -223,6 +292,29 @@ export function EditorPanel({ node, nodes = [], onSave, onClose, onNavigateToNod
                 </div>
               </div>
             )}
+          </div>
+        ) : node.bodyBeforeMerge ? (
+          <div className="h-full overflow-auto py-4 pl-6 pr-4 md:pr-6 diff-view">
+            {(() => {
+              const toUnits = (text: string) =>
+                text.split(/\n\n+/).flatMap(block => {
+                  const t = block.trim()
+                  if (!t) return []
+                  return /^[\-\*\+\d]/.test(t)
+                    ? t.split('\n').map(l => l.trim()).filter(Boolean)
+                    : [t]
+                })
+              const oldSet = new Set(toUnits(node.bodyBeforeMerge!))
+              return toUnits(body).map((unit, i) => {
+                const isNew = !oldSet.has(unit)
+                return (
+                  <div key={i} className="relative md-preview">
+                    {isNew && <span className="absolute -left-4 top-[0.45em] w-2 h-2 rounded-full bg-purple-500 dark:bg-purple-400 shrink-0" />}
+                    <ReactMarkdown remarkPlugins={[remarkGfm]}>{unit}</ReactMarkdown>
+                  </div>
+                )
+              })
+            })()}
           </div>
         ) : (
           <div className="h-full overflow-auto py-4 pl-4 pr-4 md:pr-6 md-preview">

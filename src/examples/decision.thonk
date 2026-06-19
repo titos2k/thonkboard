@@ -1,0 +1,81 @@
+{
+  "boardId": "template-decision-v1",
+  "boardName": "Decision Maker",
+  "nodes": [
+    {
+      "id": "dec-core",
+      "type": "core",
+      "title": "",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "Option A or Option B?",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 400, "y": 280 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dec-q-criteria",
+      "type": "question",
+      "title": "What matters most here?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 130, "y": 100 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dec-q-tradeoffs",
+      "type": "question",
+      "title": "What are the tradeoffs?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 430, "y": 80 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dec-q-success",
+      "type": "question",
+      "title": "What does success look like?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 700, "y": 100 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dec-q-risk",
+      "type": "question",
+      "title": "What could go wrong?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 700, "y": 270 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dec-q-constraints",
+      "type": "question",
+      "title": "What are the constraints?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 130, "y": 270 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    }
+  ],
+  "edges": [
+    { "id": "dec-e1", "source": "dec-core", "target": "dec-q-criteria",    "relation": "questions", "sourceHandle": "s-left",  "targetHandle": "t-right" },
+    { "id": "dec-e2", "source": "dec-core", "target": "dec-q-tradeoffs",   "relation": "questions", "sourceHandle": "s-top",   "targetHandle": "t-bottom" },
+    { "id": "dec-e3", "source": "dec-core", "target": "dec-q-success",     "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dec-e4", "source": "dec-core", "target": "dec-q-risk",        "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dec-e5", "source": "dec-core", "target": "dec-q-constraints", "relation": "questions", "sourceHandle": "s-left",  "targetHandle": "t-right" }
+  ]
+}

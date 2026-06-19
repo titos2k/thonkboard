@@ -1,0 +1,93 @@
+{
+  "boardId": "template-feature-brief-v1",
+  "boardName": "Feature Brief",
+  "nodes": [
+    {
+      "id": "fb-core",
+      "type": "core",
+      "title": "",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "Feature: name",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 450, "y": 260 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fb-who",
+      "type": "question",
+      "title": "Who is this for?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 90, "y": 245 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fb-problem",
+      "type": "question",
+      "title": "What problem does it solve?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 810, "y": 245 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fb-does",
+      "type": "question",
+      "title": "What does it do?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 160, "y": 75 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fb-doesnt",
+      "type": "question",
+      "title": "What does it NOT do?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 760, "y": 75 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fb-success",
+      "type": "question",
+      "title": "How do we know it worked?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 160, "y": 445 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fb-risks",
+      "type": "question",
+      "title": "What are the risks or unknowns?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 760, "y": 445 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    }
+  ],
+  "edges": [
+    { "id": "fb-e1", "source": "fb-core", "target": "fb-who",     "relation": "questions", "sourceHandle": "s-left",   "targetHandle": "t-right" },
+    { "id": "fb-e2", "source": "fb-core", "target": "fb-problem", "relation": "questions", "sourceHandle": "s-right",  "targetHandle": "t-left" },
+    { "id": "fb-e3", "source": "fb-core", "target": "fb-does",    "relation": "questions", "sourceHandle": "s-left",   "targetHandle": "t-right" },
+    { "id": "fb-e4", "source": "fb-core", "target": "fb-doesnt",  "relation": "questions", "sourceHandle": "s-right",  "targetHandle": "t-left" },
+    { "id": "fb-e5", "source": "fb-core", "target": "fb-success", "relation": "questions", "sourceHandle": "s-left",   "targetHandle": "t-right" },
+    { "id": "fb-e6", "source": "fb-core", "target": "fb-risks",   "relation": "questions", "sourceHandle": "s-right",  "targetHandle": "t-left" }
+  ]
+}

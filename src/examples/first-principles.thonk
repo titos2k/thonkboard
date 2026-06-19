@@ -1,0 +1,93 @@
+{
+  "boardId": "template-first-principles-v1",
+  "boardName": "First Principles",
+  "nodes": [
+    {
+      "id": "fp-core",
+      "type": "core",
+      "title": "",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "The belief / convention / assumption",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 430, "y": 270 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fp-q-know",
+      "type": "question",
+      "title": "What do we actually know for certain?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 80, "y": 120 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fp-q-assume",
+      "type": "question",
+      "title": "What are we assuming without proof?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 80, "y": 420 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fp-q-scratch",
+      "type": "question",
+      "title": "If we started from zero, what would we build?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 370, "y": 40 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fp-q-wrong",
+      "type": "question",
+      "title": "What changes if we are completely wrong?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 370, "y": 490 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fp-q-evidence",
+      "type": "question",
+      "title": "What evidence actually supports this?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 790, "y": 120 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fp-q-simplest",
+      "type": "question",
+      "title": "What is the simplest version of this?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 790, "y": 420 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    }
+  ],
+  "edges": [
+    { "id": "fp-e1", "source": "fp-core", "target": "fp-q-know",     "relation": "questions", "sourceHandle": "s-left",   "targetHandle": "t-right" },
+    { "id": "fp-e2", "source": "fp-core", "target": "fp-q-assume",   "relation": "questions", "sourceHandle": "s-left",   "targetHandle": "t-right" },
+    { "id": "fp-e3", "source": "fp-core", "target": "fp-q-scratch",  "relation": "questions", "sourceHandle": "s-top",    "targetHandle": "t-bottom" },
+    { "id": "fp-e4", "source": "fp-core", "target": "fp-q-wrong",    "relation": "questions", "sourceHandle": "s-bottom", "targetHandle": "t-top" },
+    { "id": "fp-e5", "source": "fp-core", "target": "fp-q-evidence", "relation": "questions", "sourceHandle": "s-right",  "targetHandle": "t-left" },
+    { "id": "fp-e6", "source": "fp-core", "target": "fp-q-simplest", "relation": "questions", "sourceHandle": "s-right",  "targetHandle": "t-left" }
+  ]
+}

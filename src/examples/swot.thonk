@@ -1,0 +1,165 @@
+{
+  "boardId": "template-swot-v1",
+  "boardName": "SWOT Analysis",
+  "nodes": [
+    {
+      "id": "swot-core",
+      "type": "core",
+      "title": "",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "Idea / Product / Decision",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 400, "y": 280 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-strengths",
+      "type": "idea",
+      "title": "Strengths",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 180, "y": 150 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-weaknesses",
+      "type": "idea",
+      "title": "Weaknesses",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 690, "y": 150 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-opportunities",
+      "type": "idea",
+      "title": "Opportunities",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 180, "y": 420 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-threats",
+      "type": "idea",
+      "title": "Threats",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 690, "y": 420 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-q-s1",
+      "type": "question",
+      "title": "What does it do well?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": -130, "y": 115 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-q-s2",
+      "type": "question",
+      "title": "What advantage does it have?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": -130, "y": 190 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-q-w1",
+      "type": "question",
+      "title": "Where does it fall short?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 970, "y": 115 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-q-w2",
+      "type": "question",
+      "title": "What's the biggest limitation?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 970, "y": 190 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-q-o1",
+      "type": "question",
+      "title": "What external conditions favor this?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": -130, "y": 385 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-q-o2",
+      "type": "question",
+      "title": "What trends can be leveraged?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": -130, "y": 460 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-q-t1",
+      "type": "question",
+      "title": "What could hurt this?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 970, "y": 385 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "swot-q-t2",
+      "type": "question",
+      "title": "What competitive risks exist?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 970, "y": 460 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    }
+  ],
+  "edges": [
+    { "id": "swot-e1", "source": "swot-core", "target": "swot-strengths",    "relation": "spawns", "sourceHandle": "s-left",  "targetHandle": "t-right" },
+    { "id": "swot-e2", "source": "swot-core", "target": "swot-weaknesses",   "relation": "spawns", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "swot-e3", "source": "swot-core", "target": "swot-opportunities","relation": "spawns", "sourceHandle": "s-left",  "targetHandle": "t-right" },
+    { "id": "swot-e4", "source": "swot-core", "target": "swot-threats",      "relation": "spawns", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "swot-e5", "source": "swot-strengths",    "target": "swot-q-s1", "relation": "questions", "sourceHandle": "s-left", "targetHandle": "t-right" },
+    { "id": "swot-e6", "source": "swot-strengths",    "target": "swot-q-s2", "relation": "questions", "sourceHandle": "s-left", "targetHandle": "t-right" },
+    { "id": "swot-e7", "source": "swot-weaknesses",   "target": "swot-q-w1", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "swot-e8", "source": "swot-weaknesses",   "target": "swot-q-w2", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "swot-e9",  "source": "swot-opportunities", "target": "swot-q-o1", "relation": "questions", "sourceHandle": "s-left", "targetHandle": "t-right" },
+    { "id": "swot-e10", "source": "swot-opportunities", "target": "swot-q-o2", "relation": "questions", "sourceHandle": "s-left", "targetHandle": "t-right" },
+    { "id": "swot-e11", "source": "swot-threats",     "target": "swot-q-t1", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "swot-e12", "source": "swot-threats",     "target": "swot-q-t2", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" }
+  ]
+}

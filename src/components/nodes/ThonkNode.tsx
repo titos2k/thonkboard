@@ -36,6 +36,7 @@ import {
   MoreHorizontal,
   SpellCheck,
   EyeOff,
+  Copy,
 } from 'lucide-react'
 import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
@@ -45,13 +46,16 @@ import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSepara
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
 import { assembleContext, contextToPrompt, assembleContextSemantic } from '@/ai/context'
-import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, resolveConflict, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
-import type { ConflictOption } from '@/ai/gemini'
+import { critiqueNode, questionNode, proposeIdeas, integrateQA, integrateAllQA, integrateRejection, integrateIdea, rejectIdea, acknowledgeProblem, detectConflicts, hintConflictResolution, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
 import type { ThonkGraph, ConflictEntry } from '@/store/types'
-import { MergeConflictModal } from './MergeConflictModal'
 import { showToast } from '@/lib/toast'
 
 const MAX_AI_DEPTH = 3
+const CONFLICT_COOLDOWN_MS = 30_000
+
+function mergeConflicts(existing: ConflictEntry[], entry: ConflictEntry): ConflictEntry[] {
+  return [...existing.filter(e => e.nodeId !== entry.nodeId), entry]
+}
 
 export interface ThonkNodeData extends Record<string, unknown> {
   thonk: TNode
@@ -65,7 +69,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
     meta?: Partial<TNode['meta']>,
   ) => TNode
   onAddEdge: (source: string, target: string, relation: import('@/store/types').EdgeRelation, sourceHandle?: string, targetHandle?: string) => void
-  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'unread' | 'conflicts' | 'type'>> & { meta?: Partial<TNode['meta']> }) => void
+  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'unread' | 'conflicts' | 'type' | 'placeholder'>> & { meta?: Partial<TNode['meta']> }) => void
   onDelete: (id: string) => void
   onVersionCore: (oldId: string, newTitle: string, newBody: string, pos: { x: number; y: number }) => TNode
   panelOpen: boolean
@@ -77,6 +81,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
   onBatchStart: () => void
   onBatchEnd: () => void
   isMultiSelected?: boolean
+  highlighted?: boolean
 }
 
 type ActionState = 'idle' | 'loading' | 'searching' | 'answering' | 'correcting' | 'asking'
@@ -345,10 +350,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const [editing, setEditing] = useState(() => !!d.autoEdit)
   const [editTitle, setEditTitle] = useState(thonk.title)
   const [actionState, setActionState] = useState<ActionState>('idle')
-  const [mergeConflict, setMergeConflict] = useState<{
-    options: [ConflictOption, ConflictOption]
-    onApply: (body: string) => void
-  } | null>(null)
   const activeTouchId = useSyncExternalStore(touchStore.subscribe, touchStore.getSnapshot)
 
   // Once React Flow propagates selection for THIS node, release the touch lock.
@@ -375,6 +376,37 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     window.addEventListener('pointerdown', handler)
     return () => window.removeEventListener('pointerdown', handler)
   }, [actionState, thonk.id])
+
+  // Bidirectional conflict attribution: writes conflict entries on BOTH the updated node and
+  // each node it conflicts with, fixes array-overwrite bug, and fetches resolution hints async.
+  const applyConflicts = useCallback((
+    updatedId: string,
+    updatedTitle: string,
+    cs: import('@/ai/gemini').ConflictItem[],
+    candidates: TNode[],
+  ) => {
+    const graph = graphRef.current
+    const valid = cs.filter(c => candidates.some(n => n.id === c.nodeId))
+    if (valid.length === 0) return
+    let updatedNodeConflicts = [...(graph.nodes.find(n => n.id === updatedId)?.conflicts ?? [])]
+    for (const c of valid) {
+      const otherNode = graph.nodes.find(n => n.id === c.nodeId)
+      if (!otherNode) continue
+      d.onUpdate(c.nodeId, { conflicts: mergeConflicts(otherNode.conflicts ?? [], { nodeId: updatedId, description: c.description }) })
+      updatedNodeConflicts = mergeConflicts(updatedNodeConflicts, { nodeId: c.nodeId, description: c.description })
+      hintConflictResolution(updatedTitle, otherNode.title, c.description)
+        .then(hint => {
+          const patch = (targetId: string, partnerId: string) => {
+            const node = graphRef.current.nodes.find(n => n.id === targetId)
+            if (!node) return
+            d.onUpdate(targetId, { conflicts: node.conflicts.map(e => e.nodeId === partnerId ? { ...e, hint } : e) })
+          }
+          patch(c.nodeId, updatedId)
+          patch(updatedId, c.nodeId)
+        }).catch(() => {})
+    }
+    d.onUpdate(updatedId, { conflicts: updatedNodeConflicts })
+  }, [d, graphRef])
 
   const titleInputRef = useRef<HTMLTextAreaElement>(null)
   const answerRef = useRef<HTMLTextAreaElement>(null)
@@ -489,7 +521,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const newTitle = editTitle.trim() || thonk.title
       // For question nodes body mirrors the title (no sidebar to edit it separately)
       const bodyPatch = thonk.type === 'question' ? { body: newTitle } : {}
-      d.onUpdate(thonk.id, { title: newTitle, ...bodyPatch, meta: { aiGenerated: false, yesNo: false } })
+      d.onUpdate(thonk.id, { title: newTitle, ...bodyPatch, placeholder: false, meta: { aiGenerated: false, yesNo: false } })
       if (
         (thonk.type === 'core' || thonk.type === 'idea' || thonk.type === 'problem') &&
         newTitle
@@ -500,21 +532,18 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
           (n.resolvedAs === 'merged' || !n.resolved) &&
           (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
         )
-        if (candidates.length > 0) {
+        const checkedAt = graph.nodes.find(n => n.id === thonk.id)?.meta.conflictCheckedAt ?? 0
+        if (candidates.length > 0 && Date.now() - checkedAt >= CONFLICT_COOLDOWN_MS) {
           detectConflicts(newTitle, thonk.body, candidates.map(n => ({
             id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-          }))).then(conflicts => {
-            for (const c of conflicts)
-              if (candidates.some(n => n.id === c.nodeId))
-                d.onUpdate(c.nodeId, { conflicts: [{ nodeId: thonk.id, description: c.description }] })
-          }).catch(() => {})
+          }))).then(cs => applyConflicts(thonk.id, newTitle, cs, candidates)).catch(() => {})
         }
       }
     } else if (thonk.meta.aiGenerated || thonk.meta.yesNo) {
       d.onUpdate(thonk.id, { meta: { aiGenerated: false, yesNo: false } })
     }
     setEditing(false)
-  }, [editTitle, thonk.title, thonk.type, thonk.body, thonk.id, thonk.meta.aiGenerated, thonk.meta.yesNo, d, graphRef])
+  }, [editTitle, thonk.title, thonk.type, thonk.body, thonk.id, thonk.meta.aiGenerated, thonk.meta.yesNo, d, graphRef, applyConflicts])
 
   const enterEdit = () => {
     // flushSync renders the textarea into the DOM synchronously so focus() is
@@ -730,53 +759,15 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       if (syncTarget) {
         const ctx = assembleContext(graphRef.current, syncTarget.id)
         if (!ctx) return
-
-        // Pre-check: does this answer conflict with the target's current content?
-        const pre = await detectConflicts(qNode.title, thonk.title, [{
-          id: syncTarget.id, type: syncTarget.type, title: syncTarget.title, body: syncTarget.body, summary: syncTarget.summary,
-        }])
-        const targetConflict = pre.find(c => c.nodeId === syncTarget.id)
-        if (targetConflict) {
-          const result = await resolveConflict(contextToPrompt(ctx), qNode.title, thonk.title)
-          const opts = result.options as [ConflictOption, ConflictOption]
-          const snapQNode = qNode
-          const snapTarget = syncTarget
-          setMergeConflict({
-            options: opts,
-            onApply: (body) => {
-              const graph = graphRef.current
-              d.onUpdate(snapTarget.id, { body, conflicts: [], unread: true })
-              d.onUpdate(snapQNode.id, { resolved: true, resolvedAs: 'merged' })
-              d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-              const cands = graph.nodes.filter(n =>
-                n.id !== snapTarget.id && n.id !== snapQNode.id && n.id !== thonk.id &&
-                (n.resolvedAs === 'merged' || !n.resolved) && (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-              )
-              detectConflicts(snapTarget.title, body, cands.map(n => ({
-                id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-              }))).then(cs => {
-                for (const c of cs)
-                  if (cands.some(n => n.id === c.nodeId))
-                    d.onUpdate(c.nodeId, { conflicts: [{ nodeId: snapTarget.id, description: c.description }] })
-              }).catch(() => {})
-            },
-          })
-          return
-        }
-
         const res = await integrateQA(contextToPrompt(ctx), qNode.title, thonk.title)
-        d.onUpdate(syncTarget.id, { body: res.body, conflicts: [], unread: true })
+        d.onUpdate(syncTarget.id, { body: res.body, conflicts: [], unread: true, bodyBeforeMerge: syncTarget.body, meta: { conflictCheckedAt: undefined } })
         const candidates = graphRef.current.nodes.filter(n =>
           n.id !== syncTarget.id && n.id !== qNode.id && n.id !== thonk.id &&
           (n.resolvedAs === 'merged' || !n.resolved) && (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
         )
         detectConflicts(syncTarget.title, res.body, candidates.map(n => ({
           id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-        }))).then(conflicts => {
-          for (const c of conflicts)
-            if (candidates.some(n => n.id === c.nodeId))
-              d.onUpdate(c.nodeId, { conflicts: [{ nodeId: syncTarget.id, description: c.description }] })
-        }).catch(() => {})
+        }))).then(cs => applyConflicts(syncTarget.id, syncTarget.title, cs, candidates)).catch(() => {})
       }
 
       d.onUpdate(qNode.id,  { resolved: true, resolvedAs: 'merged' })
@@ -799,7 +790,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
           const ctx = assembleContext(graphRef.current, syncTarget.id)
           if (ctx) {
             const res = await integrateQA(contextToPrompt(ctx), qNode.title, thonk.title)
-            d.onUpdate(syncTarget.id, { body: res.body, conflicts: [], unread: true })
+            d.onUpdate(syncTarget.id, { body: res.body, conflicts: [], unread: true, bodyBeforeMerge: syncTarget.body })
           }
         }
         d.onUpdate(qNode.id, { resolved: true, resolvedAs: 'merged' })
@@ -809,56 +800,16 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const c = assembleContext(graphRef.current, anchor.id)
       if (!c) return
 
-      // Pre-check: does the combined Q&A content conflict with the anchor?
-      const combinedBody = pairs.map(p => `Q: ${p.qNode.title}\nA: ${p.aNode.title}`).join('\n\n')
-      const pre = await detectConflicts(
-        pairs.map(p => p.qNode.title).join(' / '),
-        combinedBody,
-        [{ id: anchor.id, type: anchor.type, title: anchor.title, body: anchor.body, summary: anchor.summary }],
-      )
-      const anchorConflict = pre.find(cf => cf.nodeId === anchor.id)
-      if (anchorConflict) {
-        const result = await resolveConflict(contextToPrompt(c), pairs.map(p => p.qNode.title).join(', '), combinedBody)
-        const opts = result.options as [ConflictOption, ConflictOption]
-        const snapAnchor = anchor
-        const snapPairs = pairs
-        setMergeConflict({
-          options: opts,
-          onApply: (body) => {
-            const graph = graphRef.current
-            d.onUpdate(snapAnchor.id, { body, conflicts: [], unread: true })
-            for (const { qNode: q, aNode: a } of snapPairs) {
-              d.onUpdate(q.id, { resolved: true, resolvedAs: 'merged' })
-              d.onUpdate(a.id, { resolved: true, resolvedAs: 'merged' })
-            }
-            const pairIds = new Set(snapPairs.flatMap(p => [p.qNode.id, p.aNode.id]))
-            const cands = graph.nodes.filter(n =>
-              n.id !== snapAnchor.id && !pairIds.has(n.id) &&
-              (n.resolvedAs === 'merged' || !n.resolved) && (n.type === 'core' || n.type === 'idea' || n.type === 'problem')
-            )
-            detectConflicts(snapAnchor.title, body, cands.map(n => ({
-              id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-            }))).then(cs => {
-              for (const cf of cs)
-                if (cands.some(n => n.id === cf.nodeId))
-                  d.onUpdate(cf.nodeId, { conflicts: [{ nodeId: snapAnchor.id, description: cf.description }] })
-            }).catch(() => {})
-          },
-        })
-        return
-      }
-
       const { body } = await integrateAllQA(
         contextToPrompt(c),
         pairs.map(p => ({ question: p.qNode.title, answer: p.aNode.title })),
       )
-      d.onUpdate(anchor.id, { body, conflicts: [], unread: true })
+      d.onUpdate(anchor.id, { body, conflicts: [], unread: true, bodyBeforeMerge: anchor.body, meta: { conflictCheckedAt: undefined } })
       for (const { qNode: q, aNode: a } of pairs) {
         d.onUpdate(q.id, { resolved: true, resolvedAs: 'merged' })
         d.onUpdate(a.id, { resolved: true, resolvedAs: 'merged' })
       }
 
-      // Background conflict detection
       const allPairIds = new Set(pairs.flatMap(p => [p.qNode.id, p.aNode.id]))
       const candidates = graphRef.current.nodes.filter(n =>
         n.id !== anchor.id && !allPairIds.has(n.id) &&
@@ -867,12 +818,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       )
       detectConflicts(anchor.title, body, candidates.map(n => ({
         id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-      }))).then(conflicts => {
-        for (const cf of conflicts) {
-          if (candidates.some(n => n.id === cf.nodeId))
-            d.onUpdate(cf.nodeId, { conflicts: [{ nodeId: anchor.id, description: cf.description }] })
-        }
-      }).catch(() => {})
+      }))).then(cs => applyConflicts(anchor.id, anchor.title, cs, candidates)).catch(() => {})
     })
 
   const handleReopen = useCallback(() => {
@@ -936,9 +882,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await acknowledgeProblem(contextToPrompt(ctx), thonk.title, thonk.body)
-      d.onUpdate(parentNode.id, { body: res.body, unread: true })
+      d.onUpdate(parentNode.id, { body: res.body, unread: true, bodyBeforeMerge: parentNode.body, meta: { conflictCheckedAt: undefined } })
       d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
-      // Background conflict detection — acknowledging a problem can create new contradictions
       const candidates = graph.nodes.filter(n =>
         n.id !== parentNode.id && n.id !== thonk.id &&
         (n.resolvedAs === 'merged' || !n.resolved) &&
@@ -946,11 +891,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       )
       detectConflicts(parentNode.title, res.body, candidates.map(n => ({
         id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-      }))).then(conflicts => {
-        for (const c of conflicts)
-          if (candidates.some(n => n.id === c.nodeId))
-            d.onUpdate(c.nodeId, { conflicts: [{ nodeId: parentNode.id, description: c.description }] })
-      }).catch(() => {})
+      }))).then(cs => applyConflicts(parentNode.id, parentNode.title, cs, candidates)).catch(() => {})
     })
 
   const handleApplyProblemBranch = () =>
@@ -961,7 +902,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await acknowledgeProblem(contextToPrompt(ctx), thonk.title, thonk.body)
-      d.onUpdate(parentNode.id, { body: res.body, unread: true })
+      d.onUpdate(parentNode.id, { body: res.body, unread: true, bodyBeforeMerge: parentNode.body, meta: { conflictCheckedAt: undefined } })
       d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
       graph.edges
         .filter(e => e.source === thonk.id && e.relation === 'fixes')
@@ -971,7 +912,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             d.onUpdate(childId, { resolved: true, resolvedAs: 'merged' })
           )
         })
-      // Background conflict detection
       const candidates = graph.nodes.filter(n =>
         n.id !== parentNode.id && n.id !== thonk.id &&
         (n.resolvedAs === 'merged' || !n.resolved) &&
@@ -979,11 +919,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       )
       detectConflicts(parentNode.title, res.body, candidates.map(n => ({
         id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-      }))).then(conflicts => {
-        for (const c of conflicts)
-          if (candidates.some(n => n.id === c.nodeId))
-            d.onUpdate(c.nodeId, { conflicts: [{ nodeId: parentNode.id, description: c.description }] })
-      }).catch(() => {})
+      }))).then(cs => applyConflicts(parentNode.id, parentNode.title, cs, candidates)).catch(() => {})
     })
 
   const handleApplyIdea = () =>
@@ -991,21 +927,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const graph = graphRef.current
       const parentNode = findSpawnParent(graph, thonk.id)
       if (!parentNode) return
-      // Pre-check: does this idea conflict with the target's current content?
-      const pre = await detectConflicts(thonk.title, thonk.body || thonk.title, [{
-        id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
-      }])
-      const parentConflict = pre.find(c => c.nodeId === parentNode.id)
-      if (parentConflict) {
-        // Generate resolution options and show modal
-        const ctx = assembleContext(graph, parentNode.id)
-        if (!ctx) return
-        const result = await resolveConflict(contextToPrompt(ctx), thonk.title, thonk.body)
-        const opts = result.options as [ConflictOption, ConflictOption]
-        setMergeConflict({ options: opts, onApply: (body) => applyIdeaResult(parentNode, body, false) })
-        return
-      }
-      // No conflict — apply directly
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await integrateIdea(contextToPrompt(ctx), thonk.title, thonk.body)
@@ -1017,18 +938,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const graph = graphRef.current
       const parentNode = findSpawnParent(graph, thonk.id)
       if (!parentNode) return
-      const pre = await detectConflicts(thonk.title, thonk.body || thonk.title, [{
-        id: parentNode.id, type: parentNode.type, title: parentNode.title, body: parentNode.body, summary: parentNode.summary,
-      }])
-      const parentConflict = pre.find(c => c.nodeId === parentNode.id)
-      if (parentConflict) {
-        const ctx = assembleContext(graph, parentNode.id)
-        if (!ctx) return
-        const result = await resolveConflict(contextToPrompt(ctx), thonk.title, thonk.body)
-        const opts = result.options as [ConflictOption, ConflictOption]
-        setMergeConflict({ options: opts, onApply: (body) => applyIdeaResult(parentNode, body, true) })
-        return
-      }
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await integrateIdea(contextToPrompt(ctx), thonk.title, thonk.body)
@@ -1037,7 +946,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const applyIdeaResult = useCallback((parentNode: TNode, body: string, isBranch: boolean) => {
     const graph = graphRef.current
-    d.onUpdate(parentNode.id, { body, unread: true })
+    d.onUpdate(parentNode.id, { body, unread: true, bodyBeforeMerge: parentNode.body, meta: { conflictCheckedAt: undefined } })
     d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'merged' })
     if (isBranch) {
       collectQADescendants(graph, thonk.id).forEach(id => d.onUpdate(id, { resolved: true, resolvedAs: 'merged' }))
@@ -1049,12 +958,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     )
     detectConflicts(parentNode.title, body, candidates.map(n => ({
       id: n.id, type: n.type, title: n.title, body: n.body, summary: n.summary,
-    }))).then(conflicts => {
-      for (const c of conflicts)
-        if (candidates.some(n => n.id === c.nodeId))
-          d.onUpdate(c.nodeId, { conflicts: [{ nodeId: parentNode.id, description: c.description }] })
-    }).catch(() => {})
-  }, [thonk.id, d, graphRef])
+    }))).then(cs => applyConflicts(parentNode.id, parentNode.title, cs, candidates)).catch(() => {})
+  }, [thonk.id, d, graphRef, applyConflicts])
 
   const handleCloseIdeaBranch = useCallback(() => {
     const graph = graphRef.current
@@ -1072,7 +977,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const ctx = assembleContext(graph, parentNode.id)
       if (!ctx) return
       const res = await rejectIdea(contextToPrompt(ctx), thonk.title, thonk.body)
-      d.onUpdate(parentNode.id, { body: res.body, unread: true })
+      d.onUpdate(parentNode.id, { body: res.body, unread: true, bodyBeforeMerge: parentNode.body })
       d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'rejected' })
     })
 
@@ -1087,6 +992,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       }
     })
 
+  const handleCopyText = () => {
+    const parts = [thonk.title, thonk.body].map(s => s?.trim()).filter(Boolean)
+    navigator.clipboard.writeText(parts.join('\n\n'))
+    showToast('Copied', 'success')
+  }
+
   const handleNoteRejection = () =>
     withLoading(async () => {
       const qEdge = graphRef.current.edges.find(e => e.target === thonk.id && (e.relation === 'answers' || e.relation === 'fixes'))
@@ -1099,7 +1010,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const ctx = assembleContext(graphRef.current, noteTarget.id)
       if (!ctx) return
       const res = await integrateRejection(contextToPrompt(ctx), qNode.title, thonk.title)
-      d.onUpdate(noteTarget.id, { body: res.body, unread: true })
+      d.onUpdate(noteTarget.id, { body: res.body, unread: true, bodyBeforeMerge: noteTarget.body })
       d.onUpdate(qNode.id,  { resolved: true, resolvedAs: 'rejected' })
       d.onUpdate(thonk.id, { resolved: true, resolvedAs: 'rejected' })
     })
@@ -1163,9 +1074,9 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   return (
     <>
-    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
+    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
-      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !d.isMultiSelected && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !editing} position={Position.Top} offset={8}>
+      <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !d.isMultiSelected && !thonk.placeholder && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !editing} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
 
           {thonk.resolved ? (
@@ -1185,7 +1096,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               )}
               {showEdit && thonk.type !== 'problem' && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
               {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} dot={!!thonk.unread && !d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
-              <NodeMoreMenu onFixGrammar={handleFixGrammar} hasContent={hasContent} />
+              <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} />
               <Sep />
               <ToolBtn icon={<RotateCcw className="w-5 h-5" />} label="Reopen" onClick={handleReopen} />
               <Sep />
@@ -1252,7 +1163,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               {showExpandDetail && <ToolBtn icon={<FileText className="w-5 h-5" />} label={d.panelOpen ? 'Close Details' : 'Open Details'} active={d.panelOpen} dot={!!thonk.unread && !d.panelOpen} onClick={() => d.onOpenPanel(d.panelOpen ? null : thonk.id)} />}
               <AddDropdown nodeType={thonk.type} onAddQuestion={handleAddQuestion} onAddIdea={handleAddIdea} onAddProblem={handleAddProblem} />
               <TransformBtn currentType={thonk.type} onTransform={handleTransform} />
-              <NodeMoreMenu onFixGrammar={handleFixGrammar} hasContent={hasContent} />
+              <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} />
               {thonk.type === 'answer' && (
                 <>
                   <Sep />
@@ -1344,11 +1255,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 if (e.key === 'Escape') { setEditTitle(thonk.title); setEditing(false) }
               }}
               placeholder={
+                thonk.placeholderText ?? (
                 thonk.type === 'core'     ? 'Your core idea, problem, or topic…' :
                 thonk.type === 'idea'     ? 'Describe the idea…' :
                 thonk.type === 'problem'  ? 'What\'s the problem?' :
                 thonk.type === 'question' ? 'Ask a question…' :
-                                            'Write your answer…'
+                                            'Write your answer…')
               }
               className={cn(
                 'nodrag w-full bg-transparent outline-none border-none font-medium text-sm leading-snug text-inherit p-0 m-0 resize-none overflow-hidden break-words',
@@ -1364,7 +1276,10 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               )}
               onDoubleClick={thonk.type === 'question' ? (thonk.title.trim() ? () => setActionState('answering') : enterEdit) : enterEdit}
             >
-              {thonk.title ? linkifyText(thonk.title) : <span className="opacity-40">{thonk.type === 'core' ? 'Your core idea, problem, or topic…' : 'Untitled'}</span>}
+              {thonk.title
+                ? linkifyText(thonk.title)
+                : <span className="opacity-40">{thonk.placeholderText ?? (thonk.type === 'core' ? 'Your core idea, problem, or topic…' : 'Untitled')}</span>
+              }
             </p>
           )}
 
@@ -1495,42 +1410,45 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     )}
 
     {/* Conflict badge — outside NodeShell so opacity-60 dimming doesn't apply */}
-    {(thonk.conflicts ?? []).length > 0 && (thonk.type === 'core' || thonk.type === 'idea' || thonk.type === 'answer') && (
+    {(thonk.conflicts ?? []).filter(c => !c.ignored).length > 0 && (
       <Tooltip>
         <TooltipTrigger asChild>
           <button
-            onClick={() => d.onUpdate(thonk.id, { conflicts: [] })}
-            className="nodrag absolute -top-2.5 -right-2.5 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center z-10 transition-colors shadow-sm ring-1 ring-white/50"
+            onClick={(e) => {
+              e.stopPropagation()
+              window.dispatchEvent(new CustomEvent('thonk:navigate', { detail: { nodeId: thonk.id } }))
+            }}
+            className="nodrag cursor-pointer absolute -top-2.5 -right-2.5 w-6 h-6 bg-red-500 hover:bg-red-600 rounded-full flex items-center justify-center z-10 transition-colors shadow-sm ring-1 ring-white/50"
           >
-            <span className="text-[11px] font-bold text-white leading-none">!</span>
+            <span className="text-[10px] font-bold text-white leading-none">
+              {(thonk.conflicts ?? []).filter(c => !c.ignored).length > 1 ? (thonk.conflicts ?? []).filter(c => !c.ignored).length : '!'}
+            </span>
           </button>
         </TooltipTrigger>
-        <TooltipContent side="right" className="max-w-[220px] z-[9999]">
-          <div className="font-semibold text-sm mb-1">Contradiction detected</div>
-          {(thonk.conflicts ?? []).map((c: ConflictEntry, i: number) => {
+        <TooltipContent side="right" className="max-w-[280px] z-[9999] p-3 rounded-xl bg-red-50 text-foreground border-2 border-red-400 dark:bg-red-950 dark:border-red-700">
+          {(thonk.conflicts ?? []).filter(c => !c.ignored).map((c: ConflictEntry, i: number) => {
             const other = graphRef.current.nodes.find(n => n.id === c.nodeId)
             return (
-              <div key={i} className="text-sm mb-1 last:mb-0">
-                {other && <span className="opacity-60">{other.title}: </span>}
-                {c.description}
+              <div key={i} className={i > 0 ? 'mt-3 pt-3 border-t border-red-200 dark:border-red-800/40' : ''}>
+                <div className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-1">Conflicts with</div>
+                <div className="font-semibold text-sm flex items-center gap-1.5">
+                  {other && <span className="w-2 h-2 rounded-full shrink-0 inline-block" style={{ backgroundColor: { core: '#392946', idea: '#f5c44a', problem: '#e95a32', question: '#c8cac8', answer: '#00ae60', note: '#f7efd0' }[other.type] ?? '#888' }} />}
+                  {other?.title ?? 'Unknown node'}
+                </div>
+                {c.description && (
+                  <div className="text-sm text-muted-foreground mt-1.5">{c.description}</div>
+                )}
+                {c.hint && (
+                  <div className="mt-2">
+                    <div className="text-xs font-semibold uppercase tracking-wide opacity-40 mb-1">Suggestion</div>
+                    <div className="text-sm">{c.hint}</div>
+                  </div>
+                )}
               </div>
             )
           })}
-          <div className="text-sm opacity-40 mt-1">Click to dismiss</div>
         </TooltipContent>
       </Tooltip>
-    )}
-
-    {mergeConflict && (
-      <MergeConflictModal
-        open
-        options={mergeConflict.options}
-        onChoose={(body) => {
-          mergeConflict.onApply(body)
-          setMergeConflict(null)
-        }}
-        onCancel={() => setMergeConflict(null)}
-      />
     )}
     </>
   )
@@ -1554,6 +1472,8 @@ export const ThonkNodeComponent = React.memo(
       pd.panelOpen === nd.panelOpen &&
       pd.hasAnswer === nd.hasAnswer &&
       pd.isMultiSelected === nd.isMultiSelected &&
+      pd.highlighted === nd.highlighted &&
+      pd.thonk.placeholder === nd.thonk.placeholder &&
       prev.selected === next.selected &&
       prev.dragging === next.dragging
     )
@@ -1719,7 +1639,7 @@ function ResolutionDropdown({
   )
 }
 
-function NodeMoreMenu({ onFixGrammar, hasContent }: { onFixGrammar: () => void; hasContent: boolean }) {
+function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent }: { onFixGrammar: () => void; onCopyText: () => void; hasContent: boolean }) {
   return (
     <Tooltip>
       <DropdownMenu>
@@ -1732,6 +1652,10 @@ function NodeMoreMenu({ onFixGrammar, hasContent }: { onFixGrammar: () => void; 
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={10} className="text-sm">More options</TooltipContent>
         <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[160px]" onCloseAutoFocus={e => e.preventDefault()}>
+          <DropdownMenuItem onClick={onCopyText} disabled={!hasContent}>
+            <Copy className="w-4 h-4" />
+            Copy Text
+          </DropdownMenuItem>
           <DropdownMenuItem onClick={onFixGrammar} disabled={!hasContent}>
             <SpellCheck className="w-4 h-4" />
             Fix Grammar

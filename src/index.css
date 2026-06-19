@@ -131,6 +131,9 @@ body {
 .md-preview table { border-collapse: collapse; width: 100%; margin: 0 0 0.75em; }
 .md-preview th, .md-preview td { border: 1px solid var(--color-border); padding: 0.4em 0.6em; text-align: left; }
 .md-preview th { background: var(--color-muted); font-weight: 600; }
+/* diff view: each unit is its own ReactMarkdown call, suppress extra ul/p margin */
+.diff-view .md-preview ul, .diff-view .md-preview ol { margin-bottom: 0; }
+.diff-view .md-preview p { margin-bottom: 0.3em; }
 
 
 /* ── React Flow tweaks ─────────────────────────────────────────── */

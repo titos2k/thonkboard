@@ -130,7 +130,7 @@ export function useGraph(boardId: string) {
   )
 
   const updateNode = useCallback(
-    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'unread' | 'conflicts' | 'type'>> & { meta?: Partial<ThonkNode['meta']> }) => {
+    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'unread' | 'bodyBeforeMerge' | 'conflicts' | 'type' | 'placeholder'>> & { meta?: Partial<ThonkNode['meta']> }) => {
       setGraph(g => ({
         ...g,
         nodes: g.nodes.map(n => {
@@ -156,7 +156,11 @@ export function useGraph(boardId: string) {
   const deleteNode = useCallback(
     (id: string) => {
       setGraph(g => ({
-        nodes: g.nodes.filter(n => n.id !== id),
+        nodes: g.nodes
+          .filter(n => n.id !== id)
+          .map(n => n.conflicts?.some(c => c.nodeId === id)
+            ? { ...n, conflicts: n.conflicts.filter(c => c.nodeId !== id) }
+            : n),
         edges: g.edges.filter(e => e.source !== id && e.target !== id),
       }))
     },

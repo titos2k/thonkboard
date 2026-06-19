@@ -1,0 +1,91 @@
+{
+  "boardId": "template-five-whys-v1",
+  "boardName": "Five Whys",
+  "nodes": [
+    {
+      "id": "fw-core",
+      "type": "core",
+      "title": "",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "The problem",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 50, "y": 200 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fw-q1",
+      "type": "question",
+      "title": "Why? (1st)",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "Why is this happening?",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 310, "y": 200 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fw-q2",
+      "type": "question",
+      "title": "Why? (2nd)",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "And why does that happen?",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 570, "y": 200 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fw-q3",
+      "type": "question",
+      "title": "Why? (3rd)",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "Why does that occur?",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 830, "y": 200 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fw-q4",
+      "type": "question",
+      "title": "Why? (4th)",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "Why is that the case?",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 1090, "y": 200 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "fw-q5",
+      "type": "question",
+      "title": "Why? (5th — root cause)",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "What is the root cause?",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 1350, "y": 200 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    }
+  ],
+  "edges": [
+    { "id": "fw-e1", "source": "fw-core", "target": "fw-q1", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "fw-e2", "source": "fw-q1",   "target": "fw-q2", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "fw-e3", "source": "fw-q2",   "target": "fw-q3", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "fw-e4", "source": "fw-q3",   "target": "fw-q4", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "fw-e5", "source": "fw-q4",   "target": "fw-q5", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" }
+  ]
+}

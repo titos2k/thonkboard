@@ -150,6 +150,12 @@ export function loadGraph(boardId: string): ThonkGraph {
     if (raw) {
       const g = JSON.parse(raw) as ThonkGraph
       g.nodes = g.nodes.map(migrateNode)
+      const nodeIds = new Set(g.nodes.map(n => n.id))
+      g.nodes = g.nodes.map(n =>
+        n.conflicts?.some(c => !nodeIds.has(c.nodeId))
+          ? { ...n, conflicts: n.conflicts.filter(c => nodeIds.has(c.nodeId)) }
+          : n,
+      )
       return g
     }
   } catch {
@@ -224,7 +230,7 @@ export function addEdge(
 export function updateNode(
   graph: ThonkGraph,
   id: string,
-  patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'unread'>>,
+  patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'unread' | 'bodyBeforeMerge'>>,
 ): ThonkGraph {
   return {
     ...graph,

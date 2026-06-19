@@ -1,0 +1,93 @@
+{
+  "boardId": "template-pre-mortem-v1",
+  "boardName": "Pre-mortem",
+  "nodes": [
+    {
+      "id": "pm-core",
+      "type": "core",
+      "title": "",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "The plan / project",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 430, "y": 270 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "pm-q-fail",
+      "type": "question",
+      "title": "How could this completely fail?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 80, "y": 100 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "pm-q-ignore",
+      "type": "question",
+      "title": "What are we ignoring right now?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 80, "y": 270 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "pm-q-assume",
+      "type": "question",
+      "title": "What are we wrongly assuming?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 80, "y": 440 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "pm-q-control",
+      "type": "question",
+      "title": "What is outside our control?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 790, "y": 100 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "pm-q-warn",
+      "type": "question",
+      "title": "What warning signs will we miss?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 790, "y": 270 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "pm-q-blind",
+      "type": "question",
+      "title": "What is our biggest blind spot?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 790, "y": 440 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    }
+  ],
+  "edges": [
+    { "id": "pm-e1", "source": "pm-core", "target": "pm-q-fail",    "relation": "questions", "sourceHandle": "s-left",  "targetHandle": "t-right" },
+    { "id": "pm-e2", "source": "pm-core", "target": "pm-q-ignore",  "relation": "questions", "sourceHandle": "s-left",  "targetHandle": "t-right" },
+    { "id": "pm-e3", "source": "pm-core", "target": "pm-q-assume",  "relation": "questions", "sourceHandle": "s-left",  "targetHandle": "t-right" },
+    { "id": "pm-e4", "source": "pm-core", "target": "pm-q-control", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "pm-e5", "source": "pm-core", "target": "pm-q-warn",    "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "pm-e6", "source": "pm-core", "target": "pm-q-blind",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" }
+  ]
+}

@@ -40,6 +40,7 @@ import { v4 as uuidv4 } from 'uuid'
 import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
 import { NoteNodeComponent } from '@/components/nodes/NoteNode'
 import { EditorPanel } from '@/components/EditorPanel'
+import { CommandPalette } from '@/components/CommandPalette'
 import { TopBar } from '@/components/TopBar'
 import { WelcomeModal } from '@/components/WelcomeModal'
 import { Toaster } from '@/components/Toaster'
@@ -178,13 +179,14 @@ function toRFNode(
   aiConnected: boolean,
   hiddenNodeIds: Set<string>,
   isMultiSelected: boolean,
+  highlighted: boolean,
 ): Node {
   return {
     id: n.id,
     type: n.type === 'note' ? 'note' : 'thonk',
     position: n.position,
     selected,
-    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, aiConnected, hiddenNodeIds, isMultiSelected, ...cb } as ThonkNodeData,
+    data: { thonk: n, graphRef, autoEdit, panelOpen, hasAnswer, aiConnected, hiddenNodeIds, isMultiSelected, highlighted, ...cb } as ThonkNodeData,
   }
 }
 
@@ -236,6 +238,8 @@ export default function App() {
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
   const [panelNodeId, setPanelNodeId] = useState<string | null>(null)
+  const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null)
+  const [paletteOpen, setPaletteOpen] = useState(false)
   const pendingPanelIdRef = useRef<string | null>(null)
   const [examplePreview, setExamplePreview] = useState<{ name: string } | null>(null)
   const examplePrevBoardIdRef = useRef<string | null>(null)
@@ -303,8 +307,12 @@ export default function App() {
     }
   }, [graph.nodes, panelNodeId])
 
-  // Clear unread dot when the Details panel opens for a node
+  // Clear unread on open; clear bodyBeforeMerge on the node we're leaving
+  const prevPanelNodeIdRef = useRef<string | null>(null)
   useEffect(() => {
+    const prev = prevPanelNodeIdRef.current
+    prevPanelNodeIdRef.current = panelNodeId
+    if (prev && prev !== panelNodeId) updateNode(prev, { bodyBeforeMerge: undefined })
     if (!panelNodeId) return
     const node = graph.nodes.find(n => n.id === panelNodeId)
     if (node?.unread) updateNode(panelNodeId, { unread: false })
@@ -448,6 +456,7 @@ export default function App() {
         if (examplePreview) { showToast('Viewing an example — click Keep to add it to your boards'); return }
         handleCtrlSSave()
       }
+      if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setPaletteOpen(true) }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
@@ -483,6 +492,11 @@ export default function App() {
     persistActiveBoardId(id)
     setActiveBoardIdState(id)
     switchToBoard(id)
+    setBoards(prev => {
+      const next = prev.map(b => b.id === id ? { ...b, lastUsedAt: new Date().toISOString() } : b)
+      saveBoards(next)
+      return next
+    })
     // Reflect file link for the new board (memory first, IDB fallback)
     const memHandle = fileHandlesRef.current.get(id)
     if (memHandle) {
@@ -503,7 +517,8 @@ export default function App() {
     const id = uuidv4()
     const initialGraph = makeInitialGraph()
     const coreId = initialGraph.nodes[0].id
-    const board: BoardMeta = { id, name: `Board ${boards.length + 1}`, createdAt: new Date().toISOString() }
+    const now = new Date().toISOString()
+    const board: BoardMeta = { id, name: `Board ${boards.length + 1}`, createdAt: now, lastUsedAt: now }
     const next = [...boards, board]
     setBoards(next)
     saveBoards(next)
@@ -546,8 +561,9 @@ export default function App() {
     return '#f5c44a'
   }, [])
 
-  const navigateToNode = useCallback((nodeId: string) => {
-    setPanelNodeId(nodeId)
+  const navigateToNode = useCallback((nodeId: string, opts?: { openPanel?: boolean; highlight?: boolean }) => {
+    const { openPanel = true, highlight = false } = opts ?? {}
+    if (openPanel) setPanelNodeId(nodeId)
     setSelectedIds(new Set([nodeId]))
     const n = rfInstance.current?.getNode(nodeId)
     if (n) {
@@ -556,7 +572,29 @@ export default function App() {
       const zoom = rfInstance.current?.getZoom() ?? 1
       rfInstance.current?.setCenter(cx, cy, { duration: 500, zoom })
     }
+    if (highlight) {
+      setHighlightedNodeId(nodeId)
+      setTimeout(() => setHighlightedNodeId(null), 1500)
+    }
   }, [])
+
+  useEffect(() => {
+    const handler = (e: Event) => {
+      const { nodeId } = (e as CustomEvent<{ nodeId: string }>).detail
+      navigateToNode(nodeId, { openPanel: true, highlight: true })
+    }
+    window.addEventListener('thonk:navigate', handler)
+    return () => window.removeEventListener('thonk:navigate', handler)
+  }, [navigateToNode])
+
+  useEffect(() => {
+    const handler = () => {
+      const first = graph.nodes.find(n => (n.conflicts ?? []).some(c => !c.ignored))
+      if (first) navigateToNode(first.id, { openPanel: true, highlight: true })
+    }
+    window.addEventListener('thonk:navigate-first-conflict', handler)
+    return () => window.removeEventListener('thonk:navigate-first-conflict', handler)
+  }, [graph.nodes, navigateToNode])
 
   const handleAiConnected = useCallback(() => {
     setAiConnected(true)
@@ -612,6 +650,18 @@ export default function App() {
     }),
     [addNode, addGraphEdge, handleUpdateNode, deleteNode, versionCore, openPanel, onBatchStart, onBatchEnd],
   )
+
+  const conflictCount = useMemo(() => {
+    const pairs = new Set<string>()
+    for (const node of graph.nodes) {
+      for (const c of node.conflicts ?? []) {
+        if (c.ignored) continue
+        const key = [node.id, c.nodeId].sort().join('|')
+        pairs.add(key)
+      }
+    }
+    return pairs.size
+  }, [graph.nodes])
 
   // Compute which node IDs are hidden when hideResolved is active
   const hiddenNodeIds = useMemo(() => {
@@ -714,8 +764,9 @@ export default function App() {
       n, selectedIds.has(n.id), n.id === autoEditId, n.id === panelNodeId,
       graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
       graphRef, callbacks, aiConnected, hiddenNodeIds, isMultiSelected,
+      n.id === highlightedNodeId,
     ))
-  }, [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks, aiConnected, hiddenNodeIds])
+  }, [visibleNodes, selectedIds, autoEditId, panelNodeId, graph.edges, callbacks, aiConnected, hiddenNodeIds, highlightedNodeId])
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
   // Skip when the only change was a position persistence update — rfNodes already
@@ -881,6 +932,9 @@ export default function App() {
       examplePrevViewportRef.current = rfInstance.current?.getViewport() ?? null
       switchToBoard('__example__', imported)
       setExamplePreview({ name })
+      setSelectedIds(new Set())
+      setPanelNodeId(null)
+      setTimeout(() => rfInstance.current?.fitView({ padding: 0.15, duration: 400 }), 50)
     } catch {
       showToast('Failed to load example', 'error')
     }
@@ -1007,8 +1061,10 @@ export default function App() {
           onToggleDarkMode={() => setDarkMode(d => !d)}
           onLoadExample={handleLoadExample}
           exampleMode={!!examplePreview}
+          onOpenPalette={() => setPaletteOpen(true)}
+          conflictCount={conflictCount}
         />
-        <div style={{ width: '100%', height: '100%', paddingTop: 44 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
+        <div style={{ width: '100%', height: '100%', paddingTop: 53 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
         {examplePreview && (
           <div className="absolute top-[60px] left-2 z-50 flex items-center gap-2 bg-foreground text-background rounded-md px-3 py-2 shadow-md nodrag">
             <Star className="w-4 h-4 text-background/60 shrink-0" />
@@ -1081,8 +1137,20 @@ export default function App() {
             onSave={handlePanelSave}
             onClose={handlePanelClose}
             onNavigateToNode={navigateToNode}
+            onIgnoreConflict={(conflictNodeId) => {
+              updateNode(panelNode.id, { conflicts: (panelNode.conflicts ?? []).map(c => c.nodeId === conflictNodeId ? { ...c, ignored: true } : c) })
+              const other = graph.nodes.find(n => n.id === conflictNodeId)
+              if (other) updateNode(conflictNodeId, { conflicts: (other.conflicts ?? []).map(c => c.nodeId === panelNode.id ? { ...c, ignored: true } : c) })
+            }}
           />
         )}
+
+        <CommandPalette
+          open={paletteOpen}
+          onClose={() => setPaletteOpen(false)}
+          nodes={graph.nodes}
+          onNavigate={id => navigateToNode(id, { openPanel: false, highlight: true })}
+        />
 
         {!isMobile && (
           <div

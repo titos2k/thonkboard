@@ -605,6 +605,8 @@ You receive a recently updated node and a list of other nodes on the board.
 Find genuine logical contradictions — where the updated node's content directly conflicts with another node.
 Only flag direct, non-trivial contradictions. Ignore: missing detail, different angles, or complementary ideas.
 Use the exact nodeId values from the list in the nodeId field.
+description: ONE sentence max. State only the core clash. No preamble, no elaboration.
+If the conflict is already self-evident from both node titles alone, set description to an empty string — do not restate the obvious.
 In the description, refer to other nodes by their title (never by their ID).
 Return an empty array if no real contradictions exist.`
 
@@ -635,6 +637,30 @@ export async function detectConflicts(
       item.description,
     ),
   }))
+}
+
+// ── Conflict hint ─────────────────────────────────────────────────────────────
+
+const HINT_SYSTEM = `You are a conflict advisor on an ideation board.
+In ONE short sentence, give a concrete action to resolve the contradiction.
+Start with an active verb. Name the specific claims. No preamble. No fluff.`
+
+export async function hintConflictResolution(
+  titleA: string,
+  titleB: string,
+  description: string,
+): Promise<string> {
+  const result = await callAI<{ hint: string }>({
+    systemInstruction: HINT_SYSTEM,
+    userPrompt: `Node A: "${titleA}"\nNode B: "${titleB}"\nContradiction: ${description}`,
+    responseSchema: {
+      type: 'object',
+      properties: { hint: { type: 'string' } },
+      required: ['hint'],
+    },
+    maxTokens: 100,
+  })
+  return result.hint
 }
 
 // ── Conflict resolution ───────────────────────────────────────────────────────

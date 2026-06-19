@@ -1,0 +1,279 @@
+{
+  "boardId": "template-decision-key-questions-v1",
+  "boardName": "Decision Key Questions",
+  "nodes": [
+    {
+      "id": "dkq-core",
+      "type": "core",
+      "title": "",
+      "body": "",
+      "summary": "",
+      "placeholder": true,
+      "placeholderText": "What is the decision?",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 50, "y": 490 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-who",
+      "type": "idea",
+      "title": "Who?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 350, "y": 55 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-what",
+      "type": "idea",
+      "title": "What?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 350, "y": 285 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-when",
+      "type": "idea",
+      "title": "When?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 350, "y": 510 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-where",
+      "type": "idea",
+      "title": "Where?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 350, "y": 665 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-why",
+      "type": "idea",
+      "title": "Why?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 350, "y": 780 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-how",
+      "type": "idea",
+      "title": "How?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 350, "y": 960 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-who-1",
+      "type": "question",
+      "title": "Who needs the decision?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 20 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-who-2",
+      "type": "question",
+      "title": "Who makes the decision?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 75 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-who-3",
+      "type": "question",
+      "title": "Who is affected by the decision?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 130 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-what-1",
+      "type": "question",
+      "title": "What problem should be addressed?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 235 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-what-2",
+      "type": "question",
+      "title": "What will be the end result?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 290 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-what-3",
+      "type": "question",
+      "title": "What are the alternatives?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 345 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-what-4",
+      "type": "question",
+      "title": "What if there is no decision made?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 400 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-when-1",
+      "type": "question",
+      "title": "When should the decision be made by?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 490 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-when-2",
+      "type": "question",
+      "title": "When should the decision be implemented by?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 545 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-where-1",
+      "type": "question",
+      "title": "Where should the decision be announced?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 660 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-why-1",
+      "type": "question",
+      "title": "Why is a decision required?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 760 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-why-2",
+      "type": "question",
+      "title": "Why at this given time?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 815 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-how-1",
+      "type": "question",
+      "title": "How will the decision be communicated?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 925 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-how-2",
+      "type": "question",
+      "title": "How will the recipients be reached?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 980 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    },
+    {
+      "id": "dkq-q-how-3",
+      "type": "question",
+      "title": "How will the decision be deployed?",
+      "body": "",
+      "summary": "",
+      "resolved": false,
+      "conflicts": [],
+      "position": { "x": 640, "y": 1035 },
+      "meta": { "createdAt": "2026-01-01T00:00:00.000Z", "severity": null, "revisionOf": null }
+    }
+  ],
+  "edges": [
+    { "id": "dkq-e-who",   "source": "dkq-core", "target": "dkq-who",   "relation": "spawns", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-what",  "source": "dkq-core", "target": "dkq-what",  "relation": "spawns", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-when",  "source": "dkq-core", "target": "dkq-when",  "relation": "spawns", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-where", "source": "dkq-core", "target": "dkq-where", "relation": "spawns", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-why",   "source": "dkq-core", "target": "dkq-why",   "relation": "spawns", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-how",   "source": "dkq-core", "target": "dkq-how",   "relation": "spawns", "sourceHandle": "s-right", "targetHandle": "t-left" },
+
+    { "id": "dkq-e-who-1",   "source": "dkq-who",   "target": "dkq-q-who-1",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-who-2",   "source": "dkq-who",   "target": "dkq-q-who-2",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-who-3",   "source": "dkq-who",   "target": "dkq-q-who-3",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+
+    { "id": "dkq-e-what-1",  "source": "dkq-what",  "target": "dkq-q-what-1",  "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-what-2",  "source": "dkq-what",  "target": "dkq-q-what-2",  "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-what-3",  "source": "dkq-what",  "target": "dkq-q-what-3",  "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-what-4",  "source": "dkq-what",  "target": "dkq-q-what-4",  "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+
+    { "id": "dkq-e-when-1",  "source": "dkq-when",  "target": "dkq-q-when-1",  "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-when-2",  "source": "dkq-when",  "target": "dkq-q-when-2",  "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+
+    { "id": "dkq-e-where-1", "source": "dkq-where", "target": "dkq-q-where-1", "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+
+    { "id": "dkq-e-why-1",   "source": "dkq-why",   "target": "dkq-q-why-1",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-why-2",   "source": "dkq-why",   "target": "dkq-q-why-2",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+
+    { "id": "dkq-e-how-1",   "source": "dkq-how",   "target": "dkq-q-how-1",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-how-2",   "source": "dkq-how",   "target": "dkq-q-how-2",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" },
+    { "id": "dkq-e-how-3",   "source": "dkq-how",   "target": "dkq-q-how-3",   "relation": "questions", "sourceHandle": "s-right", "targetHandle": "t-left" }
+  ]
+}
