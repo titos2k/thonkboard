@@ -156,14 +156,16 @@ const NODE_EDGE_COLOR: Record<string, string> = {
 }
 
 type GraphCallbacks = {
-  onAddNode:     ThonkNodeData['onAddNode']
-  onAddEdge:     ThonkNodeData['onAddEdge']
-  onUpdate:      ThonkNodeData['onUpdate']
-  onDelete:      ThonkNodeData['onDelete']
-  onVersionCore: ThonkNodeData['onVersionCore']
-  onAutoEdit:    ThonkNodeData['onAutoEdit']
-  onBatchStart:  ThonkNodeData['onBatchStart']
-  onBatchEnd:    ThonkNodeData['onBatchEnd']
+  onAddNode:         ThonkNodeData['onAddNode']
+  onAddEdge:         ThonkNodeData['onAddEdge']
+  onUpdate:          ThonkNodeData['onUpdate']
+  onDelete:          ThonkNodeData['onDelete']
+  onOpenAsNewBoard?: ThonkNodeData['onOpenAsNewBoard']
+  onResetBoard?:     ThonkNodeData['onResetBoard']
+  onVersionCore:     ThonkNodeData['onVersionCore']
+  onAutoEdit:        ThonkNodeData['onAutoEdit']
+  onBatchStart:      ThonkNodeData['onBatchStart']
+  onBatchEnd:        ThonkNodeData['onBatchEnd']
 }
 
 function toRFNode(
@@ -438,6 +440,19 @@ export default function App() {
     setSelectedIds(new Set())
   }, [activeBoardId]) // eslint-disable-line react-hooks/exhaustive-deps
 
+  // Keep board meta emoji in sync with the active board's core node emoji.
+  // Runs on board switch and whenever the core node changes.
+  useEffect(() => {
+    const coreEmoji = graph.nodes.find(n => n.type === 'core')?.emoji ?? undefined
+    setBoards(prev => {
+      const board = prev.find(b => b.id === activeBoardId)
+      if (!board || board.emoji === coreEmoji) return prev
+      const next = prev.map(b => b.id === activeBoardId ? { ...b, emoji: coreEmoji } : b)
+      saveBoards(next)
+      return next
+    })
+  }, [activeBoardId, graph.nodes]) // eslint-disable-line react-hooks/exhaustive-deps
+
   const handleSwitchBoard = useCallback((id: string) => {
     if (id === activeBoardId) return
     setExamplePreview(null)
@@ -481,6 +496,31 @@ export default function App() {
     switchToBoard(id, initialGraph)
     setAutoEditId(coreId)
   }, [boards, switchToBoard])
+
+  const handleOpenAsNewBoard = useCallback((ideaNode: ThonkNode) => {
+    const id = uuidv4()
+    const initialGraph = makeInitialGraph()
+    initialGraph.nodes[0] = { ...initialGraph.nodes[0], title: ideaNode.title, body: ideaNode.body }
+    const boardName = ideaNode.title || `Board ${boards.length + 1}`
+    const now = new Date().toISOString()
+    const board: BoardMeta = { id, name: boardName, createdAt: now, lastUsedAt: now }
+    const next = [...boards, board]
+    setBoards(next)
+    saveBoards(next)
+    persistActiveBoardId(id)
+    setActiveBoardIdState(id)
+    switchToBoard(id, initialGraph)
+    setAutoEditId(initialGraph.nodes[0].id)
+  }, [boards, switchToBoard])
+
+  const handleResetBoard = useCallback(() => {
+    const core = graph.nodes.find(n => n.type === 'core')
+    if (!core) return
+    const freshGraph = makeInitialGraph()
+    freshGraph.nodes[0] = { ...freshGraph.nodes[0], id: core.id, position: core.position }
+    switchToBoard(activeBoardId, freshGraph)
+    setAutoEditId(core.id)
+  }, [graph.nodes, activeBoardId, switchToBoard])
 
   const handleDeleteBoard = useCallback((id: string) => {
     if (boards.length <= 1) return
@@ -577,29 +617,35 @@ export default function App() {
 
   const handleUpdateNode: GraphCallbacks['onUpdate'] = useCallback((id, patch) => {
     updateNode(id, patch)
-    if ('title' in patch && patch.title) {
-      const node = graph.nodes.find(n => n.id === id)
-      if (node?.type === 'core') {
-        const board = boards.find(b => b.id === activeBoardId)
-        if (board && /^Board \d+$/.test(board.name)) {
-          handleRenameBoard(activeBoardId, patch.title)
-        }
+    const node = graph.nodes.find(n => n.id === id)
+    if (node?.type === 'core') {
+      if ('title' in patch && patch.title) {
+        handleRenameBoard(activeBoardId, patch.title)
+      }
+      if ('emoji' in patch) {
+        setBoards(prev => {
+          const next = prev.map(b => b.id === activeBoardId ? { ...b, emoji: patch.emoji || undefined } : b)
+          saveBoards(next)
+          return next
+        })
       }
     }
-  }, [updateNode, graph.nodes, boards, activeBoardId, handleRenameBoard])
+  }, [updateNode, graph.nodes, activeBoardId, handleRenameBoard])
 
   const callbacks: GraphCallbacks = useMemo(
     () => ({
-      onAddNode:     addNode,
-      onAddEdge:     addGraphEdge,
-      onUpdate:      handleUpdateNode,
-      onDelete:      deleteNode,
-      onVersionCore: versionCore,
-      onAutoEdit:    setAutoEditId,
+      onAddNode:         addNode,
+      onAddEdge:         addGraphEdge,
+      onUpdate:          handleUpdateNode,
+      onDelete:          deleteNode,
+      onOpenAsNewBoard:  handleOpenAsNewBoard,
+      onResetBoard:      handleResetBoard,
+      onVersionCore:     versionCore,
+      onAutoEdit:        setAutoEditId,
       onBatchStart,
       onBatchEnd,
     }),
-    [addNode, addGraphEdge, handleUpdateNode, deleteNode, versionCore, onBatchStart, onBatchEnd],
+    [addNode, addGraphEdge, handleUpdateNode, deleteNode, handleOpenAsNewBoard, handleResetBoard, versionCore, onBatchStart, onBatchEnd],
   )
 
   const conflictCount = useMemo(() => {
@@ -662,7 +708,10 @@ export default function App() {
           positionUpdateRef.current = true
           updateNodePosition(change.id, change.position)
         }
-        if (change.type === 'remove') deleteNode(change.id)
+        if (change.type === 'remove') {
+          const removing = graph.nodes.find(n => n.id === change.id)
+          if (removing?.type !== 'core') deleteNode(change.id)
+        }
       })
 
       setSelectedIds(prev => {
@@ -729,7 +778,6 @@ export default function App() {
     }) ?? { x: 400, y: 300 }
   }, [])
 
-  const handleAddCore     = useCallback(() => { const n = addNode('core', '', '', viewCenter()); setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddIdea     = useCallback(() => { const n = addNode('idea',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddProblem  = useCallback(() => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 }); setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
   const handleAddQuestion = useCallback(() => { const n = addNode('question', '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
@@ -871,7 +919,6 @@ export default function App() {
       <div style={{ width: '100vw', height: '100dvh', position: 'relative' }}>
         <WelcomeModal open={!welcomed} onConnectAI={handleWelcomeConnectAI} onSkip={handleWelcomeSkip} onSeeExample={EXAMPLES.length ? () => { handleWelcomeSkip(); handleLoadExample(EXAMPLES[0].raw, EXAMPLES[0].name) } : undefined} />
         <TopBar
-          onAddCore={handleAddCore}
           onAddIdea={handleAddIdea}
           onAddProblem={handleAddProblem}
           onAddQuestion={handleAddQuestion}
@@ -890,7 +937,6 @@ export default function App() {
           onSwitchBoard={handleSwitchBoard}
           onCreateBoard={handleCreateBoard}
           onDeleteBoard={handleDeleteBoard}
-          onRenameBoard={handleRenameBoard}
           keyOpen={keyOpen}
           onKeyOpenChange={setKeyOpen}
           onAiConnected={handleAiConnected}

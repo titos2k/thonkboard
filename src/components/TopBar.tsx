@@ -1,5 +1,5 @@
 import { useRef, useState, memo, useEffect } from 'react'
-import { Astroid, HelpCircle, Map, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Pencil, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -18,7 +18,6 @@ import type { Provider } from '@/ai/types'
 import { useIsMobile, useIsNarrow } from '@/hooks/useIsMobile'
 
 interface TopBarProps {
-  onAddCore: () => void
   onAddIdea: () => void
   onAddProblem: () => void
   onAddQuestion: () => void
@@ -37,7 +36,6 @@ interface TopBarProps {
   onSwitchBoard: (id: string) => void
   onCreateBoard: () => void
   onDeleteBoard: (id: string) => void
-  onRenameBoard: (id: string, name: string) => void
   keyOpen: boolean
   onKeyOpenChange: (open: boolean) => void
   onAiConnected?: () => void
@@ -79,7 +77,7 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? PROVIDER_LABELS[provider] : 'Set AI key'
 }
 
-function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, onRenameBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, conflictCount }: TopBarProps) {
+function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, conflictCount }: TopBarProps) {
   const toastExampleBlocked = () => window.dispatchEvent(new CustomEvent('thonk:toast', { detail: 'Keep or exit the example before loading a board' }))
   const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -113,8 +111,6 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
   const summarizeCache = useRef<SummarizeCache | null>(null)
   const isMobile = useIsMobile()
   const isNarrow = useIsNarrow()
-  const [renameOpen, setRenameOpen] = useState(false)
-  const [renameName, setRenameName] = useState('')
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
   const [legalOpen, setLegalOpen] = useState(false)
 
@@ -261,7 +257,7 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
             <DropdownMenuSubTrigger>
               <File className="w-4 h-4 text-muted-foreground shrink-0" /> Board
             </DropdownMenuSubTrigger>
-            <DropdownMenuSubContent className="max-w-[50vw]">
+            <DropdownMenuSubContent className="min-w-[280px] max-w-[50vw]">
               <div className="max-h-[400px] overflow-y-auto">
                 {boards.map(board => {
                   const isActive = board.id === activeBoardId
@@ -276,25 +272,19 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
                           ? <Check className="w-4 h-4 shrink-0 text-foreground" />
                           : <span className="w-4 shrink-0" />}
                         <span className="flex flex-col min-w-0">
-                          <span className="truncate max-w-[140px]" title={board.name}>{board.name}</span>
+                          <span className="truncate max-w-[220px] flex items-center gap-1" title={board.name}>
+                            {board.emoji && <span className="shrink-0" style={{ fontSize: 16, marginRight: 4 }}>{board.emoji}</span>}
+                            {board.name}
+                          </span>
                           {isActive && linkedFileName && (
-                            <span className="text-[10px] text-muted-foreground/50 font-mono truncate max-w-[140px]" title={linkedFileName}>
+                            <span className="text-[10px] text-muted-foreground/50 font-mono truncate max-w-[220px]" title={linkedFileName}>
                               {fileDirty ? '* ' : ''}{linkedFileName}
                             </span>
                           )}
                         </span>
                       </span>
                       <span className="flex items-center gap-0.5 shrink-0">
-                        {isActive && (
-                          <button
-                            onClick={e => { e.stopPropagation(); setRenameName(board.name); setRenameOpen(true) }}
-                            className="w-6 h-6 flex items-center justify-center rounded hover:bg-black/10 transition-colors"
-                            title="Rename"
-                          >
-                            <Pencil className="w-4 h-4 text-muted-foreground" />
-                          </button>
-                        )}
-                        {boards.length > 1 && (
+                          {boards.length > 1 && (
                           <button
                             onClick={e => { e.stopPropagation(); setDeleteConfirmId(board.id) }}
                             className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 transition-colors"
@@ -459,10 +449,6 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" onCloseAutoFocus={e => e.preventDefault()}>
-          <DropdownMenuItem onClick={onAddCore}>
-            <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#392946]" />
-            <Brain className="w-4 h-4 text-muted-foreground" /> Core
-          </DropdownMenuItem>
           <DropdownMenuItem onClick={onAddIdea}>
             <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" />
             <Lightbulb className="w-4 h-4 text-muted-foreground" /> Idea
@@ -898,24 +884,6 @@ function TopBarFn({ onAddCore, onAddIdea, onAddProblem, onAddQuestion, onAddNote
         graph={graph}
         cache={summarizeCache}
       />
-
-      {/* Rename board dialog */}
-      <Dialog open={renameOpen} onOpenChange={setRenameOpen}>
-        <DialogContent className="max-w-sm" aria-describedby={undefined}>
-          <DialogHeader>
-            <DialogTitle className="pb-2">Rename board</DialogTitle>
-          </DialogHeader>
-          <form onSubmit={e => { e.preventDefault(); if (renameName.trim()) { onRenameBoard(activeBoardId, renameName.trim()); setRenameOpen(false) } }} className="flex gap-2">
-            <input
-              className="flex-1 h-9 rounded-md border border-input bg-background px-3 text-sm focus:outline-none focus:ring-1 focus:ring-ring"
-              value={renameName}
-              onChange={e => setRenameName(e.target.value)}
-              autoFocus
-            />
-            <Button type="submit" size="sm" disabled={!renameName.trim()} className="shrink-0 h-9 text-sm cursor-pointer">Save</Button>
-          </form>
-        </DialogContent>
-      </Dialog>
 
       {/* Delete board confirm dialog */}
       <Dialog open={!!deleteConfirmId} onOpenChange={open => { if (!open) setDeleteConfirmId(null) }}>

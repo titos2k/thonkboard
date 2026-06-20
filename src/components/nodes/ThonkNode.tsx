@@ -23,13 +23,15 @@ import {
   Pencil,
   TriangleAlert,
   ArrowDownUp,
-  GitBranch,
+  GitBranchPlus,
   Brain,
   MessagesSquare,
   MoreHorizontal,
   SpellCheck,
   Copy,
   Sparkles,
+  Smile,
+  ExternalLink,
 } from 'lucide-react'
 
 function ThumbUpIcon({ className }: { className?: string }) {
@@ -51,13 +53,16 @@ import { NodeShell } from './NodeShell'
 import { Textarea } from '@/components/ui/textarea'
 import { Spinner } from '@/components/ui/spinner'
 import { Tooltip, TooltipContent, TooltipTrigger } from '@/components/ui/tooltip'
-import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuSeparator, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog'
+import { Button } from '@/components/ui/button'
 import { cn } from '@/lib/utils'
 import type { ThonkNode as TNode } from '@/store/types'
 import { assembleContext, contextToPrompt, assembleContextSemantic } from '@/ai/context'
 import { critiqueNode, questionNode, proposeIdeas, pushThinking, detectConflicts, hintConflictResolution, answerQuestion, generateSolution, correctAnswer, fixGrammar } from '@/ai/gemini'
 import type { ConflictEntry } from '@/store/types'
 import { showToast } from '@/lib/toast'
+import { EmojiPickerPopover } from '@/components/EmojiPickerPopover'
 
 const MAX_AI_DEPTH = 3
 const CONFLICT_COOLDOWN_MS = 30_000
@@ -78,8 +83,10 @@ export interface ThonkNodeData extends Record<string, unknown> {
     meta?: Partial<TNode['meta']>,
   ) => TNode
   onAddEdge: (source: string, target: string, relation: import('@/store/types').EdgeRelation, sourceHandle?: string, targetHandle?: string) => void
-  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'thumb'>> & { meta?: Partial<TNode['meta']> }) => void
+  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'thumb' | 'emoji'>> & { meta?: Partial<TNode['meta']> }) => void
   onDelete: (id: string) => void
+  onOpenAsNewBoard?: (node: TNode) => void
+  onResetBoard?: () => void
   onVersionCore: (oldId: string, newTitle: string, newBody: string, pos: { x: number; y: number }) => TNode
   hasAnswer: boolean
   aiConnected: boolean
@@ -722,6 +729,9 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const handleThumbUp   = () => d.onUpdate(thonk.id, { thumb: thonk.thumb === 'up'   ? undefined : 'up'   })
   const handleThumbDown = () => d.onUpdate(thonk.id, { thumb: thonk.thumb === 'down' ? undefined : 'down' })
 
+  const [emojiAnchor, setEmojiAnchor] = useState<DOMRect | null>(null)
+  const canSetEmoji = thonk.type === 'core' || thonk.type === 'idea'
+
   const isLoading = actionState === 'loading' || actionState === 'searching'
   const isLight = thonk.type === 'question' || thonk.type === 'idea'
 
@@ -798,71 +808,80 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             <Sep />
             {showEdit && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
             <AddDropdown nodeType={thonk.type} onAddQuestion={handleAddQuestion} onAddIdea={handleAddIdea} onAddProblem={handleAddProblem} />
-            <TransformBtn currentType={thonk.type} onTransform={handleTransform} />
-            <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} />
+            {thonk.type !== 'core' && <TransformBtn currentType={thonk.type} onTransform={handleTransform} />}
+            <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} onSetIcon={canSetEmoji ? setEmojiAnchor : undefined} nodeType={thonk.type} onOpenAsNewBoard={d.onOpenAsNewBoard ? () => d.onOpenAsNewBoard!(thonk) : undefined} onResetBoard={d.onResetBoard} />
 
-            {/* Section 3: Vote + Delete */}
-            <Sep />
-            {(thonk.type === 'idea' || thonk.type === 'problem' || thonk.type === 'question' || thonk.type === 'answer') && (
+            {/* Section 3: Vote + Delete (not shown for core) */}
+            {thonk.type !== 'core' && (
               <>
-                <ToolBtn icon={<ThumbUpIcon className="w-5 h-5" />} label="Love it" onClick={handleThumbUp} className={thonk.thumb === 'up' ? 'text-[#00ae60]' : ''} />
-                <ToolBtn icon={<ThumbDownIcon className="w-5 h-5" />} label="Drop it" onClick={handleThumbDown} className={thonk.thumb === 'down' ? 'text-[#e95a32]' : ''} />
                 <Sep />
+                {(thonk.type === 'idea' || thonk.type === 'problem' || thonk.type === 'question' || thonk.type === 'answer') && (
+                  <>
+                    <ToolBtn icon={<ThumbUpIcon className="w-5 h-5" />} label="Love it" onClick={handleThumbUp} className={thonk.thumb === 'up' ? 'text-[#00ae60]' : ''} />
+                    <ToolBtn icon={<ThumbDownIcon className="w-5 h-5" />} label="Drop it" onClick={handleThumbDown} className={thonk.thumb === 'down' ? 'text-[#e95a32]' : ''} />
+                    <Sep />
+                  </>
+                )}
+                <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
               </>
             )}
-            <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
           </>
         </div>
       </NodeToolbar>
 
       {/* Title — inline edit with blur-to-save */}
         <div
-          className="px-3 py-2.5"
+          className={cn('px-3 py-2.5', canSetEmoji && thonk.emoji ? 'flex items-start gap-2' : '')}
           onBlur={(e) => {
             if (editing && !e.currentTarget.contains(e.relatedTarget as Node)) {
               saveTitle()
             }
           }}
         >
-          {editing ? (
-            <textarea
-              ref={titleInputRef}
-              value={editTitle}
-              rows={1}
-              onChange={e => setEditTitle(e.target.value)}
-              onKeyDown={e => {
-                stopDeletePropagation(e)
-                if (e.key === 'Enter') { e.preventDefault(); saveTitle() }
-                if (e.key === 'Escape') { setEditTitle(thonk.title); setEditing(false) }
-              }}
-              placeholder={
-                thonk.placeholderText ?? (
-                thonk.type === 'core'     ? 'Your core idea, problem, or topic…' :
-                thonk.type === 'idea'     ? 'Describe the idea…' :
-                thonk.type === 'problem'  ? 'What\'s the problem?' :
-                thonk.type === 'question' ? 'Ask a question…' :
-                                            'Write your answer…')
-              }
-              className={cn(
-                'nodrag w-full bg-transparent outline-none border-none font-medium text-sm leading-snug text-inherit p-0 m-0 resize-none overflow-hidden break-words',
-                thonk.type === 'core' && 'text-[17.5px] text-center',
-                isLight ? 'placeholder:text-gray-400/60' : 'placeholder:text-white/40',
-              )}
-            />
-          ) : (
-            <p
-              className={cn(
-                'select-none font-medium text-sm leading-snug cursor-grab active:cursor-grabbing text-pretty break-words',
-                thonk.type === 'core' && 'text-[17.5px] text-center',
-              )}
-              onDoubleClick={thonk.type === 'question' ? (thonk.title.trim() ? () => setActionState('answering') : enterEdit) : enterEdit}
-            >
-              {thonk.title
-                ? linkifyText(thonk.title)
-                : <span className="opacity-40">{thonk.placeholderText ?? (thonk.type === 'core' ? 'Your core idea, problem, or topic…' : 'Untitled')}</span>
-              }
-            </p>
+          {canSetEmoji && thonk.emoji && (
+            <span className="text-xl leading-snug shrink-0 select-none mt-px">{thonk.emoji}</span>
           )}
+          <div className={cn(canSetEmoji && thonk.emoji ? 'flex-1 min-w-0' : '')}>
+            {editing ? (
+              <textarea
+                ref={titleInputRef}
+                value={editTitle}
+                rows={1}
+                onChange={e => setEditTitle(e.target.value)}
+                onKeyDown={e => {
+                  stopDeletePropagation(e)
+                  if (e.key === 'Enter') { e.preventDefault(); saveTitle() }
+                  if (e.key === 'Escape') { setEditTitle(thonk.title); setEditing(false) }
+                }}
+                placeholder={
+                  thonk.placeholderText ?? (
+                  thonk.type === 'core'     ? 'Your core idea, problem, or topic…' :
+                  thonk.type === 'idea'     ? 'Describe the idea…' :
+                  thonk.type === 'problem'  ? 'What\'s the problem?' :
+                  thonk.type === 'question' ? 'Ask a question…' :
+                                              'Write your answer…')
+                }
+                className={cn(
+                  'nodrag w-full bg-transparent outline-none border-none font-medium text-sm leading-snug text-inherit p-0 m-0 resize-none overflow-hidden break-words',
+                  thonk.type === 'core' && 'text-[17.5px] text-center',
+                  isLight ? 'placeholder:text-gray-400/60' : 'placeholder:text-white/40',
+                )}
+              />
+            ) : (
+              <p
+                className={cn(
+                  'select-none font-medium text-sm leading-snug cursor-grab active:cursor-grabbing text-pretty break-words',
+                  thonk.type === 'core' && 'text-[17.5px] text-center',
+                )}
+                onDoubleClick={thonk.type === 'question' ? (thonk.title.trim() ? () => setActionState('answering') : enterEdit) : enterEdit}
+              >
+                {thonk.title
+                  ? linkifyText(thonk.title)
+                  : <span className="opacity-40">{thonk.placeholderText ?? (thonk.type === 'core' ? 'Your core idea, problem, or topic…' : 'Untitled')}</span>
+                }
+              </p>
+            )}
+          </div>
 
         </div>
 
@@ -1047,6 +1066,14 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         }
       </div>
     )}
+    {emojiAnchor && (
+      <EmojiPickerPopover
+        anchorRect={emojiAnchor}
+        onSelect={emoji => d.onUpdate(thonk.id, { emoji })}
+        onClose={() => setEmojiAnchor(null)}
+        onClear={() => d.onUpdate(thonk.id, { emoji: undefined })}
+      />
+    )}
     </>
   )
 }
@@ -1064,6 +1091,8 @@ export const ThonkNodeComponent = React.memo(
       pd.onAddEdge === nd.onAddEdge &&
       pd.onUpdate === nd.onUpdate &&
       pd.onDelete === nd.onDelete &&
+      pd.onOpenAsNewBoard === nd.onOpenAsNewBoard &&
+      pd.onResetBoard === nd.onResetBoard &&
       pd.onVersionCore === nd.onVersionCore &&
       pd.hasAnswer === nd.hasAnswer &&
       pd.isMultiSelected === nd.isMultiSelected &&
@@ -1091,8 +1120,8 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
 
   if (nodeType === 'core' || nodeType === 'idea' || nodeType === 'answer') {
     items.push(
-      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion },
       { label: 'Add Idea',     icon: <Lightbulb className="w-4 h-4 text-yellow-400" />,       onClick: onAddIdea },
+      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion },
       { label: 'Add Problem',  icon: <TriangleAlert className="w-4 h-4 text-red-400" />,      onClick: onAddProblem },
     )
   }
@@ -1110,7 +1139,7 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
             <button className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
-              <GitBranch className="w-5 h-5" />
+              <GitBranchPlus className="w-5 h-5" />
             </button>
           </DropdownMenuTrigger>
         </TooltipTrigger>
@@ -1149,7 +1178,7 @@ function TransformBtn({ currentType, onTransform }: { currentType: string; onTra
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={10} className="text-sm">Convert to…</TooltipContent>
         <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[120px]">
-          {(Object.keys(NODE_TYPE_LABELS) as import('@/store/types').NodeType[]).filter(t => t !== 'note').map(type => (
+          {(Object.keys(NODE_TYPE_LABELS) as import('@/store/types').NodeType[]).filter(t => t !== 'note' && t !== 'core').map(type => (
             <DropdownMenuItem
               key={type}
               onClick={() => onTransform(type)}
@@ -1165,13 +1194,23 @@ function TransformBtn({ currentType, onTransform }: { currentType: string; onTra
   )
 }
 
-function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent }: { onFixGrammar: () => void; onCopyText: () => void; hasContent: boolean }) {
+function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeType, onOpenAsNewBoard, onResetBoard }: {
+  onFixGrammar: () => void
+  onCopyText: () => void
+  hasContent: boolean
+  onSetIcon?: (rect: DOMRect) => void
+  nodeType: import('@/store/types').NodeType
+  onOpenAsNewBoard?: () => void
+  onResetBoard?: () => void
+}) {
+  const triggerRef = React.useRef<HTMLButtonElement>(null)
+  const [confirmReset, setConfirmReset] = useState(false)
   return (
     <Tooltip>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={open => { if (!open) setConfirmReset(false) }}>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <button className="nodrag w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
+            <button ref={triggerRef} className="nodrag w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
               <MoreHorizontal className="w-5 h-5" />
             </button>
           </DropdownMenuTrigger>
@@ -1186,8 +1225,46 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent }: { onFixGrammar: 
             <SpellCheck className="w-4 h-4" />
             Fix Grammar
           </DropdownMenuItem>
+          {onSetIcon && (
+            <DropdownMenuItem onClick={() => triggerRef.current && onSetIcon(triggerRef.current.getBoundingClientRect())}>
+              <Smile className="w-4 h-4" />
+              Set Icon
+            </DropdownMenuItem>
+          )}
+          {nodeType === 'idea' && onOpenAsNewBoard && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={onOpenAsNewBoard}>
+                <ExternalLink className="w-4 h-4" />
+                Open as new board
+              </DropdownMenuItem>
+            </>
+          )}
+          {nodeType === 'core' && onResetBoard && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onSelect={e => { e.preventDefault(); setConfirmReset(true) }} className="text-destructive focus:text-destructive focus:bg-destructive/10">
+                <Trash2 className="w-4 h-4" />
+                Reset Core & Board
+              </DropdownMenuItem>
+            </>
+          )}
         </DropdownMenuContent>
       </DropdownMenu>
+      <Dialog open={confirmReset} onOpenChange={open => { if (!open) setConfirmReset(false) }}>
+        <DialogContent className="max-w-sm">
+          <DialogHeader>
+            <DialogTitle className="pb-2">Reset Core & Board?</DialogTitle>
+            <DialogDescription>
+              This will clear the core idea and remove all nodes and edges from the board. This cannot be undone.
+            </DialogDescription>
+          </DialogHeader>
+          <div className="flex justify-end gap-2 mt-4">
+            <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setConfirmReset(false)}>Cancel</Button>
+            <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { onResetBoard!(); setConfirmReset(false) }}>Reset</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
     </Tooltip>
   )
 }

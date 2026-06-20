@@ -26,6 +26,7 @@ export interface ThonkNode {
   resolved: boolean        // kept for backwards compat with saved boards; no longer set from UI
   resolvedAs?: 'merged' | 'closed' | 'rejected'
   thumb?: 'up' | 'down'   // user reaction; 'up' = accepted, 'down' = rejected
+  emoji?: string              // optional emoji icon; only displayed for idea/core types
   conflicts: ConflictEntry[]  // contradictions detected with other nodes after approval
   position: { x: number; y: number }
   meta: {
@@ -56,6 +57,7 @@ export interface ThonkGraph {
 export interface BoardMeta {
   id: string
   name: string
+  emoji?: string
   createdAt: string
   lastUsedAt?: string
   isNamed?: boolean
