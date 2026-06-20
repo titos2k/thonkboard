@@ -128,6 +128,7 @@ function linkifyText(text: string): React.ReactNode {
 
 type Dir = 'down' | 'up' | 'left' | 'right'
 
+
 function nodeSpawnDir(
   nodeId: string,
   graph: { nodes: { id: string; position: { x: number; y: number } }[]; edges: { source: string; target: string }[] },
@@ -632,6 +633,12 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     panToSpawned([aNode.id])
     setAnswerText('')
     setActionState('idle')
+    if (raw.slice(-4).includes('?')) {
+      showToast('That looks like a question - convert it?', 'success', {
+        label: 'Convert',
+        onClick: () => d.onUpdate(aNode.id, { type: 'question' }),
+      })
+    }
   }
 
   const handleQuickAnswer = (text: 'Yes' | 'No') => {
