@@ -79,7 +79,7 @@ export function CommandPalette({
     return items
   }, [scope, otherBoards, onLoadBoardNodes])
 
-  const filtered = useMemo(() => {
+  const filtered = useMemo((): ResultItem[] => {
     const q = query.toLowerCase()
 
     if (scope === 'all') {

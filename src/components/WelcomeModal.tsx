@@ -12,7 +12,7 @@ interface WelcomeModalProps {
   onLoadTemplate?: (raw: string, name: string) => void
 }
 
-export function WelcomeModal({ open, onConnectAI, onSkip, onSeeExample, templates, onLoadTemplate }: WelcomeModalProps) {
+export function WelcomeModal({ open, onConnectAI, onSkip, templates, onLoadTemplate }: WelcomeModalProps) {
   const isMobile = useIsMobile()
   const visibleTemplates = templates?.filter(t => t.id !== 'thonkboard').slice(0, 4) ?? []
   return (

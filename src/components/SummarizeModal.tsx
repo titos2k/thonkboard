@@ -189,7 +189,7 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
                   size="sm" variant="outline"
                   className="h-8 text-sm gap-1.5 cursor-pointer"
                   onClick={() => run(mode, true)}
-                  disabled={status === 'loading'}
+                  disabled={status !== 'ready'}
                 >
                   <RefreshCw className="w-3.5 h-3.5" /> Regenerate
                 </Button>

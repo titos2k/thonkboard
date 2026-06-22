@@ -549,7 +549,7 @@ export default function App() {
           const extra = typeKey === 'problem' ? { severity: 0.5 } : undefined
           const n = addNode(typeKey, '', '', pos, extra)
           if (attachId) {
-            addGraphEdge(attachId, n.id, 'extends')
+            addGraphEdge(attachId, n.id, 'spawns')
             setRfNodes(prev => prev.map(nd => nd.id === attachId ? { ...nd, selected: false } : nd))
             setSelectedIds(new Set())
             selectedIdsRef.current = new Set()
