@@ -194,38 +194,29 @@ async function naturalizeSearchText(raw: string): Promise<string> {
   return result.text
 }
 
-function cleanSearchAnswer(text: string): string {
-  // Strip leading first-person preamble sentences ("I need to search...", "I'll verify...", etc.)
-  let t = text.trimStart()
-  const preamble = /^I (need to|will|'ll|have to|should|can |found |notice|want to|('m going))[^.!?]*[.!?]\s*/i
-  while (preamble.test(t)) t = t.replace(preamble, '').trimStart()
-  // If truncated mid-sentence (no terminal punctuation at end), cut at last complete sentence
-  if (t && !/[.!?](['"]?)$/.test(t.trimEnd())) {
-    const lastEnd = Math.max(t.lastIndexOf('.'), t.lastIndexOf('!'), t.lastIndexOf('?'))
-    if (lastEnd > 0) t = t.slice(0, lastEnd + 1)
-  }
-  return t.trim()
-}
 
 async function callAISearch(req: SearchCallRequest): Promise<SearchResult> {
   const p = getProvider()
+  const augmented: SearchCallRequest = {
+    ...req,
+    systemInstruction: req.systemInstruction + '\nRespond directly. Never open with first-person preamble like "I need to search", "I\'ll look up", "I found", or similar.',
+  }
   let result: SearchResult
   if (getWebSearch()) {
-    if (p === 'gemini') result = await _callGeminiWithSearch(req)
-    else if (p === 'anthropic') result = { text: await naturalizeSearchText(await callAnthropicSearch(req)), sources: [] }
-    else if (p === 'openai') result = { text: await naturalizeSearchText(await callOpenAISearch(req)), sources: [] }
+    if (p === 'gemini') result = await _callGeminiWithSearch(augmented)
+    else if (p === 'anthropic') result = { text: await naturalizeSearchText(await callAnthropicSearch(augmented)), sources: [] }
+    else if (p === 'openai') result = { text: await naturalizeSearchText(await callOpenAISearch(augmented)), sources: [] }
     else result = { text: '', sources: [] }
   } else {
-    // search disabled or deepseek/ollama — plain AI call, no search
     const r = await callAI<{ answer: string }>({
-      systemInstruction: req.systemInstruction,
+      systemInstruction: augmented.systemInstruction,
       userPrompt: req.userPrompt,
       responseSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
       maxTokens: req.maxTokens,
     })
     result = { text: r.answer, sources: [] }
   }
-  return { ...result, text: cleanSearchAnswer(result.text) }
+  return result
 }
 
 // ── Source document digest ────────────────────────────────────────────────────
@@ -964,7 +955,7 @@ export async function generateBrief(graph: ThonkGraph): Promise<{ title: string;
     })
     .join('\n')
 
-  return callAI<{ title: string; markdown: string }>({
+  const result = await callAI<{ title: string; markdown: string }>({
     systemInstruction: BRIEF_SYSTEM,
     userPrompt: `NODES:\n${nodeLines}${edgeLines ? `\n\nCONNECTIONS:\n${edgeLines}` : ''}`,
     responseSchema: {
@@ -976,4 +967,65 @@ export async function generateBrief(graph: ThonkGraph): Promise<{ title: string;
       required: ['title', 'markdown'],
     },
   })
+  result.markdown = result.markdown.replace(/\s*—\s*/g, ' - ')
+  return result
+}
+
+// ── Analysis generation ───────────────────────────────────────────────────────
+
+const ANALYSIS_SYSTEM = `Read these thinking notes and write a short, sharp review of them — like a critic summarizing someone's pitch deck after the room cleared out.
+
+Write 3–4 short paragraphs. No headers. No bullets. Plain sentences. Third person only — never "you" or "your".
+
+Match the tone of the content — if it's casual, stay casual. If it's technical, stay grounded.
+
+First paragraph: what's been figured out or landed on. Use the actual words from the notes where possible.
+Second paragraph: what's still open, fuzzy, or contradicting itself. Don't soften it.
+Third paragraph: the core thing that makes this hard. The real tradeoff. One sentence if possible.
+Optional fourth: if there's an obvious next move, name it bluntly.
+
+No "you", no "your". Write about the ideas, not the person.
+No business words. No "leveraging", "synergy", "ecosystem", "strategic". Write like you talk.
+Short sentences. If a paragraph runs past 3 sentences, cut it.
+Be specific to what's actually in the notes — no generic advice.
+${NO_DISCLAIMER_BLOCK}`
+
+export async function generateReport(graph: ThonkGraph): Promise<{ title: string; markdown: string }> {
+  const nodes = graph.nodes.filter(n => n.type !== 'source' && n.type !== 'note')
+
+  if (!hasActiveKey() || !nodes.length) {
+    return { title: 'Analysis', markdown: '*Connect AI to generate an analysis.*' }
+  }
+
+  const nodeLines = nodes
+    .map(n => {
+      const tags = [n.type, n.resolved ? 'resolved' : null, n.thumb === 'up' ? 'accepted' : n.thumb === 'down' ? 'dropped' : null].filter(Boolean).join(', ')
+      return `[${tags}] "${n.title}"${n.body ? `\n${n.body}` : ''}`
+    })
+    .join('\n\n')
+
+  const nodeIds = new Set(nodes.map(n => n.id))
+  const edgeLines = graph.edges
+    .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
+    .map(e => {
+      const src = nodes.find(n => n.id === e.source)?.title ?? e.source
+      const tgt = nodes.find(n => n.id === e.target)?.title ?? e.target
+      return `"${src}" --${e.relation}--> "${tgt}"`
+    })
+    .join('\n')
+
+  const result = await callAI<{ title: string; markdown: string }>({
+    systemInstruction: ANALYSIS_SYSTEM,
+    userPrompt: `NODES:\n${nodeLines}${edgeLines ? `\n\nCONNECTIONS:\n${edgeLines}` : ''}`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        title:    { type: 'string' },
+        markdown: { type: 'string' },
+      },
+      required: ['title', 'markdown'],
+    },
+  })
+  result.markdown = result.markdown.replace(/\s*—\s*/g, ' - ')
+  return result
 }

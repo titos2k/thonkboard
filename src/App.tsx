@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef, useEffect } from 'react'
+import React, { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect } from 'react'
 import {
   ReactFlow,
   Background,
@@ -317,10 +317,12 @@ export default function App() {
   } = useGraph(activeBoardId)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const selectedIdsRef = useRef<Set<string>>(new Set())
   const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(() => loadCollapsed(getActiveBoardId()))
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
+  const [paletteScope, setPaletteScope] = useState<'this' | 'all'>('this')
   const [examplePreview, setExamplePreview] = useState<{ name: string } | null>(null)
   const examplePrevBoardIdRef = useRef<string | null>(null)
   const examplePrevViewportRef = useRef<{ x: number; y: number; zoom: number } | null>(null)
@@ -341,6 +343,20 @@ export default function App() {
 
   const isMobile = useIsMobile()
   const rfInstance = useRef<ReactFlowInstance | null>(null)
+
+  const captureMinimap = (boardId: string) => {
+    try {
+      const svgEl = document.querySelector('.react-flow__minimap svg')
+      if (!svgEl) return
+      // Strip the viewport mask path — its fill comes from CSS, defaults to black outside context.
+      // Also inject the canvas background color so the SVG renders correctly standalone.
+      const bg = darkMode ? '#1a1a2e' : '#f5f4f0'
+      const svg = svgEl.outerHTML
+        .replace(/<path[^>]*minimap-mask[^>]*>/g, '')
+        .replace(/^<svg /, `<svg style="background:${bg}" `)
+      if (svg.length < 20_000) localStorage.setItem(`thonk.minimap.${boardId}`, svg)
+    } catch { /* non-critical */ }
+  }
   const fileHandlesRef = useRef<Map<string, FileSystemFileHandle>>(new Map())
   const [linkedFileName, setLinkedFileName] = useState<string | null>(null)
   const savedGraphJsonRef = useRef<Map<string, string>>(new Map())
@@ -402,6 +418,7 @@ export default function App() {
 
   const handleCtrlSSave = useCallback(async () => {
     const boardName = boards.find(b => b.id === activeBoardId)?.name ?? 'Board'
+    captureMinimap(activeBoardId)
     if (!fsaSupported) {
       exportGraphToFile(graph, activeBoardId, boardName)
       return
@@ -450,6 +467,7 @@ export default function App() {
       savedGraphJsonRef.current.set(activeBoardId, JSON.stringify(graph))
       setFileDirty(false)
       setLinkedFileName(h.name)
+      captureMinimap(activeBoardId)
       showToast(`Saved: ${h.name}`, 'success')
     } catch {
       fileHandlesRef.current.delete(activeBoardId)
@@ -479,6 +497,7 @@ export default function App() {
       savedGraphJsonRef.current.set(activeBoardId, JSON.stringify(graph))
       setFileDirty(false)
       setLinkedFileName(handle.name)
+      captureMinimap(activeBoardId)
       showToast(`Saved: ${handle.name}`, 'success')
     } catch {
       fileHandlesRef.current.delete(activeBoardId)
@@ -487,6 +506,20 @@ export default function App() {
       showToast('Save failed — file may have been moved or deleted.', 'error')
     }
   }, [graph, activeBoardId, boards])
+
+  const viewCenter = useCallback(() => {
+    const wrap = document.getElementById('rf-wrap')
+    const rect = wrap?.getBoundingClientRect() ?? { width: 800, height: 600, left: 0, top: 0 }
+    return rfInstance.current?.screenToFlowPosition({
+      x: rect.left + rect.width / 2,
+      y: rect.top + rect.height / 2,
+    }) ?? { x: 400, y: 300 }
+  }, [])
+
+  const handleAddIdea     = useCallback(() => { const n = addNode('idea',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, viewCenter])
+  const handleAddProblem  = useCallback(() => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 }); setAutoEditId(n.id) }, [addNode, viewCenter])
+  const handleAddQuestion = useCallback(() => { const n = addNode('question', '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, viewCenter])
+  const handleAddNote     = useCallback(() => { const n = addNode('note',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, viewCenter])
 
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
@@ -500,10 +533,34 @@ export default function App() {
         handleCtrlSSave()
       }
       if ((e.ctrlKey || e.metaKey) && e.key === 'k') { e.preventDefault(); setPaletteOpen(true) }
+
+      // Node creation shortcuts — only when no modifier, no dialog/palette open
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (paletteOpen) return
+        if (document.querySelector('[role="dialog"]')) return
+        const typeKey = e.key === 'i' ? 'idea' : e.key === 'q' ? 'question' : e.key === 'p' ? 'problem' : e.key === 'n' ? 'note' : null
+        if (typeKey) {
+          e.preventDefault()
+          const attachId = selectedIdsRef.current.size === 1 ? [...selectedIdsRef.current][0] : null
+          const sourceNode = attachId ? graphRef.current.nodes.find(n => n.id === attachId) : null
+          const pos = sourceNode
+            ? { x: sourceNode.position.x + (sourceNode.nodeWidth ?? 200) + 60, y: sourceNode.position.y }
+            : viewCenter()
+          const extra = typeKey === 'problem' ? { severity: 0.5 } : undefined
+          const n = addNode(typeKey, '', '', pos, extra)
+          if (attachId) {
+            addGraphEdge(attachId, n.id, 'extends')
+            setRfNodes(prev => prev.map(nd => nd.id === attachId ? { ...nd, selected: false } : nd))
+            setSelectedIds(new Set())
+            selectedIdsRef.current = new Set()
+          }
+          setAutoEditId(n.id)
+        }
+      }
     }
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
-  }, [undo, redo, handleCtrlSSave, examplePreview])
+  }, [undo, redo, handleCtrlSSave, examplePreview, paletteOpen, addNode, addGraphEdge, viewCenter])
 
   // Update page title to reflect active board name (only once explicitly named)
   useEffect(() => {
@@ -541,6 +598,7 @@ export default function App() {
 
   const handleSwitchBoard = useCallback((id: string) => {
     if (id === activeBoardId) return
+    captureMinimap(activeBoardId)
     setExamplePreview(null)
     const currentVp = rfInstance.current?.getViewport()
     if (currentVp) saveViewport(currentVp, activeBoardId)
@@ -775,6 +833,18 @@ export default function App() {
     saveCollapsed(activeBoardId, collapsedNodeIds)
   }, [activeBoardId, collapsedNodeIds])
 
+  // Remove ghost IDs from selectedIds when nodes are deleted outside RF's onNodesChange
+  useEffect(() => {
+    if (selectedIds.size === 0) return
+    const validIds = new Set(graph.nodes.map(n => n.id))
+    setSelectedIds(prev => {
+      const next = new Set([...prev].filter(id => validIds.has(id)))
+      if (next.size === prev.size) return prev
+      selectedIdsRef.current = next
+      return next
+    })
+  }, [graph.nodes])
+
   // Deselect nodes that become hidden when a branch is collapsed
   useEffect(() => {
     if (hiddenNodeIds.size === 0 || selectedIds.size === 0) return
@@ -828,7 +898,9 @@ export default function App() {
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
   // Skip when the only change was a position persistence update — rfNodes already
   // has the correct position from applyNodeChanges during the drag.
-  useEffect(() => {
+  // useLayoutEffect (vs useEffect) runs before paint, collapsing this sync and RF's
+  // own prop-sync into the same frame — eliminates the one-frame toolbar show/hide delay.
+  useLayoutEffect(() => {
     if (positionUpdateRef.current) {
       positionUpdateRef.current = false
       return
@@ -918,6 +990,7 @@ export default function App() {
             next.delete(change.id)
           }
         })
+        selectedIdsRef.current = next
         return next
       })
     },
@@ -980,20 +1053,6 @@ export default function App() {
   )
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
-
-  const viewCenter = useCallback(() => {
-    const wrap = document.getElementById('rf-wrap')
-    const rect = wrap?.getBoundingClientRect() ?? { width: 800, height: 600, left: 0, top: 0 }
-    return rfInstance.current?.screenToFlowPosition({
-      x: rect.left + rect.width / 2,
-      y: rect.top + rect.height / 2,
-    }) ?? { x: 400, y: 300 }
-  }, [])
-
-  const handleAddIdea     = useCallback(() => { const n = addNode('idea',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
-  const handleAddProblem  = useCallback(() => { const n = addNode('problem',  '', '', viewCenter(), { severity: 0.5 }); setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
-  const handleAddQuestion = useCallback(() => { const n = addNode('question', '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
-  const handleAddNote     = useCallback(() => { const n = addNode('note',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, setAutoEditId, viewCenter])
 
   const handleImport = useCallback((file: File, incomingHandle?: FileSystemFileHandle) => {
     const reader = new FileReader()
@@ -1149,7 +1208,14 @@ export default function App() {
   return (
     <TooltipProvider delayDuration={0} disableHoverableContent>
       <div style={{ width: '100vw', height: '100dvh', position: 'relative' }}>
-        <WelcomeModal open={!welcomed} onConnectAI={handleWelcomeConnectAI} onSkip={handleWelcomeSkip} onSeeExample={EXAMPLES.length ? () => { handleWelcomeSkip(); handleLoadExample(EXAMPLES[0].raw, EXAMPLES[0].name) } : undefined} />
+        <WelcomeModal
+          open={!welcomed}
+          onConnectAI={handleWelcomeConnectAI}
+          onSkip={handleWelcomeSkip}
+          onSeeExample={EXAMPLES.length ? () => { handleWelcomeSkip(); handleLoadExample(EXAMPLES[0].raw, EXAMPLES[0].name) } : undefined}
+          templates={EXAMPLES.filter(ex => ex.isTemplate)}
+          onLoadTemplate={(raw, name) => { handleWelcomeSkip(); handleLoadExample(raw, name) }}
+        />
         <TopBar
           onAddIdea={handleAddIdea}
           onAddProblem={handleAddProblem}
@@ -1178,6 +1244,7 @@ export default function App() {
           onLoadExample={handleLoadExample}
           exampleMode={!!examplePreview}
           onOpenPalette={() => setPaletteOpen(true)}
+          onOpenPaletteAllBoards={() => { setPaletteScope('all'); setPaletteOpen(true) }}
           conflictCount={conflictCount}
         />
         <div style={{ width: '100%', height: '100%', paddingTop: 53 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
@@ -1249,9 +1316,17 @@ export default function App() {
 
         <CommandPalette
           open={paletteOpen}
-          onClose={() => setPaletteOpen(false)}
+          onClose={() => { setPaletteOpen(false); setPaletteScope('this') }}
           nodes={graph.nodes}
+          edges={graph.edges}
           onNavigate={id => navigateToNode(id, { highlight: true })}
+          initialScope={paletteScope}
+          otherBoards={boards.filter(b => b.id !== activeBoardId)}
+          onLoadBoardNodes={id => loadGraph(id).nodes}
+          onNavigateBoard={(boardId, nodeId) => {
+            handleSwitchBoard(boardId)
+            setTimeout(() => navigateToNode(nodeId, { highlight: true }), 350)
+          }}
         />
 
         {!isMobile && (

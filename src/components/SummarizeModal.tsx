@@ -1,17 +1,18 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { RefreshCw, Download, FileText } from 'lucide-react'
+import { Copy, RefreshCw, Download, FileText } from 'lucide-react'
 import { Spinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
-import { generateBrief } from '@/ai/gemini'
+import { generateBrief, generateReport } from '@/ai/gemini'
 import type { ThonkGraph } from '@/store/types'
 
 export interface SummarizeCache {
   fingerprint: string
   title: string
   markdown: string
+  mode: 'list' | 'analysis'
 }
 
 interface Props {
@@ -21,8 +22,8 @@ interface Props {
   cache: React.MutableRefObject<SummarizeCache | null>
 }
 
-function fingerprint(graph: ThonkGraph): string {
-  return graph.nodes
+function fingerprint(graph: ThonkGraph, mode: 'list' | 'analysis'): string {
+  return mode + '|' + graph.nodes
     .filter(n => n.type === 'core' || n.type === 'idea')
     .map(n => `${n.id}:${n.title}:${n.body}`)
     .sort()
@@ -76,31 +77,34 @@ function downloadPdf(title: string, md: string) {
   win.print()
 }
 
-type Status = 'loading' | 'ready' | 'error'
+type Status = 'idle' | 'loading' | 'ready' | 'error'
 
 export function SummarizeModal({ open, onClose, graph, cache }: Props) {
-  const [status, setStatus] = useState<Status>('loading')
+  const [status, setStatus] = useState<Status>('idle')
+  const [mode, setMode] = useState<'list' | 'analysis' | null>(null)
   const [title, setTitle] = useState('')
   const [markdown, setMarkdown] = useState('')
   const [error, setError] = useState('')
   const abortRef = useRef<AbortController | null>(null)
 
-  const run = async (force = false) => {
-    const fp = fingerprint(graph)
+  const run = async (m: 'list' | 'analysis', force = false) => {
+    const fp = fingerprint(graph, m)
 
     if (!force && cache.current?.fingerprint === fp) {
       setTitle(cache.current.title)
       setMarkdown(cache.current.markdown)
+      setMode(m)
       setStatus('ready')
       return
     }
 
+    setMode(m)
     setStatus('loading')
     setError('')
 
     try {
-      const result = await generateBrief(graph)
-      cache.current = { fingerprint: fp, title: result.title, markdown: result.markdown }
+      const result = m === 'analysis' ? await generateReport(graph) : await generateBrief(graph)
+      cache.current = { fingerprint: fp, title: result.title, markdown: result.markdown, mode: m }
       setTitle(result.title)
       setMarkdown(result.markdown)
       setStatus('ready')
@@ -111,21 +115,45 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
   }
 
   useEffect(() => {
-    if (!open) return
-    run()
+    if (!open) { setStatus('idle'); setMode(null) }
     return () => { abortRef.current?.abort() }
-  }, [open]) // eslint-disable-line react-hooks/exhaustive-deps
+  }, [open])
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
-      <DialogContent className="max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden">
-        <DialogHeader className="px-6 pt-5 pb-3 border-b border-border shrink-0">
-          <DialogTitle className="text-base font-semibold">
-            {status === 'ready' ? title || 'Summary' : 'Summarize'}
+      <DialogContent aria-describedby={undefined} className="max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden">
+        <DialogHeader className="px-6 pr-12 pt-5 pb-3 shrink-0">
+          <DialogTitle className="text-2xl font-semibold leading-tight">
+            {status === 'ready' ? title || 'Summary' : 'How do you want to summarize this board?'}
           </DialogTitle>
         </DialogHeader>
 
         <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
+          {status === 'idle' && (
+            <div className="grid grid-cols-2 gap-3 pb-2">
+              <button
+                onClick={() => run('list')}
+                className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-col"
+              >
+                <div className="h-24 flex items-end mb-3">
+                  <img src="/wizard-head1.png" alt="" className="w-28 h-auto" />
+                </div>
+                <div className="text-base font-semibold mb-1">List</div>
+                <div className="text-sm text-muted-foreground">Ideas and decisions ordered as bullets, good for sharing a quick overview.</div>
+              </button>
+              <button
+                onClick={() => run('analysis')}
+                className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-col"
+              >
+                <div className="h-24 flex items-end mb-3">
+                  <img src="/wizard-head2.png" alt="" className="w-28 h-auto" />
+                </div>
+                <div className="text-base font-semibold mb-1">Analysis</div>
+                <div className="text-sm text-muted-foreground">What you figured out, what's still uncertain, and what the core tension is.</div>
+              </button>
+            </div>
+          )}
+
           {status === 'loading' && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
               <Spinner className="w-6 h-6 opacity-60" />
@@ -146,35 +174,56 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
           )}
         </div>
 
-        <div className="px-6 py-3 border-t border-border flex items-center justify-between shrink-0">
-          <Button
-            size="sm" variant="ghost"
-            className="h-8 text-sm gap-1.5 text-muted-foreground cursor-pointer"
-            onClick={() => run(true)}
-            disabled={status === 'loading'}
-          >
-            <RefreshCw className="w-3.5 h-3.5" /> Regenerate
-          </Button>
+        {status !== 'idle' && (
+          <div className="px-6 py-3 border-t border-border flex items-center justify-between shrink-0">
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm" variant="outline"
+                className="h-8 text-sm cursor-pointer"
+                onClick={() => { setStatus('idle'); setMode(null) }}
+              >
+                Back
+              </Button>
+              {status === 'ready' && mode && (
+                <Button
+                  size="sm" variant="outline"
+                  className="h-8 text-sm gap-1.5 cursor-pointer"
+                  onClick={() => run(mode, true)}
+                  disabled={status === 'loading'}
+                >
+                  <RefreshCw className="w-3.5 h-3.5" /> Regenerate
+                </Button>
+              )}
+            </div>
 
-          <div className="flex items-center gap-2">
-            <Button
-              size="sm" variant="outline"
-              className="h-8 text-sm gap-1.5 cursor-pointer"
-              onClick={() => downloadMd(title, markdown)}
-              disabled={status !== 'ready'}
-            >
-              <FileText className="w-3.5 h-3.5" /> Download .md
-            </Button>
-            <Button
-              size="sm" variant="outline"
-              className="h-8 text-sm gap-1.5 cursor-pointer"
-              onClick={() => downloadPdf(title, markdown)}
-              disabled={status !== 'ready'}
-            >
-              <Download className="w-3.5 h-3.5" /> Download PDF
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button
+                size="sm" variant="outline"
+                className="h-8 text-sm gap-1.5 cursor-pointer"
+                onClick={() => navigator.clipboard.writeText(markdown)}
+                disabled={status !== 'ready'}
+              >
+                <Copy className="w-3.5 h-3.5" /> Copy
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                className="h-8 text-sm gap-1.5 cursor-pointer"
+                onClick={() => downloadMd(title, markdown)}
+                disabled={status !== 'ready'}
+              >
+                <FileText className="w-3.5 h-3.5" /> .md
+              </Button>
+              <Button
+                size="sm" variant="outline"
+                className="h-8 text-sm gap-1.5 cursor-pointer"
+                onClick={() => downloadPdf(title, markdown)}
+                disabled={status !== 'ready'}
+              >
+                <Download className="w-3.5 h-3.5" /> PDF
+              </Button>
+            </div>
           </div>
-        </div>
+        )}
       </DialogContent>
     </Dialog>
   )

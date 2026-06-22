@@ -1,4 +1,5 @@
 import { useRef, useState, memo, useEffect } from 'react'
+import { createPortal } from 'react-dom'
 import { Astroid, HelpCircle, Map, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search, FileInput } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
@@ -45,6 +46,7 @@ interface TopBarProps {
   onLoadExample: (raw: string, name: string) => void
   exampleMode?: boolean
   onOpenPalette?: () => void
+  onOpenPaletteAllBoards?: () => void
   conflictCount?: number
 }
 
@@ -78,7 +80,7 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? PROVIDER_LABELS[provider] : 'Set AI key'
 }
 
-function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, onImportSource, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, conflictCount }: TopBarProps) {
+function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, onImportSource, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, onOpenPaletteAllBoards, conflictCount }: TopBarProps) {
   const toastExampleBlocked = () => window.dispatchEvent(new CustomEvent('thonk:toast', { detail: 'Keep or exit the example before loading a board' }))
   const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -121,6 +123,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
   const isMobile = useIsMobile()
   const isNarrow = useIsNarrow()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
+  const [minimapHover, setMinimapHover] = useState<{ svg: string; top: number; left: number } | null>(null)
   const [legalOpen, setLegalOpen] = useState(false)
 
   const logoRef = useRef<HTMLImageElement>(null)
@@ -238,6 +241,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
   }
 
   return (
+    <>
     <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-card border-b border-border" style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
       <img
         ref={logoRef}
@@ -273,8 +277,18 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   return (
                     <DropdownMenuItem
                       key={board.id}
-                      onClick={() => onSwitchBoard(board.id)}
-                      className="flex items-center justify-between gap-1 pr-1"
+                      onClick={() => { setMinimapHover(null); onSwitchBoard(board.id) }}
+                      className="flex items-center justify-between gap-1 pr-1 relative"
+                      onMouseEnter={(e) => {
+                        try {
+                          const svg = localStorage.getItem(`thonk.minimap.${board.id}`)
+                          if (svg) {
+                            const rect = e.currentTarget.getBoundingClientRect()
+                            setMinimapHover({ svg, top: rect.top, left: rect.right + 10 })
+                          }
+                        } catch { /* ignore */ }
+                      }}
+                      onMouseLeave={() => setMinimapHover(null)}
                     >
                       <span className="flex items-center gap-2 min-w-0">
                         {isActive
@@ -311,6 +325,11 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
               <DropdownMenuItem onClick={() => exampleMode ? toastExampleBlocked() : onCreateBoard()}>
                 <Plus className="w-4 h-4 text-muted-foreground" /> New board
               </DropdownMenuItem>
+              {onOpenPaletteAllBoards && boards.length > 1 && (
+                <DropdownMenuItem onClick={onOpenPaletteAllBoards}>
+                  <Search className="w-4 h-4 text-muted-foreground" /> Search boards
+                </DropdownMenuItem>
+              )}
             </DropdownMenuSubContent>
           </DropdownMenuSub>
           {/* File submenu */}
@@ -963,6 +982,15 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
         </DialogContent>
       </Dialog>
     </div>
+    {minimapHover && createPortal(
+      <div
+        className="pointer-events-none fixed z-[9999] w-[200px] h-[120px] rounded-lg border border-border bg-card shadow-xl overflow-hidden [&_svg]:w-full [&_svg]:h-full"
+        style={{ top: minimapHover.top, left: minimapHover.left }}
+        dangerouslySetInnerHTML={{ __html: minimapHover.svg }}
+      />,
+      document.body,
+    )}
+    </>
   )
 }
 
