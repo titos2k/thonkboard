@@ -26,6 +26,15 @@ export interface AssembledContext {
     nodes: Array<{ id: string; type: string; title: string }>
     edges: Array<{ source: string; target: string; relation: string }>
   }
+  _sourcePrefix?: string
+}
+
+function sourcePrefix(graph: ThonkGraph): string {
+  const sources = graph.nodes.filter(n => n.type === 'source' && n.body)
+  if (!sources.length) return ''
+  return sources
+    .map((n, i) => `## BACKGROUND (user already knows this — do not repeat or paraphrase it back) ${i + 1}: ${n.title}\n${n.body}`)
+    .join('\n\n') + '\n\n'
 }
 
 export function assembleContext(graph: ThonkGraph, targetId: string): AssembledContext | null {
@@ -39,17 +48,17 @@ export function assembleContext(graph: ThonkGraph, targetId: string): AssembledC
   }
   connectedIds.delete(targetId)
 
-  const neighbors = graph.nodes.filter(n => connectedIds.has(n.id) && n.type !== 'note')
+  const neighbors = graph.nodes.filter(n => connectedIds.has(n.id) && n.type !== 'note' && n.type !== 'source')
 
   const skeleton = {
-    nodes: graph.nodes.filter(n => n.type !== 'note').map(n => ({ id: n.id, type: n.type, title: n.title })),
-    edges: graph.edges.map(e => ({ source: e.source, target: e.target, relation: e.relation })),
+    nodes: graph.nodes.filter(n => n.type !== 'note' && n.type !== 'source').map(n => ({ id: n.id, type: n.type, title: n.title })),
+    edges: graph.edges.filter(e => e.relation !== 'sources').map(e => ({ source: e.source, target: e.target, relation: e.relation })),
   }
 
-  return { target, neighbors, skeleton }
+  return { target, neighbors, skeleton, _sourcePrefix: sourcePrefix(graph) }
 }
 
-export function contextToPrompt(ctx: AssembledContext): string {
+export function contextToPrompt(ctx: AssembledContext, opts?: { omitSource?: boolean }): string {
   const lines: string[] = []
 
   lines.push(`TARGET NODE (${ctx.target.type.toUpperCase()})`)
@@ -75,6 +84,11 @@ export function contextToPrompt(ctx: AssembledContext): string {
     lines.push(`- ${e.source.slice(0, 8)} --${e.relation}--> ${e.target.slice(0, 8)}`)
   }
 
+  if (!opts?.omitSource && ctx._sourcePrefix) {
+    lines.push('')
+    lines.push(ctx._sourcePrefix.trimEnd())
+  }
+
   return lines.join('\n')
 }
 
@@ -86,7 +100,7 @@ export function assembleContextSemantic(graph: ThonkGraph, targetId: string): st
   const query = `${ctx.target.title} ${ctx.target.body}`
 
   const candidates = graph.nodes.filter(
-    n => n.type !== 'note' && n.id !== targetId && !neighborIds.has(n.id)
+    n => n.type !== 'note' && n.type !== 'source' && n.id !== targetId && !neighborIds.has(n.id)
   )
 
   const scored = candidates.map(n => ({
@@ -97,6 +111,9 @@ export function assembleContextSemantic(graph: ThonkGraph, targetId: string): st
   const topK = scored.slice(0, 5).filter(s => s.score > 0.05)
 
   const lines: string[] = []
+
+  if (ctx._sourcePrefix) lines.push(ctx._sourcePrefix)
+
   lines.push(`TARGET NODE (${ctx.target.type.toUpperCase()})`)
   lines.push(`Title: ${ctx.target.title}`)
   lines.push(`Body: ${ctx.target.body}`)

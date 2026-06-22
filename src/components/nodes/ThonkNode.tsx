@@ -11,6 +11,15 @@ const touchStore = {
   getSnapshot: () => _touchId,
   set: (id: string | null) => { _touchId = id; _listeners.forEach(l => l()) },
 }
+
+// Module-level store: tracks whether the canvas is currently being panned.
+let _panning = false
+const _panListeners = new Set<() => void>()
+export const canvasPanStore = {
+  subscribe:   (cb: () => void) => { _panListeners.add(cb); return () => _panListeners.delete(cb) },
+  getSnapshot: () => _panning,
+  set: (v: boolean) => { if (_panning === v) return; _panning = v; _panListeners.forEach(l => l()) },
+}
 import { NodeToolbar, Position, useReactFlow, type NodeProps } from '@xyflow/react'
 import {
   Angry,
@@ -32,6 +41,8 @@ import {
   Sparkles,
   Smile,
   ExternalLink,
+  FileInput,
+  Minus,
 } from 'lucide-react'
 
 function ThumbUpIcon({ className }: { className?: string }) {
@@ -83,7 +94,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
     meta?: Partial<TNode['meta']>,
   ) => TNode
   onAddEdge: (source: string, target: string, relation: import('@/store/types').EdgeRelation, sourceHandle?: string, targetHandle?: string) => void
-  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'thumb' | 'emoji'>> & { meta?: Partial<TNode['meta']> }) => void
+  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'thumb' | 'emoji' | 'userTitleEdited'>> & { meta?: Partial<TNode['meta']> }) => void
   onDelete: (id: string) => void
   onOpenAsNewBoard?: (node: TNode) => void
   onResetBoard?: () => void
@@ -91,6 +102,12 @@ export interface ThonkNodeData extends Record<string, unknown> {
   hasAnswer: boolean
   aiConnected: boolean
   hiddenNodeIds?: Set<string>
+  isCollapsed?: boolean
+  hasChildren?: boolean
+  hiddenDescendantCount?: number
+  hiddenConflictCount?: number
+  onExpand?: (id: string) => void
+  onCollapse?: (id: string) => void
   onAutoEdit: (id: string) => void
   onBatchStart: () => void
   onBatchEnd: () => void
@@ -251,6 +268,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const d = data as ThonkNodeData
   const { thonk, graphRef } = d
   const { getNode, setCenter, getZoom } = useReactFlow()
+  const isPanning = useSyncExternalStore(canvasPanStore.subscribe, canvasPanStore.getSnapshot)
 
   const panToSpawned = useCallback((ids: string[]) => {
     requestAnimationFrame(() => {
@@ -420,17 +438,17 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     }
   }, []) // eslint-disable-line react-hooks/exhaustive-deps
 
-  const ctx = () => {
+  const ctx = (opts?: Parameters<typeof contextToPrompt>[1]) => {
     const c = assembleContext(graphRef.current, thonk.id)
     if (!c) throw new Error('Node not found in graph')
     const liveTitle = editTitle.trim() || c.target.title
-    if (liveTitle === c.target.title) return contextToPrompt(c)
+    if (liveTitle === c.target.title) return contextToPrompt(c, opts)
     return contextToPrompt({
       ...c,
       target: { ...c.target, title: liveTitle, body: liveTitle },
       neighbors: c.neighbors.map(n => n.id === thonk.id ? { ...n, title: liveTitle } : n),
       skeleton: { ...c.skeleton, nodes: c.skeleton.nodes.map(n => n.id === thonk.id ? { ...n, title: liveTitle } : n) },
-    })
+    }, opts)
   }
 
   const ctxSemantic = () => {
@@ -481,7 +499,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const handleArgue = () =>
     withLoading(async () => {
-      const problems = await critiqueNode(ctx())
+      const problems = await critiqueNode(ctx({ omitSource: true }))
       const dir = nodeSpawnDir(thonk.id, graphRef.current)
       const { sourceHandle, targetHandle } = dirHandles(dir)
       const childDepth = thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0
@@ -749,6 +767,18 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   const showEdit         = !editing
 
+  // Collapsed nodes stay in React Flow's layout (so edges can still route to them)
+  // but are visually invisible and non-interactive.
+  if (d.isCollapsed) {
+    return (
+      <div style={{ opacity: 0, pointerEvents: 'none' }} className="[&_.react-flow__handle]:!pointer-events-none">
+        <NodeShell nodeType={thonk.type}>
+          <div className="px-3 py-2.5 font-medium text-sm">{thonk.title || ' '}</div>
+        </NodeShell>
+      </div>
+    )
+  }
+
   return (
     <>
     <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} dimmed={thonk.thumb === 'down'} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
@@ -832,6 +862,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 <ToolBtn icon={<Trash2 className="w-5 h-5" />} label="Delete" onClick={() => d.onDelete(thonk.id)} />
               </>
             )}
+
           </>
         </div>
       </NodeToolbar>
@@ -1052,8 +1083,11 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               <div key={i} className={i > 0 ? 'mt-3 pt-3 border-t border-red-200 dark:border-red-800/40' : ''}>
                 <div className="text-xs font-semibold uppercase tracking-wide text-red-500 mb-1">Conflicts with</div>
                 <div className="font-semibold text-sm flex items-start gap-1.5">
-                  {other && <span className="w-2 h-2 rounded-full shrink-0 inline-block mt-1.5" style={{ backgroundColor: { core: '#392946', idea: '#f5c44a', problem: '#e95a32', question: '#c8cac8', answer: '#00ae60', note: '#f7efd0' }[other.type] ?? '#888' }} />}
-                  {other?.title ?? 'Unknown node'}
+                  {other && <span className="w-2 h-2 rounded-full shrink-0 inline-block mt-1.5" style={{ backgroundColor: ({ core: '#392946', idea: '#f5c44a', problem: '#e95a32', question: '#c8cac8', answer: '#00ae60', note: '#f7efd0', source: '#4a6fa5' } as Record<string, string>)[other.type] ?? '#888' }} />}
+                  <span>
+                    {other?.title ?? 'Unknown node'}
+                    {d.hiddenNodeIds?.has(c.nodeId) && <span className="ml-1 text-xs font-normal opacity-60">(hidden)</span>}
+                  </span>
                 </div>
                 {c.description && (
                   <div className="text-sm text-muted-foreground mt-1.5">{c.description}</div>
@@ -1105,6 +1139,13 @@ export const ThonkNodeComponent = React.memo(
       pd.isMultiSelected === nd.isMultiSelected &&
       pd.highlighted === nd.highlighted &&
       pd.thonk.placeholder === nd.thonk.placeholder &&
+      pd.isCollapsed === nd.isCollapsed &&
+      pd.hasChildren === nd.hasChildren &&
+      pd.hiddenDescendantCount === nd.hiddenDescendantCount &&
+      pd.hiddenConflictCount === nd.hiddenConflictCount &&
+      pd.hiddenNodeIds === nd.hiddenNodeIds &&
+      pd.onExpand === nd.onExpand &&
+      pd.onCollapse === nd.onCollapse &&
       prev.selected === next.selected &&
       prev.dragging === next.dragging
     )
@@ -1244,6 +1285,15 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
               <DropdownMenuItem onClick={onOpenAsNewBoard}>
                 <ExternalLink className="w-4 h-4" />
                 Open as new board
+              </DropdownMenuItem>
+            </>
+          )}
+          {nodeType === 'core' && (
+            <>
+              <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent('thonk:open-source-import'))}>
+                <FileInput className="w-4 h-4" />
+                Import source…
               </DropdownMenuItem>
             </>
           )}

@@ -1,4 +1,4 @@
-export type NodeType = 'core' | 'idea' | 'problem' | 'question' | 'answer' | 'note'
+export type NodeType = 'core' | 'idea' | 'problem' | 'question' | 'answer' | 'note' | 'source'
 
 export type EdgeRelation =
   | 'spawns'
@@ -7,6 +7,7 @@ export type EdgeRelation =
   | 'argues'
   | 'fixes'
   | 'expands'
+  | 'sources'
 
 export interface ConflictEntry {
   nodeId: string
@@ -28,6 +29,10 @@ export interface ThonkNode {
   thumb?: 'up' | 'down'   // user reaction; 'up' = accepted, 'down' = rejected
   emoji?: string              // optional emoji icon; only displayed for idea/core types
   conflicts: ConflictEntry[]  // contradictions detected with other nodes after approval
+  // Source node fields (only present when type === 'source')
+  sourceKind?: 'md'
+  sourceId?: string           // IndexedDB key for full text + chunks
+  userTitleEdited?: boolean   // when true, never auto-overwrite title on re-import
   position: { x: number; y: number }
   meta: {
     createdAt: string

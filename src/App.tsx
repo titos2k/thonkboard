@@ -20,6 +20,8 @@ import {
   type Node,
   type Edge,
   type ReactFlowInstance,
+  Handle,
+  Position,
 } from '@xyflow/react'
 import { toPng } from 'html-to-image'
 import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2, X, Star } from 'lucide-react'
@@ -37,8 +39,12 @@ import {
 import { persistFileHandle, restoreFileHandle, dropFileHandle, ensureWritePermission } from '@/store/fileHandleStore'
 import type { ThonkNode, ThonkEdge, ThonkGraph, BoardMeta } from '@/store/types'
 import { v4 as uuidv4 } from 'uuid'
-import { ThonkNodeComponent, type ThonkNodeData } from '@/components/nodes/ThonkNode'
+import { ThonkNodeComponent, canvasPanStore, type ThonkNodeData } from '@/components/nodes/ThonkNode'
+import { ThonkEdgeComponent } from '@/components/edges/ThonkEdge'
 import { NoteNodeComponent } from '@/components/nodes/NoteNode'
+import { SourceNodeComponent } from '@/components/nodes/SourceNode'
+import { ingestSource } from '@/ai/sourceIngest'
+import { deleteSource } from '@/store/sourceDb'
 import { CommandPalette } from '@/components/CommandPalette'
 import { TopBar } from '@/components/TopBar'
 import { WelcomeModal } from '@/components/WelcomeModal'
@@ -51,7 +57,8 @@ import { showToast } from '@/lib/toast'
 import { EXAMPLES } from '@/examples'
 import { MultiSelectToolbar } from '@/components/MultiSelectToolbar'
 
-const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent }
+const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent, source: SourceNodeComponent }
+const EDGE_TYPES = { thonk: ThonkEdgeComponent }
 
 const ZoomInButton = React.memo(function ZoomInButton() {
   const { zoomIn } = useReactFlow()
@@ -153,6 +160,53 @@ const NODE_EDGE_COLOR: Record<string, string> = {
   problem:  '#e95a32',
   question: '#858783',
   answer:   '#00ae60',
+  source:   '#4a6fa5',
+}
+
+function loadCollapsed(boardId: string): Set<string> {
+  try {
+    const raw = localStorage.getItem(`thonk.collapsed.${boardId}`)
+    if (!raw) return new Set()
+    return new Set(JSON.parse(raw) as string[])
+  } catch { return new Set() }
+}
+
+function saveCollapsed(boardId: string, ids: Set<string>) {
+  if (ids.size === 0) localStorage.removeItem(`thonk.collapsed.${boardId}`)
+  else localStorage.setItem(`thonk.collapsed.${boardId}`, JSON.stringify([...ids]))
+}
+
+function getDescendants(nodeId: string, edges: ThonkEdge[]): Set<string> {
+  const result = new Set<string>()
+  const stack = [nodeId]
+  while (stack.length > 0) {
+    const id = stack.pop()!
+    for (const e of edges) {
+      if (e.source === id && !result.has(e.target)) {
+        result.add(e.target)
+        stack.push(e.target)
+      }
+    }
+  }
+  return result
+}
+
+function getCollapsedAncestors(nodeId: string, edges: ThonkEdge[], collapsedNodeIds: Set<string>): Set<string> {
+  const result = new Set<string>()
+  const queue = [nodeId]
+  const visited = new Set<string>()
+  while (queue.length) {
+    const cur = queue.shift()!
+    if (visited.has(cur)) continue
+    visited.add(cur)
+    for (const e of edges) {
+      if (e.target === cur && !visited.has(e.source)) {
+        if (collapsedNodeIds.has(e.source)) result.add(e.source)
+        queue.push(e.source)
+      }
+    }
+  }
+  return result
 }
 
 type GraphCallbacks = {
@@ -168,6 +222,16 @@ type GraphCallbacks = {
   onBatchEnd:        ThonkNodeData['onBatchEnd']
 }
 
+type CollapseProps = {
+  isCollapsed: boolean
+  hasChildren: boolean
+  hiddenDescendantCount: number
+  hiddenConflictCount: number
+  hiddenNodeIds: Set<string>
+  onExpand: (id: string) => void
+  onCollapse: (id: string) => void
+}
+
 function toRFNode(
   n: ThonkNode,
   selected: boolean,
@@ -178,33 +242,53 @@ function toRFNode(
   aiConnected: boolean,
   isMultiSelected: boolean,
   highlighted: boolean,
+  collapse: CollapseProps,
 ): Node {
+  const isCollapsed = collapse.isCollapsed
   return {
     id: n.id,
-    type: n.type === 'note' ? 'note' : 'thonk',
+    type: n.type === 'note' ? 'note' : n.type === 'source' ? 'source' : 'thonk',
     position: n.position,
-    selected,
-    data: { thonk: n, graphRef, autoEdit, hasAnswer, aiConnected, isMultiSelected, highlighted, ...cb } as ThonkNodeData,
+    selected: isCollapsed ? false : selected,
+    data: { thonk: n, graphRef, autoEdit: isCollapsed ? false : autoEdit, hasAnswer, aiConnected, isMultiSelected, highlighted: isCollapsed ? false : highlighted, ...collapse, ...cb } as ThonkNodeData,
+    // Invisible but still rendered — keeps handle positions stable so labelX/labelY
+    // in edges stays the same whether the node is collapsed or not.
+    ...(isCollapsed ? { selectable: false, draggable: false, focusable: false, style: { opacity: 0, pointerEvents: 'none' as const } } : {}),
   }
 }
 
-function toRFEdge(e: ThonkEdge, nodes: ThonkNode[]): Edge {
+function toRFEdge(
+  e: ThonkEdge,
+  nodes: ThonkNode[],
+  isTargetCollapsed: boolean,
+  targetHasChildren: boolean,
+  isSourceSelected: boolean,
+  isTargetSelected: boolean,
+  hiddenCount: number,
+  onCollapse: (id: string) => void,
+  onExpand: (id: string) => void,
+): Edge {
   const target   = nodes.find(n => n.id === e.target)
   const source   = nodes.find(n => n.id === e.source)
-  const stroke   = NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8'
+  const isSourceEdge = e.relation === 'sources'
+  const stroke   = isSourceEdge ? '#6b8fc4'
+    : (target?.type === 'answer' && target?.meta.aiGenerated) ? '#00836d'
+    : (NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8')
   const aiDepth  = Math.max(target?.meta.aiDepth ?? 0, source?.meta.aiDepth ?? 0)
-  const dash     = target?.meta.aiGenerated ? `5 ${3 + aiDepth * 4}` : undefined
+  const dash     = isSourceEdge ? undefined : (target?.meta.aiGenerated ? `5 ${3 + aiDepth * 4}` : undefined)
+  const width    = isSourceEdge ? 1 : 1.5
   return {
     id: e.id,
+    type: 'thonk',
     source: e.source,
     target: e.target,
     sourceHandle: e.sourceHandle ?? undefined,
-    targetHandle: e.targetHandle ?? undefined,
-    style: { stroke, strokeDasharray: dash, strokeWidth: 1.5 },
+    targetHandle: isTargetCollapsed ? undefined : (e.targetHandle ?? undefined),
+    style: { stroke, strokeDasharray: dash, strokeWidth: width },
     className: `edge-rel-${e.relation}`,
-    data: { relation: e.relation },
+    data: { relation: e.relation, isTargetCollapsed, targetHasChildren, isSourceSelected, isTargetSelected, hiddenCount, targetType: target?.type, targetTitle: target?.title, onCollapse, onExpand },
     interactionWidth: 20,
-    reconnectable: true,
+    reconnectable: !isTargetCollapsed,
   }
 }
 
@@ -233,6 +317,7 @@ export default function App() {
   } = useGraph(activeBoardId)
 
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set())
+  const [collapsedNodeIds, setCollapsedNodeIds] = useState<Set<string>>(() => loadCollapsed(getActiveBoardId()))
   const [autoEditId, setAutoEditId] = useState<string | null>(null)
   const [highlightedNodeId, setHighlightedNodeId] = useState<string | null>(null)
   const [paletteOpen, setPaletteOpen] = useState(false)
@@ -438,6 +523,7 @@ export default function App() {
       setTimeout(() => rfInstance.current?.fitView({ padding: 0.5, duration: 400 }), 50)
     }
     setSelectedIds(new Set())
+    setCollapsedNodeIds(loadCollapsed(activeBoardId))
   }, [activeBoardId]) // eslint-disable-line react-hooks/exhaustive-deps
 
   // Keep board meta emoji in sync with the active board's core node emoji.
@@ -551,18 +637,31 @@ export default function App() {
     if (t === 'question') return '#f4f6f6'
     if (t === 'answer')   return '#00ae60'
     if (t === 'note')     return '#ffffff'
+    if (t === 'source')   return '#4a6fa5'
     return '#f5c44a'
   }, [])
 
   const navigateToNode = useCallback((nodeId: string, opts?: { highlight?: boolean }) => {
     const { highlight = false } = opts ?? {}
+    // Uncollapse any collapsed ancestors so the node becomes visible.
+    // Also uncollapse the node itself — it may be the collapsed root (not an ancestor of itself).
+    setCollapsedNodeIds(prev => {
+      const toRemove = getCollapsedAncestors(nodeId, graphRef.current.edges, prev)
+      if (prev.has(nodeId)) toRemove.add(nodeId)
+      if (toRemove.size === 0) return prev
+      const next = new Set(prev)
+      for (const id of toRemove) next.delete(id)
+      return next
+    })
     setSelectedIds(new Set([nodeId]))
-    const n = rfInstance.current?.getNode(nodeId)
-    if (n) {
-      const cx = n.position.x + (n.measured?.width ?? 200) / 2
-      const cy = n.position.y + (n.measured?.height ?? 80) / 2
+    // Use graphRef for position — rfNodes may not have updated yet after uncollapse
+    const graphNode = graphRef.current.nodes.find(n => n.id === nodeId)
+    if (graphNode) {
+      const rfNode = rfInstance.current?.getNode(nodeId)
+      const w = rfNode?.measured?.width ?? 200
+      const h = rfNode?.measured?.height ?? 80
       const zoom = rfInstance.current?.getZoom() ?? 1
-      rfInstance.current?.setCenter(cx, cy, { duration: 500, zoom })
+      rfInstance.current?.setCenter(graphNode.position.x + w / 2, graphNode.position.y + h / 2, { duration: 500, zoom })
     }
     if (highlight) {
       setHighlightedNodeId(nodeId)
@@ -660,15 +759,71 @@ export default function App() {
     return pairs.size
   }, [graph.nodes])
 
+  const hiddenNodeIds = useMemo(() => {
+    if (collapsedNodeIds.size === 0) return new Set<string>()
+    const hidden = new Set<string>()
+    for (const id of collapsedNodeIds) {
+      hidden.add(id) // the collapsed node itself disappears; edge to it becomes a stub
+      for (const descId of getDescendants(id, graph.edges)) {
+        hidden.add(descId)
+      }
+    }
+    return hidden
+  }, [collapsedNodeIds, graph.edges])
+
+  useEffect(() => {
+    saveCollapsed(activeBoardId, collapsedNodeIds)
+  }, [activeBoardId, collapsedNodeIds])
+
+  // Deselect nodes that become hidden when a branch is collapsed
+  useEffect(() => {
+    if (hiddenNodeIds.size === 0 || selectedIds.size === 0) return
+    setSelectedIds(prev => {
+      const next = new Set([...prev].filter(id => !hiddenNodeIds.has(id)))
+      return next.size === prev.size ? prev : next
+    })
+  }, [hiddenNodeIds]) // eslint-disable-line react-hooks/exhaustive-deps
+
+  const handleCollapse = useCallback((nodeId: string) => {
+    setCollapsedNodeIds(prev => new Set([...prev, nodeId]))
+  }, [])
+
+  const handleExpand = useCallback((nodeId: string) => {
+    setCollapsedNodeIds(prev => {
+      const next = new Set(prev)
+      next.delete(nodeId)
+      return next
+    })
+  }, [])
+
   const storeNodes = useMemo(() => {
     const isMultiSelected = selectedIds.size > 1
-    return graph.nodes.map(n => toRFNode(
-      n, selectedIds.has(n.id), n.id === autoEditId,
-      graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
-      graphRef, callbacks, aiConnected, isMultiSelected,
-      n.id === highlightedNodeId,
-    ))
-  }, [graph.nodes, selectedIds, autoEditId, graph.edges, callbacks, aiConnected, highlightedNodeId])
+    return graph.nodes.map(n => {
+      const isCollapsed = collapsedNodeIds.has(n.id)
+      let hiddenDescendantCount = 0
+      let hiddenConflictCount = 0
+      if (isCollapsed) {
+        const descs = getDescendants(n.id, graph.edges)
+        hiddenDescendantCount = descs.size
+        const conflictPairs = new Set<string>()
+        for (const descId of descs) {
+          const descNode = graph.nodes.find(nd => nd.id === descId)
+          for (const c of descNode?.conflicts ?? []) {
+            if (!c.ignored) conflictPairs.add([descId, c.nodeId].sort().join('|'))
+          }
+        }
+        hiddenConflictCount = conflictPairs.size
+      }
+      const hasChildren = graph.edges.some(e => e.source === n.id)
+      return toRFNode(
+        n, selectedIds.has(n.id), n.id === autoEditId,
+        graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
+        graphRef, callbacks, aiConnected, isMultiSelected,
+        n.id === highlightedNodeId,
+        { isCollapsed, hasChildren, hiddenDescendantCount, hiddenConflictCount, hiddenNodeIds, onExpand: handleExpand, onCollapse: handleCollapse },
+      )
+    })
+  }, [graph.nodes, selectedIds, autoEditId, graph.edges, callbacks, aiConnected, highlightedNodeId, collapsedNodeIds, hiddenNodeIds, handleExpand, handleCollapse])
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
   // Skip when the only change was a position persistence update — rfNodes already
@@ -678,19 +833,46 @@ export default function App() {
       positionUpdateRef.current = false
       return
     }
-    if (!isDraggingRef.current) setRfNodes(storeNodes)
-  }, [storeNodes])
+    if (!isDraggingRef.current) {
+      // Collapsed nodes stay in rfNodes as invisible real nodes — this keeps their
+      // handle positions intact so edges compute the same labelX/labelY in both states.
+      setRfNodes(
+        hiddenNodeIds.size === 0
+          ? storeNodes
+          : storeNodes.filter(n => !hiddenNodeIds.has(n.id) || collapsedNodeIds.has(n.id)),
+      )
+    }
+  }, [storeNodes, hiddenNodeIds, collapsedNodeIds])
 
   // Sync graph edges → local RF state (preserve selection state of existing edges)
   useEffect(() => {
     setRfEdges(prev => {
       const prevById = new Map(prev.map(e => [e.id, e]))
-      return graph.edges.map(e => {
-        const existing = prevById.get(e.id)
-        return { ...toRFEdge(e, graph.nodes), selected: existing?.selected ?? false }
-      })
+      return graph.edges
+        .filter(e =>
+          !hiddenNodeIds.has(e.source) &&
+          (!hiddenNodeIds.has(e.target) || collapsedNodeIds.has(e.target)),
+        )
+        .map(e => {
+          const existing = prevById.get(e.id)
+          const isTargetCollapsed = collapsedNodeIds.has(e.target)
+          const targetHasChildren = graph.edges.some(e2 => e2.source === e.target)
+          const hiddenCount = isTargetCollapsed ? 1 + getDescendants(e.target, graph.edges).size : 0
+          return {
+            ...toRFEdge(
+              e, graph.nodes,
+              isTargetCollapsed,
+              targetHasChildren,
+              selectedIds.has(e.source),
+              selectedIds.has(e.target),
+              hiddenCount,
+              handleCollapse, handleExpand,
+            ),
+            selected: existing?.selected ?? false,
+          }
+        })
     })
-  }, [graph.edges, graph.nodes])
+  }, [graph.edges, graph.nodes, hiddenNodeIds, collapsedNodeIds, selectedIds, handleCollapse, handleExpand])
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -709,8 +891,17 @@ export default function App() {
           updateNodePosition(change.id, change.position)
         }
         if (change.type === 'remove') {
+          setCollapsedNodeIds(prev => {
+            if (!prev.has(change.id)) return prev
+            const next = new Set(prev); next.delete(change.id); return next
+          })
           const removing = graph.nodes.find(n => n.id === change.id)
-          if (removing?.type !== 'core') deleteNode(change.id)
+          if (removing?.type !== 'core') {
+            if (removing?.type === 'source' && removing.sourceId) {
+              deleteSource(removing.sourceId).catch(() => {/* non-critical */})
+            }
+            deleteNode(change.id)
+          }
         }
       })
 
@@ -745,26 +936,47 @@ export default function App() {
 
   const onReconnect = useCallback(
     (oldEdge: Edge, newConnection: Connection) => {
+      if (!newConnection.source || !newConnection.target) return
       const relation = (oldEdge.data as { relation: string })?.relation ?? 'spawns'
-      if (newConnection.source && newConnection.target)
-        reconnectEdge(
-          oldEdge.id,
-          newConnection.source,
-          newConnection.target,
-          relation as import('@/store/types').EdgeRelation,
-          newConnection.sourceHandle,
-          newConnection.targetHandle,
-        )
+      if (relation === 'sources') {
+        const tgtNode = graph.nodes.find(n => n.id === newConnection.target)
+        if (tgtNode?.type !== 'core') {
+          showToast('Source nodes can only connect to the core', 'error')
+          return
+        }
+      }
+      reconnectEdge(
+        oldEdge.id,
+        newConnection.source,
+        newConnection.target,
+        relation as import('@/store/types').EdgeRelation,
+        newConnection.sourceHandle,
+        newConnection.targetHandle,
+      )
     },
-    [reconnectEdge],
+    [reconnectEdge, graph.nodes],
   )
 
   const onConnect = useCallback(
     (connection: Connection) => {
-      if (connection.source && connection.target)
-        addGraphEdge(connection.source, connection.target, 'spawns')
+      if (!connection.source || !connection.target) return
+      const srcNode = graph.nodes.find(n => n.id === connection.source)
+      const tgtNode = graph.nodes.find(n => n.id === connection.target)
+      if (srcNode?.type === 'source') {
+        if (tgtNode?.type !== 'core') {
+          showToast('Source nodes can only connect to the core', 'error')
+          return
+        }
+        addGraphEdge(connection.source, connection.target, 'sources')
+        return
+      }
+      if (tgtNode?.type === 'source') {
+        showToast('Cannot connect to a source node', 'error')
+        return
+      }
+      addGraphEdge(connection.source, connection.target, 'spawns')
     },
-    [addGraphEdge],
+    [addGraphEdge, graph.nodes],
   )
 
   const clearSelection = useCallback(() => setSelectedIds(new Set()), [])
@@ -825,6 +1037,26 @@ export default function App() {
     }
     reader.readAsText(file)
   }, [boards, switchToBoard])
+
+  const [importingSource, setImportingSource] = useState(false)
+
+  const handleImportSource = useCallback(async (file: File) => {
+    if (importingSource) return
+    setImportingSource(true)
+    try {
+      const { title, digest, sourceId, kind } = await ingestSource(file)
+      const core = graph.nodes.find(n => n.type === 'core')
+      const corePos = core?.position ?? { x: 400, y: 300 }
+      const pos = { x: corePos.x - 320, y: corePos.y - 60 }
+      const node = addNode('source', title, digest, pos, undefined, { sourceKind: kind, sourceId, userTitleEdited: false })
+      if (core) addGraphEdge(node.id, core.id, 'sources')
+      showToast(`Source "${title}" imported`, 'success')
+    } catch (e) {
+      showToast(e instanceof Error ? e.message : 'Failed to import source', 'error')
+    } finally {
+      setImportingSource(false)
+    }
+  }, [importingSource, graph.nodes, addNode, addGraphEdge])
 
   const handleLoadExample = useCallback((raw: string, name: string) => {
     try {
@@ -929,6 +1161,7 @@ export default function App() {
           onExportAs={handleSaveAs}
           onExportPng={handleExportPng}
           onImport={handleImport}
+          onImportSource={handleImportSource}
           linkedFileName={linkedFileName}
           fileDirty={fileDirty}
           graph={graph}
@@ -961,6 +1194,7 @@ export default function App() {
             nodes={rfNodes}
             edges={rfEdges}
             nodeTypes={NODE_TYPES}
+            edgeTypes={EDGE_TYPES}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
@@ -971,8 +1205,8 @@ export default function App() {
             fitView={!savedViewport && graph.nodes.length > 0}
             fitViewOptions={{ padding: 0.5, maxZoom: 1 }}
             defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
-            onMoveStart={() => document.getElementById('rf-wrap')?.classList.add('is-panning')}
-            onMoveEnd={(_e, vp) => { document.getElementById('rf-wrap')?.classList.remove('is-panning'); saveViewport(vp, activeBoardId) }}
+            onMoveStart={() => { document.getElementById('rf-wrap')?.classList.add('is-panning'); canvasPanStore.set(true) }}
+            onMoveEnd={(_e, vp) => { document.getElementById('rf-wrap')?.classList.remove('is-panning'); canvasPanStore.set(false); saveViewport(vp, activeBoardId) }}
             panOnDrag={[1, 2]}
             minZoom={0.1}
             maxZoom={2}
@@ -1043,6 +1277,7 @@ export default function App() {
               { color: 'bg-[#00ae60]',                          label: 'Answer'       },
               { color: 'bg-[#00836d]',                          label: 'Answer AI'    },
               { color: 'bg-[#f7efd0] border border-black/10',   label: 'Note'         },
+              { color: 'bg-[#4a6fa5]',                          label: 'Source'       },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-2.5">
                 <span className={`inline-block w-3 h-3 rounded shrink-0 ${color}`} />

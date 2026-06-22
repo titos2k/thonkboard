@@ -1,5 +1,5 @@
 import { useRef, useState, memo, useEffect } from 'react'
-import { Astroid, HelpCircle, Map, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search } from 'lucide-react'
+import { Astroid, HelpCircle, Map, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search, FileInput } from 'lucide-react'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -30,6 +30,7 @@ interface TopBarProps {
   linkedFileName: string | null
   fileDirty: boolean
   onImport: (file: File) => void
+  onImportSource: (file: File) => void
   graph: ThonkGraph
   boards: BoardMeta[]
   activeBoardId: string
@@ -77,10 +78,11 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? PROVIDER_LABELS[provider] : 'Set AI key'
 }
 
-function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, conflictCount }: TopBarProps) {
+function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, onImportSource, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, conflictCount }: TopBarProps) {
   const toastExampleBlocked = () => window.dispatchEvent(new CustomEvent('thonk:toast', { detail: 'Keep or exit the example before loading a board' }))
   const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
+  const sourceInputRef = useRef<HTMLInputElement>(null)
 
   useEffect(() => { new Image().src = '/thonk-wizard.png' }, [])
 
@@ -108,6 +110,13 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
 
   const [summarizeOpen, setSummarizeOpen] = useState(false)
   const [helpOpen, setHelpOpen] = useState(false)
+  const [sourceImportOpen, setSourceImportOpen] = useState(false)
+
+  useEffect(() => {
+    const handler = () => setSourceImportOpen(true)
+    window.addEventListener('thonk:open-source-import', handler)
+    return () => window.removeEventListener('thonk:open-source-import', handler)
+  }, [])
   const summarizeCache = useRef<SummarizeCache | null>(null)
   const isMobile = useIsMobile()
   const isNarrow = useIsNarrow()
@@ -331,6 +340,10 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                 <FolderOpen className="w-4 h-4 text-muted-foreground" /> Load board
               </DropdownMenuItem>
               <DropdownMenuSeparator />
+              <DropdownMenuItem onClick={() => exampleMode ? toastExampleBlocked() : setSourceImportOpen(true)}>
+                <FileInput className="w-4 h-4 text-muted-foreground" /> Import source…
+              </DropdownMenuItem>
+              <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onExportPng}>
                 <ImageDown className="w-4 h-4 text-muted-foreground" /> Export as PNG
               </DropdownMenuItem>
@@ -439,6 +452,11 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
         ref={fileInputRef}
         type="file" accept=".thonk,.json" className="hidden"
         onChange={e => { const f = e.target.files?.[0]; if (f) { if (exampleMode) { toastExampleBlocked(); e.target.value = ''; return } onImport(f) } e.target.value = '' }}
+      />
+      <input
+        ref={sourceInputRef}
+        type="file" accept=".md,.txt" className="hidden"
+        onChange={e => { const f = e.target.files?.[0]; if (f) onImportSource(f); e.target.value = '' }}
       />
 
       {/* Add Node dropdown */}
@@ -839,11 +857,13 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
               <p><strong>Problem</strong> - a flaw, risk, or blocker worth tracking.</p>
               <p><strong>Question / Answer</strong> - open threads and their resolutions.</p>
               <p><strong>Note</strong> - freeform sticky. No structure required.</p>
+              <p><strong>Source</strong> - attach a document (markdown, text, etc.). Its content is digested and silently informs every AI action on the board.</p>
               <p className="mt-1 opacity-70">Any node can be converted to another type from its toolbar.</p>
             </div>
 
             <div>
               <p className="font-semibold text-foreground mb-1">AI actions</p>
+              <p><strong>Push Thinking</strong> - generates a mixed starter set of ideas, questions, and problems to kick off exploration from different angles.</p>
               <p><strong>Find Problems</strong> - AI critiques the node and spawns Problem nodes for real issues it finds.</p>
               <p><strong>Ask me</strong> - generates one sharp question. Answer it yourself to push your thinking forward.</p>
               <p><strong>Answer me</strong> - you ask a question, AI answers it in context.</p>
@@ -853,16 +873,6 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
             <div>
               <p className="font-semibold text-foreground mb-1">AI fatigue</p>
               <p>Nodes generated by AI track their depth. The deeper the chain, the more unreliable the output - actions on those nodes show a warning badge. This is intentional: the further you drift from your own thinking, the less useful AI becomes.</p>
-            </div>
-
-            <div>
-              <p className="font-semibold text-foreground mb-1">Resolving</p>
-              <p>Answer and Idea nodes can be <strong>applied</strong> back to their parent - AI merges what you learned into the parent's body. Resolved nodes turn grey and can be hidden. This keeps the canvas clean as threads close.</p>
-            </div>
-
-            <div>
-              <p className="font-semibold text-foreground mb-1">Details panel</p>
-              <p>Open Details on any node to write a long-form body, read AI summaries, and see how the node connects to the rest of the graph.</p>
             </div>
 
             <div>
@@ -897,6 +907,36 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
             <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { if (deleteConfirmId) { onDeleteBoard(deleteConfirmId); setDeleteConfirmId(null) } }}>Delete</Button>
+          </div>
+        </DialogContent>
+      </Dialog>
+
+      {/* Import source dialog */}
+      <Dialog open={sourceImportOpen} onOpenChange={setSourceImportOpen}>
+        <DialogContent className="max-w-md">
+          <DialogHeader>
+            <DialogTitle className="pb-2">Import source document</DialogTitle>
+            <DialogDescription className="text-sm leading-relaxed">
+              A source node seeds your board with existing material - a spec, research doc, or notes. Text is extracted in your browser - <strong>nothing is uploaded to our servers.</strong>
+            </DialogDescription>
+          </DialogHeader>
+          <div className="space-y-3 pt-1">
+            <div>
+              <p className="text-sm font-medium mb-1.5">Accepted formats</p>
+              <p className="text-sm text-muted-foreground">.md .txt</p>
+            </div>
+            <div className="rounded-lg bg-muted/60 px-3 py-2.5 text-sm text-muted-foreground">
+              <p className="font-medium text-foreground mb-1">Tip - summarise your codebase</p>
+              <p>Ask your codebase AI assistant: <em>"Give me a markdown overview of this project: what it does, its main features and components, and what's actively being worked on. Format it with headings and bullets, no code blocks or HTML."</em> Save the response as a <code className="text-xs bg-muted px-1 rounded">.md</code> file and import here.</p>
+            </div>
+          </div>
+          <div className="flex justify-end gap-2 pt-2">
+            <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setSourceImportOpen(false)}>
+              Cancel
+            </Button>
+            <Button className="h-9 text-sm cursor-pointer" onClick={() => { setSourceImportOpen(false); sourceInputRef.current?.click() }}>
+              Choose file…
+            </Button>
           </div>
         </DialogContent>
       </Dialog>

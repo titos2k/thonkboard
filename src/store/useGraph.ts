@@ -97,6 +97,7 @@ export function useGraph(boardId: string) {
       body: string,
       position: { x: number; y: number },
       meta?: Partial<ThonkNode['meta']>,
+      extra?: Partial<Pick<ThonkNode, 'sourceKind' | 'sourceId' | 'userTitleEdited'>>,
     ): ThonkNode => {
       const node: ThonkNode = {
         id: uuidv4(),
@@ -113,6 +114,7 @@ export function useGraph(boardId: string) {
           revisionOf: null,
           ...meta,
         },
+        ...extra,
       }
       setGraph(g => ({ ...g, nodes: [...g.nodes, node] }))
       return node
@@ -130,7 +132,7 @@ export function useGraph(boardId: string) {
   )
 
   const updateNode = useCallback(
-    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder'>> & { meta?: Partial<ThonkNode['meta']> }) => {
+    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'userTitleEdited'>> & { meta?: Partial<ThonkNode['meta']> }) => {
       setGraph(g => ({
         ...g,
         nodes: g.nodes.map(n => {

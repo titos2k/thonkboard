@@ -208,6 +208,30 @@ async function callAISearch(req: SearchCallRequest): Promise<SearchResult> {
   return { text: result.answer, sources: [] }
 }
 
+// ── Source document digest ────────────────────────────────────────────────────
+
+const SOURCE_DIGEST_SYSTEM = `You are a document analyst. Given a document's text, return a JSON object with:
+- title: A concise plain-text title under 50 characters. No quotes, no filler words like "Document about…".
+- digest: A ~1024-character distillation capturing the document's spine, key decisions, and core constraints. Write a synthesis, not a truncation. Dense, specific, no filler phrases.`
+
+export async function digestSource(fullText: string): Promise<{ title: string; digest: string }> {
+  const result = await callAI<{ title: string; digest: string }>({
+    systemInstruction: SOURCE_DIGEST_SYSTEM,
+    userPrompt: `Document text:\n\n${fullText.slice(0, 24000)}`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        title:  { type: 'string' },
+        digest: { type: 'string' },
+      },
+      required: ['title', 'digest'],
+    },
+  })
+  result.title = result.title.slice(0, 50).replace(/^["'\s]+|["'\s]+$/g, '').trim()
+  if (!result.title) result.title = 'Source'
+  return result
+}
+
 // ── Grammar fix ───────────────────────────────────────────────────────────────
 
 export async function fixGrammar(text: string): Promise<{ fixed: string }> {
@@ -258,13 +282,14 @@ const UNITS_BLOCK = /^en-US\b/.test(navigator.language)
   ? 'Use imperial units (inches, feet, miles, °F) when giving measurements.'
   : 'Use metric units (cm, m, km, °C) when giving measurements.'
 
-const CRITIQUE_SYSTEM = `You are a smart, skeptical person who just read this idea and immediately noticed something wrong.
-Identify the most direct, natural problems — the kind a thoughtful person would voice out loud right after reading.
-Short sentences. Plain language. No formal analysis, no jargon.
-Think: "But that assumes...", "What happens when...", "This falls apart if...", "Who would actually..."
-Score each problem 0.0–1.0: 0.3 = minor concern, 0.6 = significant problem, 0.9 = near-fatal flaw. Return only problems that genuinely arise from this specific content. Return empty array if the idea holds up.
-Do NOT pad to reach a number. Do NOT invent problems. Return at most 3 problems — pick the most significant ones only.
-Each problem: 1–2 sentences max.
+const CRITIQUE_SYSTEM = `You are a smart, skeptical person evaluating an idea or decision.
+Your job is to find real problems with the SUBSTANCE — the claim, the design decision, the assumption being made — not the quality or length of the text.
+NEVER comment on vagueness, brevity, or lack of explanation. "Too vague" is not a problem. "Doesn't clarify" is not a problem. Attack the idea itself.
+If the TARGET NODE is short (e.g. "The game." or "Yes."), read it together with CONNECTED NODES to reconstruct the full claim. "The game." answering "who controls the sarcasm?" means the claim is "the game controls the sarcasm" — critique that design decision, not the phrasing.
+Every problem must be directly grounded in the TARGET NODE and its CONNECTED NODES only. Do not import concerns from unrelated parts of the board.
+Short sentences. Plain language. Think: "But that assumes...", "What happens when...", "This falls apart if...", "Who would actually..."
+Score each problem 0.0–1.0: 0.3 = minor concern, 0.6 = significant problem, 0.9 = near-fatal flaw. Return empty array if the idea holds up.
+Do NOT pad. Return at most 3 problems — the most significant only. Each problem: one short sentence. No elaboration.
 ${NO_DISCLAIMER_BLOCK}`
 
 const SEVERITY_THRESHOLD = 0.5
@@ -295,10 +320,12 @@ const QUESTION_SCHEMA = {
   required: ['question', 'yesNo'],
 }
 
-const QUESTION_SYSTEM = `You are someone who just read a note and immediately thought of a question.
-Write the single most obvious follow-up question — the thing a curious person would actually say out loud.
-Short. Direct. Conversational. No jargon. Think "How?" not "How will the system ensure...?"
-Often the best questions are just one or two words: "How exactly?", "Why not X?", "What's the catch?", "Compared to what?"
+const QUESTION_SYSTEM = `You are someone who just read a note and immediately spotted a gap, tension, or assumption worth challenging.
+CRITICAL: Any BACKGROUND sections in the context are documents the user already knows. Do not ask about anything covered there — they wrote it. Only ask about things not addressed anywhere in the context.
+Never ask the user to elaborate on or explain something they already stated — that is not a question, it is a prompt to repeat themselves.
+Ask about implications, contradictions, risks, tradeoffs, or things that are genuinely unknown. Make them think, not just type more of what they already know.
+Short. Direct. Conversational. No jargon. Think "Why not X?", "What's the catch?", "What breaks first?" not "How do you plan to..."
+Often the best questions are just a few words: "Why not X?", "What happens when Y?", "Who decides?"
 Do not ask about anything already answered or addressed in the node body.
 Set yesNo to true only if the question can be fully resolved by Yes or No alone.
 Return only the question. No preamble.
@@ -827,9 +854,11 @@ export async function argueNode(contextPrompt: string): Promise<CritiqueItem[]> 
 // ── AI-generated answer / solution (with search on Gemini) ────────────────────
 
 const ANSWER_SYSTEM = `You are a domain expert being asked a direct question by a colleague. Answer like one.
+CRITICAL: Any BACKGROUND sections in the context are documents the user already knows — they imported them. Never quote, paraphrase, or repeat that content. Use it only to understand constraints. Your answer must add something the user cannot already read in the background.
 Give the actual answer — specific, confident, concrete. Use real numbers, names, and facts when relevant.
-No hedging. No "it depends". No "may", "might", "could", "typically". If something is true, state it. If a number is the right answer, give it.
-One sentence if it covers it. Two if the answer genuinely has two distinct parts. Never more.
+No hedging. No "it depends". No "may", "might", "could", "typically". If something is true, state it.
+One sentence. Two only if the answer has two genuinely separate parts. Stop there — never expand further.
+No lists of examples, no "such as X, Y, and Z" chains. Commit to the single best answer.
 No preamble. No sign-off. No restating the question.
 ${NO_DISCLAIMER_BLOCK}
 ${UNITS_BLOCK}
@@ -839,23 +868,20 @@ If existing answers are already on the board (visible in context), provide a dif
 Do not include URLs, links, or citations.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string }> {
-  const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt, maxTokens: 400 })
+  const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt, maxTokens: 160 })
   return { answer: result.text }
 }
 
 const SOLUTION_SYSTEM = `You are a direct, practical colleague in a brainstorming session.
-Propose one concrete solution or next step. One sentence if it's enough — stop there.
-No analysis, no restating the problem, no preamble, no elaboration beyond the solution itself.
-Never use bullet points, numbered lists, bold headers, or any markdown formatting. Plain prose only.
-Never structure your response as options or choices — one direct proposal only.
+One sentence. Specific to this exact problem — not generic advice that could apply to anything.
+Name the concrete thing: a mechanic, a rule, a constraint, a specific decision. Not "consider X" or "focus on Y" — say what to actually do.
+No preamble, no restating the problem, no elaboration, no options.
+Plain prose only. No markdown.
 ${NO_DISCLAIMER_BLOCK}
-${UNITS_BLOCK}
-Match the tone of the content — casual stays casual.
-If existing solutions are already connected to this problem (visible in context), provide a different approach — do not repeat what's already there.
-Weave any current facts or names you find naturally into your answer. Do not include URLs, links, footnotes, or source citations of any kind.`
+If existing solutions are already connected to this problem, provide a different approach — do not repeat what's already there.`
 
 export async function generateSolution(contextPrompt: string): Promise<{ answer: string }> {
-  const result = await callAISearch({ systemInstruction: SOLUTION_SYSTEM, userPrompt: contextPrompt, maxTokens: 400 })
+  const result = await callAISearch({ systemInstruction: SOLUTION_SYSTEM, userPrompt: contextPrompt, maxTokens: 120 })
   return { answer: result.text }
 }
 

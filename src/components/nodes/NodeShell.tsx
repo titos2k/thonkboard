@@ -23,6 +23,7 @@ const TYPE_STYLES: Record<NodeType, string> = {
   question: 'border border-black/10 bg-[#f4f6f6] text-gray-900 shadow-md',
   answer:   'border border-black/10 bg-[#00ae60] text-white shadow',
   note:     'border-0 bg-[#f7efd0] text-gray-700 shadow-md rounded-[3px]',
+  source:   'border border-black/10 bg-[#4a6fa5] text-white shadow-md',
 }
 
 const TYPE_SELECTED: Record<NodeType, string> = {
@@ -32,6 +33,7 @@ const TYPE_SELECTED: Record<NodeType, string> = {
   question: 'ring-2 ring-sky-400 ring-offset-1',
   answer:   'ring-2 ring-emerald-300 ring-offset-1',
   note:     'ring-2 ring-yellow-400 ring-offset-1',
+  source:   'ring-2 ring-blue-300 ring-offset-1',
 }
 
 function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGenerated, highlighted, dimmed, className, handles = true, onPointerDown }: NodeShellProps) {
@@ -51,7 +53,7 @@ function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGe
       className={cn(
         'rounded-lg text-sm relative cursor-grab active:cursor-grabbing transition-opacity',
         dimmed && 'opacity-60',
-        nodeType === 'question' ? 'w-fit max-w-[300px]' : nodeType === 'note' ? 'w-[128px]' : 'w-fit max-w-[220px]',
+        nodeType === 'question' ? 'w-fit max-w-[300px]' : nodeType === 'note' ? 'w-[128px]' : nodeType === 'source' ? 'w-[240px]' : 'w-fit max-w-[220px]',
         baseStyle,
         highlighted ? 'ring-4 ring-purple-400 ring-offset-1' : (selected && TYPE_SELECTED[nodeType]),
         className,
