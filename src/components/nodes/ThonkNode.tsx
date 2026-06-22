@@ -1167,7 +1167,7 @@ function Sep() {
   return <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
 }
 
-type AddAction = { label: string; icon: React.ReactNode; onClick: () => void }
+type AddAction = { label: string; icon: React.ReactNode; onClick: () => void; shortcut?: string }
 
 function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
   nodeType: string
@@ -1179,14 +1179,14 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
 
   if (nodeType === 'core' || nodeType === 'idea' || nodeType === 'answer') {
     items.push(
-      { label: 'Add Idea',     icon: <Lightbulb className="w-4 h-4 text-yellow-400" />,       onClick: onAddIdea },
-      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion },
-      { label: 'Add Problem',  icon: <TriangleAlert className="w-4 h-4 text-red-400" />,      onClick: onAddProblem },
+      { label: 'Add Idea',     icon: <Lightbulb className="w-4 h-4 text-yellow-400" />,       onClick: onAddIdea,     shortcut: '(I)' },
+      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion, shortcut: '(Q)' },
+      { label: 'Add Problem',  icon: <TriangleAlert className="w-4 h-4 text-red-400" />,      onClick: onAddProblem,  shortcut: '(P)' },
     )
   }
   if (nodeType === 'problem' || nodeType === 'question') {
     items.push(
-      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion },
+      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion, shortcut: '(Q)' },
     )
   }
 
@@ -1205,9 +1205,9 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
         <TooltipContent side="top" sideOffset={10} className="text-sm">Add Node...</TooltipContent>
         <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[130px]" onCloseAutoFocus={e => e.preventDefault()}>
           {items.map(item => (
-            <DropdownMenuItem key={item.label} onClick={item.onClick}>
-              {item.icon}
-              {item.label}
+            <DropdownMenuItem key={item.label} onClick={item.onClick} className="justify-between">
+              <span className="flex items-center gap-2">{item.icon}{item.label}</span>
+              {item.shortcut && <kbd className="text-xs text-muted-foreground/50 font-mono ml-3">{item.shortcut}</kbd>}
             </DropdownMenuItem>
           ))}
         </DropdownMenuContent>

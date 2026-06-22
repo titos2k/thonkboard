@@ -486,17 +486,17 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" onCloseAutoFocus={e => e.preventDefault()}>
-          <DropdownMenuItem onClick={onAddIdea}>
-            <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" />
-            <Lightbulb className="w-4 h-4 text-muted-foreground" /> Idea
+          <DropdownMenuItem onClick={onAddIdea} className="justify-between">
+            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" /><Lightbulb className="w-4 h-4 text-muted-foreground" /> Idea</span>
+            <kbd className="text-xs text-muted-foreground/50 font-mono ml-4">(I)</kbd>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={onAddProblem}>
-            <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" />
-            <TriangleAlert className="w-4 h-4 text-muted-foreground" /> Problem
+          <DropdownMenuItem onClick={onAddQuestion} className="justify-between">
+            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" /><MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /> Question</span>
+            <kbd className="text-xs text-muted-foreground/50 font-mono ml-4">(Q)</kbd>
           </DropdownMenuItem>
-          <DropdownMenuItem onClick={onAddQuestion}>
-            <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" />
-            <MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /> Question
+          <DropdownMenuItem onClick={onAddProblem} className="justify-between">
+            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" /><TriangleAlert className="w-4 h-4 text-muted-foreground" /> Problem</span>
+            <kbd className="text-xs text-muted-foreground/50 font-mono ml-4">(P)</kbd>
           </DropdownMenuItem>
         </DropdownMenuContent>
       </DropdownMenu>
