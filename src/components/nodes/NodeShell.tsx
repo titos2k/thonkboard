@@ -1,5 +1,5 @@
 import React from 'react'
-import { Handle, Position } from '@xyflow/react'
+import { Handle, Position, NodeResizeControl } from '@xyflow/react'
 import { cn } from '@/lib/utils'
 import type { NodeType } from '@/store/types'
 
@@ -14,6 +14,11 @@ interface NodeShellProps {
   className?: string
   handles?: boolean
   onPointerDown?: (e: React.PointerEvent) => void
+  resizable?: boolean
+  nodeWidth?: number
+  onResized?: (w: number, h: number) => void
+  minWidth?: number
+  minHeight?: number
 }
 
 const TYPE_STYLES: Record<NodeType, string> = {
@@ -36,7 +41,7 @@ const TYPE_SELECTED: Record<NodeType, string> = {
   source:   'ring-2 ring-blue-300 ring-offset-1',
 }
 
-function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGenerated, highlighted, dimmed, className, handles = true, onPointerDown }: NodeShellProps) {
+function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGenerated, highlighted, dimmed, className, handles = true, onPointerDown, resizable, nodeWidth: _nodeWidth, onResized, minWidth, minHeight }: NodeShellProps) {
   const isLight = nodeType === 'question' || nodeType === 'idea' || nodeType === 'note'
   const handleClass = isLight
     ? '!bg-sky-300 !border-sky-400 !w-2 !h-2'
@@ -47,18 +52,43 @@ function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGe
     aiGenerated && nodeType === 'question' ? 'border border-dashed border-black/20 bg-[#f4f6f6] text-gray-900 shadow-md' :
     TYPE_STYLES[nodeType]
 
+  // Use w-full when resizable (RF wrapper controls width). For unresized thonk nodes,
+  // fall back to original auto-width classes until user explicitly resizes.
+  const widthClass = resizable
+    ? 'w-full'
+    : nodeType === 'question' ? 'w-fit max-w-[300px]'
+    : nodeType === 'note' ? 'w-[128px]'
+    : nodeType === 'source' ? 'w-[240px]'
+    : 'w-fit max-w-[220px]'
+
   return (
     <div
       onPointerDown={onPointerDown}
       className={cn(
         'rounded-lg text-sm relative cursor-grab active:cursor-grabbing transition-opacity',
         dimmed && 'opacity-60',
-        nodeType === 'question' ? 'w-fit max-w-[300px]' : nodeType === 'note' ? 'w-[128px]' : nodeType === 'source' ? 'w-[240px]' : 'w-fit max-w-[220px]',
+        widthClass,
         baseStyle,
         highlighted ? 'ring-4 ring-purple-400 ring-offset-1' : (selected && TYPE_SELECTED[nodeType]),
         className,
       )}
     >
+      {resizable && (
+        <>
+          <NodeResizeControl
+            position="bottom-right"
+            minWidth={minWidth ?? 80}
+            minHeight={minHeight ?? 40}
+            onResizeEnd={(_, params) => onResized?.(params.width, params.height)}
+            style={{ background: 'transparent', border: 'none', width: 20, height: 20 }}
+          />
+          {/* Visual indicator — bottom-right corner */}
+          <svg width="10" height="10" viewBox="0 0 10 10" className="absolute pointer-events-none opacity-30" style={{ bottom: 3, right: 3 }}>
+            <line x1="3" y1="10" x2="10" y2="3" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+            <line x1="6" y1="10" x2="10" y2="6" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" />
+          </svg>
+        </>
+      )}
       {handles && (
         <>
           {/* Primary handles — listed first so unspecified edges route bottom→top by default */}

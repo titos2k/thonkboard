@@ -132,7 +132,7 @@ export function useGraph(boardId: string) {
   )
 
   const updateNode = useCallback(
-    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'userTitleEdited'>> & { meta?: Partial<ThonkNode['meta']> }) => {
+    (id: string, patch: Partial<Pick<ThonkNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'userTitleEdited' | 'nodeWidth' | 'nodeHeight'>> & { meta?: Partial<ThonkNode['meta']> }) => {
       setGraph(g => ({
         ...g,
         nodes: g.nodes.map(n => {

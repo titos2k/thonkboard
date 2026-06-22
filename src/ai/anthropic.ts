@@ -88,10 +88,11 @@ export async function callAnthropicSearch(req: Omit<AIRequest, 'responseSchema'>
   }
 
   const data = await res.json()
-  return data.content
+  const textBlocks: string[] = data.content
     .filter((b: { type: string }) => b.type === 'text')
     .map((b: { text: string }) => b.text)
-    .join('\n')
+  // Use only the last text block — earlier blocks are pre-search narration ("I need to...")
+  return textBlocks[textBlocks.length - 1] ?? ''
 }
 
 export async function callAnthropicText(req: Omit<AIRequest, 'responseSchema'>): Promise<string> {

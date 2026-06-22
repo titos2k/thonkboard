@@ -103,8 +103,27 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
     }
   }
 
+  const handlePaste = () => {
+    requestAnimationFrame(() => {
+      autoResize()
+      const el = textareaRef.current
+      if (!el) return
+      // height is content-driven — no need to store it
+    })
+  }
+
   return (
-    <NodeShell nodeType="note" selected={selected} handles={false} className="cursor-default active:cursor-default">
+    <NodeShell
+      nodeType="note"
+      selected={selected}
+      handles={false}
+      className="cursor-default active:cursor-default"
+      resizable={true}
+      nodeWidth={thonk.nodeWidth}
+      onResized={(w) => d.onUpdate(thonk.id, { nodeWidth: w })}
+      minWidth={80}
+      minHeight={40}
+    >
       <NodeToolbar isVisible={selected && !d.isMultiSelected && !dragging} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
           <Tooltip>
@@ -179,6 +198,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
             defaultValue={thonk.title}
             onChange={handleChange}
             onBlur={handleBlur}
+            onPaste={handlePaste}
             onKeyDown={e => {
               stopDeletePropagation(e)
               if (e.key === 'Escape') textareaRef.current?.blur()

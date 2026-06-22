@@ -243,12 +243,14 @@ function toRFNode(
   collapse: CollapseProps,
 ): Node {
   const isCollapsed = collapse.isCollapsed
+  const defaultWidth = n.type === 'note' ? 128 : n.type === 'source' ? 240 : n.type === 'question' ? 220 : 200
   return {
     id: n.id,
     type: n.type === 'note' ? 'note' : n.type === 'source' ? 'source' : 'thonk',
     position: n.position,
     selected: isCollapsed ? false : selected,
     data: { thonk: n, graphRef, autoEdit: isCollapsed ? false : autoEdit, hasAnswer, aiConnected, isMultiSelected, highlighted: isCollapsed ? false : highlighted, ...collapse, ...cb } as ThonkNodeData,
+    width: n.nodeWidth ?? defaultWidth,
     // Invisible but still rendered — keeps handle positions stable so labelX/labelY
     // in edges stays the same whether the node is collapsed or not.
     ...(isCollapsed ? { selectable: false, draggable: false, focusable: false, style: { opacity: 0, pointerEvents: 'none' as const } } : {}),
@@ -965,14 +967,14 @@ export default function App() {
           showToast('Source nodes can only connect to the core', 'error')
           return
         }
-        addGraphEdge(connection.source, connection.target, 'sources')
+        addGraphEdge(connection.source, connection.target, 'sources', connection.sourceHandle ?? undefined, connection.targetHandle ?? undefined)
         return
       }
       if (tgtNode?.type === 'source') {
         showToast('Cannot connect to a source node', 'error')
         return
       }
-      addGraphEdge(connection.source, connection.target, 'spawns')
+      addGraphEdge(connection.source, connection.target, 'spawns', connection.sourceHandle ?? undefined, connection.targetHandle ?? undefined)
     },
     [addGraphEdge, graph.nodes],
   )

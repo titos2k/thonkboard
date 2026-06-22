@@ -33,6 +33,8 @@ export interface ThonkNode {
   sourceKind?: 'md'
   sourceId?: string           // IndexedDB key for full text + chunks
   userTitleEdited?: boolean   // when true, never auto-overwrite title on re-import
+  nodeWidth?: number
+  nodeHeight?: number
   position: { x: number; y: number }
   meta: {
     createdAt: string

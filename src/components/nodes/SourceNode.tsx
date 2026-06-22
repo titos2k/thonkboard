@@ -46,7 +46,7 @@ function SourceNodeFn({ data, selected, dragging }: NodeProps) {
 
   return (
     <>
-      <NodeShell nodeType="source" selected={selected} handles={false} className="cursor-default active:cursor-default">
+      <NodeShell nodeType="source" selected={selected} handles={false} className="cursor-default active:cursor-default" resizable={true} nodeWidth={thonk.nodeWidth} onResized={(w) => d.onUpdate(thonk.id, { nodeWidth: w })} minWidth={160} minHeight={60}>
         {/* Source-only handles — connect outward to core */}
         <Handle id="s-bottom" type="source" position={Position.Bottom} className="!bg-blue-300 !border-blue-400 !w-2 !h-2" />
         <Handle id="s-top"    type="source" position={Position.Top}    className="!bg-blue-300 !border-blue-400 !w-2 !h-2" />

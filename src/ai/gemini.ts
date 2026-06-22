@@ -93,6 +93,7 @@ async function _callGemini<T>(req: AIRequest): Promise<T> {
     generationConfig: {
       responseMimeType: 'application/json',
       responseSchema: req.responseSchema,
+      ...(req.maxTokens ? { maxOutputTokens: req.maxTokens } : {}),
     },
   }
 
@@ -143,6 +144,7 @@ async function _callGeminiWithSearch(req: SearchCallRequest): Promise<SearchResu
     systemInstruction: { parts: [{ text: withSearch ? req.systemInstruction : req.systemInstruction + '\nDo not include any URLs or links in your response.' }] },
     contents: [{ role: 'user', parts: [{ text: req.userPrompt }] }],
     ...(withSearch ? { tools: [{ googleSearch: {} }] } : {}),
+    ...(req.maxTokens ? { generationConfig: { maxOutputTokens: req.maxTokens } } : {}),
   })
 
   let res = await fetch(`${getApiBase()}?key=${key}`, {
@@ -192,20 +194,38 @@ async function naturalizeSearchText(raw: string): Promise<string> {
   return result.text
 }
 
+function cleanSearchAnswer(text: string): string {
+  // Strip leading first-person preamble sentences ("I need to search...", "I'll verify...", etc.)
+  let t = text.trimStart()
+  const preamble = /^I (need to|will|'ll|have to|should|can |found |notice|want to|('m going))[^.!?]*[.!?]\s*/i
+  while (preamble.test(t)) t = t.replace(preamble, '').trimStart()
+  // If truncated mid-sentence (no terminal punctuation at end), cut at last complete sentence
+  if (t && !/[.!?](['"]?)$/.test(t.trimEnd())) {
+    const lastEnd = Math.max(t.lastIndexOf('.'), t.lastIndexOf('!'), t.lastIndexOf('?'))
+    if (lastEnd > 0) t = t.slice(0, lastEnd + 1)
+  }
+  return t.trim()
+}
+
 async function callAISearch(req: SearchCallRequest): Promise<SearchResult> {
   const p = getProvider()
+  let result: SearchResult
   if (getWebSearch()) {
-    if (p === 'gemini') return _callGeminiWithSearch(req)
-    if (p === 'anthropic') return { text: await naturalizeSearchText(await callAnthropicSearch(req)), sources: [] }
-    if (p === 'openai') return { text: await naturalizeSearchText(await callOpenAISearch(req)), sources: [] }
+    if (p === 'gemini') result = await _callGeminiWithSearch(req)
+    else if (p === 'anthropic') result = { text: await naturalizeSearchText(await callAnthropicSearch(req)), sources: [] }
+    else if (p === 'openai') result = { text: await naturalizeSearchText(await callOpenAISearch(req)), sources: [] }
+    else result = { text: '', sources: [] }
+  } else {
+    // search disabled or deepseek/ollama — plain AI call, no search
+    const r = await callAI<{ answer: string }>({
+      systemInstruction: req.systemInstruction,
+      userPrompt: req.userPrompt,
+      responseSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
+      maxTokens: req.maxTokens,
+    })
+    result = { text: r.answer, sources: [] }
   }
-  // search disabled or deepseek/ollama — plain AI call, no search
-  const result = await callAI<{ answer: string }>({
-    systemInstruction: req.systemInstruction,
-    userPrompt: req.userPrompt,
-    responseSchema: { type: 'object', properties: { answer: { type: 'string' } }, required: ['answer'] },
-  })
-  return { text: result.answer, sources: [] }
+  return { ...result, text: cleanSearchAnswer(result.text) }
 }
 
 // ── Source document digest ────────────────────────────────────────────────────
@@ -857,8 +877,9 @@ const ANSWER_SYSTEM = `You are a domain expert being asked a direct question by 
 CRITICAL: Any BACKGROUND sections in the context are documents the user already knows — they imported them. Never quote, paraphrase, or repeat that content. Use it only to understand constraints. Your answer must add something the user cannot already read in the background.
 Give the actual answer — specific, confident, concrete. Use real numbers, names, and facts when relevant.
 No hedging. No "it depends". No "may", "might", "could", "typically". If something is true, state it.
-One sentence. Two only if the answer has two genuinely separate parts. Stop there — never expand further.
-No lists of examples, no "such as X, Y, and Z" chains. Commit to the single best answer.
+One sentence. No preamble, no restating the question, no elaboration, no options.
+Commit to the single best answer. No lists, no "such as X, Y, Z" chains.
+Never use first person. Never say "I", "I need to", "I'll", "I found", "I think". Start directly with the answer.
 No preamble. No sign-off. No restating the question.
 ${NO_DISCLAIMER_BLOCK}
 ${UNITS_BLOCK}
@@ -868,7 +889,7 @@ If existing answers are already on the board (visible in context), provide a dif
 Do not include URLs, links, or citations.`
 
 export async function answerQuestion(contextPrompt: string): Promise<{ answer: string }> {
-  const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt, maxTokens: 160 })
+  const result = await callAISearch({ systemInstruction: ANSWER_SYSTEM, userPrompt: contextPrompt, maxTokens: 200 })
   return { answer: result.text }
 }
 

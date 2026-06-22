@@ -93,7 +93,7 @@ export interface ThonkNodeData extends Record<string, unknown> {
     meta?: Partial<TNode['meta']>,
   ) => TNode
   onAddEdge: (source: string, target: string, relation: import('@/store/types').EdgeRelation, sourceHandle?: string, targetHandle?: string) => void
-  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'thumb' | 'emoji' | 'userTitleEdited'>> & { meta?: Partial<TNode['meta']> }) => void
+  onUpdate: (id: string, patch: Partial<Pick<TNode, 'title' | 'body' | 'summary' | 'resolved' | 'resolvedAs' | 'conflicts' | 'type' | 'placeholder' | 'thumb' | 'emoji' | 'userTitleEdited' | 'nodeWidth' | 'nodeHeight'>> & { meta?: Partial<TNode['meta']> }) => void
   onDelete: (id: string) => void
   onOpenAsNewBoard?: (node: TNode) => void
   onResetBoard?: () => void
@@ -118,6 +118,11 @@ type ActionState = 'idle' | 'loading' | 'searching' | 'answering' | 'correcting'
 
 function stopDeletePropagation(e: React.KeyboardEvent) {
   if (e.key === 'Delete' || e.key === 'Backspace') e.stopPropagation()
+}
+
+function autoWidth(text: string): number {
+  const len = text.trim().length
+  return Math.round(Math.max(150, Math.min(280, 80 + Math.sqrt(len) * 13)) / 10) * 10
 }
 
 const URL_RE = /https?:\/\/[^\s)>\],"']+|(?<!\w)(?:www\.)?[a-z0-9][a-z0-9-]*(?:\.[a-z0-9-]+)*\.[a-z]{2,}(?:\/[^\s)>\],"']*)?/gi
@@ -509,6 +514,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         const pos = findFreePos([...graphRef.current.nodes, ...placed], anchors[i], 0, 0, dir)
         placed.push({ position: pos })
         const node = d.onAddNode('problem', p.content, p.content, pos, { severity: p.severity, aiGenerated: true, aiDepth: childDepth })
+        d.onUpdate(node.id, { nodeWidth: autoWidth(p.content) })
         d.onAddEdge(thonk.id, node.id, 'argues', sourceHandle, targetHandle)
         ids.push(node.id)
       }
@@ -537,6 +543,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const { sourceHandle, targetHandle } = dirHandles(dir)
       const pos = findFreePos(graphRef.current.nodes, livePos(), dx, dy, dir)
       const qNode = d.onAddNode('question', result.question, result.question, pos, { aiGenerated: true, yesNo: result.yesNo === true })
+      d.onUpdate(qNode.id, { nodeWidth: autoWidth(result.question) })
       d.onAddEdge(thonk.id, qNode.id, 'questions', sourceHandle, targetHandle)
       panToSpawned([qNode.id])
       setActionState('answering')
@@ -566,6 +573,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         const pos = findFreePos([...graphRef.current.nodes, ...placed], anchors[i], 0, 0, dir)
         placed.push({ position: pos })
         const node = d.onAddNode('idea', idea.title, idea.body, pos, { aiGenerated: true, aiDepth: thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0 })
+        d.onUpdate(node.id, { nodeWidth: autoWidth(idea.title) })
         d.onAddEdge(thonk.id, node.id, 'spawns', sourceHandle, targetHandle)
         ids.push(node.id)
       }
@@ -604,6 +612,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
           const { sourceHandle, targetHandle } = dirHandles(actualDir)
           const relation = type === 'question' ? 'questions' : type === 'problem' ? 'argues' : 'spawns'
           const node = d.onAddNode(type, item.title, item.body, pos, { aiGenerated: true, aiDepth })
+          d.onUpdate(node.id, { nodeWidth: autoWidth(item.title) })
           d.onAddEdge(thonk.id, node.id, relation, sourceHandle, targetHandle)
           ids.push(node.id)
         }
@@ -626,12 +635,14 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const { sourceHandle, targetHandle } = dirHandles(dir)
       const qPos = findFreePos(graphRef.current.nodes, livePos(), dx, dy, dir)
       const qNode = d.onAddNode('question', question, question, qPos)
+      d.onUpdate(qNode.id, { nodeWidth: autoWidth(question) })
       d.onAddEdge(thonk.id, qNode.id, 'questions', sourceHandle, targetHandle)
       const { dx: adx, dy: ady } = dirOffset(dir, 140)
       const aPos = findFreePos(graphRef.current.nodes, { x: qPos.x + adx, y: qPos.y + ady }, adx, ady, dir)
       const aNode = d.onAddNode('answer', answer, answer, aPos, {
         aiGenerated: true,
       })
+      d.onUpdate(aNode.id, { nodeWidth: autoWidth(answer) })
       d.onAddEdge(qNode.id, aNode.id, 'answers', sourceHandle, targetHandle)
       panToSpawned([qNode.id, aNode.id])
     })
@@ -675,6 +686,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       const aNode = d.onAddNode('answer', answer, answer, spawnPos(dx, dy), {
         aiGenerated: true,
       })
+      d.onUpdate(aNode.id, { nodeWidth: autoWidth(answer) })
       d.onAddEdge(thonk.id, aNode.id, 'answers', sourceHandle, targetHandle)
       panToSpawned([aNode.id])
     })
@@ -689,6 +701,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
         aiGenerated: true,
         aiDepth: thonk.meta.aiGenerated ? (thonk.meta.aiDepth ?? 0) + 1 : 0,
       })
+      d.onUpdate(aNode.id, { nodeWidth: autoWidth(answer) })
       d.onAddEdge(thonk.id, aNode.id, 'fixes', sourceHandle, targetHandle)
       panToSpawned([aNode.id])
     })
@@ -779,7 +792,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   return (
     <>
-    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} dimmed={thonk.thumb === 'down'} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }}>
+    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} dimmed={thonk.thumb === 'down'} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }} resizable={true} nodeWidth={thonk.nodeWidth} onResized={(w) => d.onUpdate(thonk.id, { nodeWidth: w })} minWidth={120} minHeight={40}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
       <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !d.isMultiSelected && !thonk.placeholder && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !isPushing && !editing} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
@@ -883,7 +896,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 ref={titleInputRef}
                 value={editTitle}
                 rows={1}
-                onChange={e => setEditTitle(e.target.value)}
+                onChange={e => setEditTitle(e.target.value.replace(/[\r\n]+/g, ' '))}
                 onKeyDown={e => {
                   stopDeletePropagation(e)
                   if (e.key === 'Enter') { e.preventDefault(); saveTitle() }
@@ -967,17 +980,17 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 py-1 rounded-sm shadow-none"
               rows={3}
             />
-            <div className="mt-1 flex gap-1">
+            <div className="mt-1 flex flex-wrap gap-1">
               <button
                 onClick={handleCorrect}
                 disabled={!correctionText.trim()}
-                className="flex-1 text-sm px-2 py-1 rounded-sm bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-30 transition-colors"
+                className="flex-1 min-w-[80px] text-sm px-2 py-1 rounded-sm bg-orange-600 hover:bg-orange-500 text-white disabled:opacity-30 transition-colors"
               >
                 Revise Answer
               </button>
               <button
                 onClick={() => { setCorrectionText(''); setActionState('idle') }}
-                className="text-sm px-2 py-1 rounded-sm bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
+                className="flex-1 min-w-[60px] text-sm px-2 py-1 rounded-sm bg-gray-100 hover:bg-gray-200 text-gray-600 transition-colors"
               >
                 Cancel
               </button>
@@ -1098,7 +1111,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       </Tooltip>
     )}
     {thonk.thumb && (
-      <div className={`absolute -bottom-3 -right-3 w-7 h-7 rounded-full flex items-center justify-center shadow-lg nodrag select-none ring-2 ring-(--background) ${thonk.thumb === 'up' ? 'bg-[#00ae60]' : 'bg-[#e95a32]'}`}>
+      <div className={`absolute -top-3 -left-3 w-7 h-7 rounded-full flex items-center justify-center shadow-lg nodrag select-none ring-2 ring-(--background) ${thonk.thumb === 'up' ? 'bg-[#00ae60]' : 'bg-[#e95a32]'}`}>
         {thonk.thumb === 'up'
           ? <ThumbUpIcon className="w-4 h-4 text-white" />
           : <ThumbDownIcon className="w-4 h-4 text-white" />

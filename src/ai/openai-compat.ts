@@ -118,6 +118,7 @@ export async function callOpenAISearch(req: Omit<AIRequest, 'responseSchema'>): 
       model,
       input: `${req.systemInstruction}\n\n${req.userPrompt}`,
       tools: [{ type: 'web_search' }],
+      ...(req.maxTokens ? { max_output_tokens: req.maxTokens } : {}),
     }),
   })
 
