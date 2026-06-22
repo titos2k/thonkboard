@@ -20,8 +20,6 @@ import {
   type Node,
   type Edge,
   type ReactFlowInstance,
-  Handle,
-  Position,
 } from '@xyflow/react'
 import { toPng } from 'html-to-image'
 import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2, X, Star } from 'lucide-react'

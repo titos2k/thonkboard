@@ -40,7 +40,7 @@ function ThonkEdgeComponentFn({
   selected,
   data,
 }: EdgeProps) {
-  const d = data as ThonkEdgeData
+  const d = data as unknown as ThonkEdgeData
   const [hovered, setHovered] = useState(false)
   const hideTimer = useRef<ReturnType<typeof setTimeout> | null>(null)
   const onEnter = () => { if (hideTimer.current) clearTimeout(hideTimer.current); setHovered(true) }
@@ -53,7 +53,6 @@ function ThonkEdgeComponentFn({
 
   const isSourceEdge = d?.relation === 'sources'
   const isCollapsed = d?.isTargetCollapsed ?? false
-  const adjacentSelected = selected || d?.isSourceSelected || d?.isTargetSelected
 
   // Collapse button is always rendered (faint when not hovered) so it's discoverable
   // even when the node body covers the edge interaction zone.

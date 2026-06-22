@@ -42,7 +42,6 @@ import {
   Smile,
   ExternalLink,
   FileInput,
-  Minus,
 } from 'lucide-react'
 
 function ThumbUpIcon({ className }: { className?: string }) {
@@ -268,7 +267,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const d = data as ThonkNodeData
   const { thonk, graphRef } = d
   const { getNode, setCenter, getZoom } = useReactFlow()
-  const isPanning = useSyncExternalStore(canvasPanStore.subscribe, canvasPanStore.getSnapshot)
 
   const panToSpawned = useCallback((ids: string[]) => {
     requestAnimationFrame(() => {
