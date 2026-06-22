@@ -37,7 +37,6 @@ function ThonkEdgeComponentFn({
   style,
   markerEnd,
   interactionWidth,
-  selected,
   data,
 }: EdgeProps) {
   const d = data as unknown as ThonkEdgeData
