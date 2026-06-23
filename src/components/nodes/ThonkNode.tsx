@@ -1246,6 +1246,7 @@ function TransformBtn({ currentType, onTransform }: { currentType: string; onTra
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={10} className="text-sm">Convert to…</TooltipContent>
         <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[120px]">
+          <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Convert to</div>
           {(Object.keys(NODE_TYPE_LABELS) as import('@/store/types').NodeType[]).filter(t => t !== 'note' && t !== 'core').map(type => (
             <DropdownMenuItem
               key={type}

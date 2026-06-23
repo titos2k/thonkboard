@@ -391,7 +391,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
-                  <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Templates</div>
+                  <div className="px-2 py-1 text-[10px] font-medium uppercase tracking-wide text-muted-foreground">Templates</div>
                   {EXAMPLES.filter(ex => ex.isTemplate).map(ex => (
                     <DropdownMenuItem key={ex.id} title={ex.description} onClick={() => onLoadExample(ex.raw, ex.name)}>
                       {ex.name}
