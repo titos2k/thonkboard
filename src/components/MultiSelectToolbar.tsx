@@ -85,7 +85,8 @@ export function MultiSelectToolbar({ selectedIds, graphRef, onBatchStart, onBatc
 
       {/* Toolbar anchored to top-center of bbox */}
       <div
-        className="nodrag fixed z-50 flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10"
+        className="nodrag fixed z-50 flex items-center gap-0.5 rounded-lg px-1.5 py-1 shadow-xl"
+        style={{ backgroundColor: 'var(--toolbar-bg)', border: '1px solid var(--toolbar-border)' }}
         style={{ left: rectLeft + rectWidth / 2, top: rectTop - TOOLBAR_GAP, transform: 'translate(-50%, -100%)' }}
       >
         {aiConnected && (
@@ -95,14 +96,14 @@ export function MultiSelectToolbar({ selectedIds, graphRef, onBatchStart, onBatc
                 <button
                   onClick={handleFixGrammar}
                   disabled={fixing}
-                  className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer disabled:opacity-40"
+                  className="toolbar-btn"
                 >
                   {fixing ? <Spinner className="w-5 h-5 opacity-60" /> : <SpellCheck className="w-5 h-5" />}
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={10} className="text-sm">Fix grammar ({selectedIds.size})</TooltipContent>
             </Tooltip>
-            <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
+            <div className="toolbar-sep" />
           </>
         )}
 
@@ -110,7 +111,7 @@ export function MultiSelectToolbar({ selectedIds, graphRef, onBatchStart, onBatc
           <TooltipTrigger asChild>
             <button
               onClick={handleDelete}
-              className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
+              className="toolbar-btn"
             >
               <Trash2 className="w-5 h-5" />
             </button>

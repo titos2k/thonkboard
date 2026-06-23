@@ -54,14 +54,11 @@ function SourceNodeFn({ data, selected, dragging }: NodeProps) {
         <Handle id="s-right"  type="source" position={Position.Right}  className="!bg-blue-300 !border-blue-400 !w-2 !h-2" />
 
         <NodeToolbar isVisible={selected && !d.isMultiSelected && !dragging} position={Position.Top} offset={8}>
-          <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
+          <div className="nodrag flex items-center gap-0.5 rounded-lg px-1.5 py-1 shadow-xl" style={{ backgroundColor: 'var(--toolbar-bg)', border: '1px solid var(--toolbar-border)' }}>
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  onClick={() => setEditing(true)}
-                  className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
-                >
-                  <Pencil className="w-[18px] h-[18px]" />
+                <button onClick={() => setEditing(true)} className="toolbar-btn">
+                  <Pencil className="w-5 h-5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={10} className="text-sm">Rename</TooltipContent>
@@ -69,24 +66,18 @@ function SourceNodeFn({ data, selected, dragging }: NodeProps) {
             {thonk.body && (
               <Tooltip>
                 <TooltipTrigger asChild>
-                  <button
-                    onClick={() => setDigestOpen(true)}
-                    className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
-                  >
-                    <ScrollText className="w-[18px] h-[18px]" />
+                  <button onClick={() => setDigestOpen(true)} className="toolbar-btn">
+                    <ScrollText className="w-5 h-5" />
                   </button>
                 </TooltipTrigger>
                 <TooltipContent side="top" sideOffset={10} className="text-sm">Read digest</TooltipContent>
               </Tooltip>
             )}
-            <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
+            <div className="toolbar-sep" />
             <Tooltip>
               <TooltipTrigger asChild>
-                <button
-                  onClick={() => d.onDelete(thonk.id)}
-                  className="nodrag w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
-                >
-                  <Trash2 className="w-[18px] h-[18px]" />
+                <button onClick={() => d.onDelete(thonk.id)} className="nodrag toolbar-btn">
+                  <Trash2 className="w-5 h-5" />
                 </button>
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={10} className="text-sm">Delete source</TooltipContent>

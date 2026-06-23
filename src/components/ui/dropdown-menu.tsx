@@ -16,7 +16,8 @@ const DropdownMenuContent = React.forwardRef<
       ref={ref}
       sideOffset={sideOffset}
       className={cn(
-        'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 shadow-md',
+        'z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-md',
+        'bg-[var(--menu-bg)] border-[var(--menu-border)] text-[var(--menu-text)]',
         'data-[state=open]:animate-in data-[state=closed]:animate-out',
         'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
         'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',
@@ -37,7 +38,7 @@ const DropdownMenuItem = React.forwardRef<
     ref={ref}
     className={cn(
       'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none',
-      'transition-colors focus:bg-accent focus:text-accent-foreground',
+      'text-[var(--menu-text)] transition-colors focus:bg-[var(--menu-item-hover)]',
       'data-[disabled]:pointer-events-none data-[disabled]:opacity-50',
       className,
     )}
@@ -52,7 +53,7 @@ const DropdownMenuSeparator = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <DropdownMenuPrimitive.Separator
     ref={ref}
-    className={cn('-mx-1 my-1 h-px bg-border/40', className)}
+    className={cn('-mx-1 my-1 h-px bg-[var(--menu-border)]/40', className)}
     {...props}
   />
 ))
@@ -68,7 +69,7 @@ const DropdownMenuSubTrigger = React.forwardRef<
     ref={ref}
     className={cn(
       'relative flex cursor-pointer select-none items-center gap-2 rounded-sm px-2 py-1.5 text-sm outline-none',
-      'focus:bg-accent data-[state=open]:bg-accent',
+      'text-[var(--menu-text)] focus:bg-[var(--menu-item-hover)] data-[state=open]:bg-[var(--menu-item-hover)]',
       className,
     )}
     {...props}
@@ -86,7 +87,8 @@ const DropdownMenuSubContent = React.forwardRef<
   <DropdownMenuPrimitive.SubContent
     ref={ref}
     className={cn(
-      'z-50 min-w-[8rem] overflow-hidden rounded-md border bg-popover p-1 shadow-lg',
+      'z-50 min-w-[8rem] overflow-hidden rounded-md border p-1 shadow-lg',
+      'bg-[var(--menu-bg)] border-[var(--menu-border)] text-[var(--menu-text)]',
       'data-[state=open]:animate-in data-[state=closed]:animate-out',
       'data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0',
       'data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95',

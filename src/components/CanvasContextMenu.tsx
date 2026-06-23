@@ -57,11 +57,11 @@ export function CanvasContextMenu({
         onMouseDown={e => { e.preventDefault(); e.stopPropagation() }}
         onClick={() => { if (!disabled) { onClick(); onClose() } }}
         className={[
-          'w-full flex items-center gap-2.5 px-3 py-1.5 text-sm rounded-sm text-left transition-colors',
-          disabled ? 'opacity-35 cursor-not-allowed' : 'hover:bg-accent cursor-pointer',
+          'w-full flex items-center gap-2 px-2 py-1.5 text-sm rounded-sm text-left transition-colors text-[var(--menu-text)]',
+          disabled ? 'opacity-35 cursor-default' : 'hover:bg-[var(--menu-item-hover)] cursor-pointer',
         ].join(' ')}
       >
-        <span className="shrink-0 text-muted-foreground">{icon}</span>
+        <span className="shrink-0 opacity-60">{icon}</span>
         <span className="flex-1">{label}</span>
         {shortcut && <kbd className="text-xs text-muted-foreground/50 font-mono ml-2">{shortcut}</kbd>}
       </button>
@@ -72,21 +72,21 @@ export function CanvasContextMenu({
     <div
       ref={ref}
       style={{ position: 'fixed', left, top, zIndex: 9999 }}
-      className="bg-popover border border-border rounded-lg shadow-xl py-1 min-w-[184px]"
+      className="bg-[var(--menu-bg)] border border-[var(--menu-border)] text-[var(--menu-text)] rounded-lg shadow-xl p-1 min-w-[184px]"
       onContextMenu={e => e.preventDefault()}
     >
-      <Item icon={<BulbIcon className="w-3.5 h-3.5" />}          label="Add Idea"     shortcut="I" onClick={onAddIdea} />
-      <Item icon={<MessageCirclePlus className="w-3.5 h-3.5" />} label="Add Question" shortcut="Q" onClick={onAddQuestion} />
-      <Item icon={<TriangleAlert className="w-3.5 h-3.5" />}     label="Add Problem"  shortcut="P" onClick={onAddProblem} />
-      <Item icon={<StickyNote className="w-3.5 h-3.5" />}        label="Add Note"     shortcut="N" onClick={onAddNote} />
-      <hr className="my-1 border-border/40" />
-      <Item icon={<ClipboardPaste className="w-3.5 h-3.5" />} label="Paste" shortcut="Ctrl+V" onClick={onPaste} disabled={!copiedNode} />
-      <hr className="my-1 border-border/40" />
-      <Item icon={<Search className="w-3.5 h-3.5" />} label="Search Nodes" shortcut="Ctrl+K" onClick={onSearch} />
-      <hr className="my-1 border-border/40" />
-      <Item icon={<ZoomIn className="w-3.5 h-3.5" />}   label="Zoom In"  shortcut="+" onClick={onZoomIn} />
-      <Item icon={<ZoomOut className="w-3.5 h-3.5" />}  label="Zoom Out" shortcut="−" onClick={onZoomOut} />
-      <Item icon={<Maximize2 className="w-3.5 h-3.5" />} label="Fit View" shortcut="0" onClick={onFitView} />
+      <Item icon={<BulbIcon className="w-4 h-4" />}          label="Add Idea"     shortcut="I" onClick={onAddIdea} />
+      <Item icon={<MessageCirclePlus className="w-4 h-4" />} label="Add Question" shortcut="Q" onClick={onAddQuestion} />
+      <Item icon={<TriangleAlert className="w-4 h-4" />}     label="Add Problem"  shortcut="P" onClick={onAddProblem} />
+      <Item icon={<StickyNote className="w-4 h-4" />}        label="Add Note"     shortcut="N" onClick={onAddNote} />
+      <hr className="-mx-1 my-1 border-[var(--menu-border)]/40" />
+      <Item icon={<ClipboardPaste className="w-4 h-4" />} label="Paste" shortcut="Ctrl+V" onClick={onPaste} disabled={!copiedNode} />
+      <hr className="-mx-1 my-1 border-[var(--menu-border)]/40" />
+      <Item icon={<Search className="w-4 h-4" />} label="Search Nodes" shortcut="Ctrl+K" onClick={onSearch} />
+      <hr className="-mx-1 my-1 border-[var(--menu-border)]/40" />
+      <Item icon={<ZoomIn className="w-4 h-4" />}   label="Zoom In"  shortcut="+" onClick={onZoomIn} />
+      <Item icon={<ZoomOut className="w-4 h-4" />}  label="Zoom Out" shortcut="−" onClick={onZoomOut} />
+      <Item icon={<Maximize2 className="w-4 h-4" />} label="Fit View" shortcut="0" onClick={onFitView} />
     </div>
   )
 }

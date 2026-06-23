@@ -6,11 +6,11 @@ import type { ThonkNode, ThonkEdge } from '@/store/types'
 import type { BoardMeta } from '@/store/types'
 
 const TYPE_DOT: Record<string, string> = {
-  note:     'bg-[#f7efd0] border border-black/20',
-  idea:     'bg-[#f5c44a]',
-  problem:  'bg-[#e95a32]',
-  question: 'bg-[#e2e4e4] border border-black/20',
-  answer:   'bg-[#00ae60]',
+  note:     'bg-[var(--thonk-note)] border border-black/20',
+  idea:     'bg-[var(--thonk-idea)]',
+  problem:  'bg-[var(--thonk-problem)]',
+  question: 'bg-[var(--thonk-question)] border border-black/20',
+  answer:   'bg-[var(--thonk-answer)]',
 }
 
 interface CommandPaletteProps {
@@ -147,10 +147,10 @@ export function CommandPalette({
         <DialogPrimitive.Content
           aria-describedby={undefined}
           onOpenAutoFocus={e => { e.preventDefault(); inputRef.current?.focus() }}
-          className="fixed left-[50%] top-[15%] z-50 w-[calc(100vw-2rem)] max-w-lg translate-x-[-50%] bg-background border border-border rounded-2xl shadow-2xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
+          className="fixed left-[50%] top-[15%] z-50 w-[calc(100vw-2rem)] max-w-lg translate-x-[-50%] bg-[var(--menu-bg)] border border-[var(--menu-border)] text-[var(--menu-text)] rounded-2xl shadow-2xl overflow-hidden data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 data-[state=closed]:zoom-out-95 data-[state=open]:zoom-in-95"
         >
           <DialogPrimitive.Title className="sr-only">Search nodes</DialogPrimitive.Title>
-          <div className="flex items-center gap-3 px-4 py-3 border-b border-border">
+          <div className="flex items-center gap-3 px-4 py-3 border-b border-[var(--menu-border)]">
             <Search className="w-4 h-4 text-muted-foreground shrink-0" />
             <input
               ref={inputRef}
@@ -160,19 +160,19 @@ export function CommandPalette({
               placeholder={scope === 'all' ? 'Search all boards…' : 'Search nodes…'}
               className="flex-1 bg-transparent text-sm outline-none placeholder:text-muted-foreground"
             />
-            <kbd className="text-xs font-mono text-muted-foreground/60 border border-border px-1.5 py-0.5 rounded-sm">Esc</kbd>
+            <kbd className="text-xs font-mono text-muted-foreground/60 border border-[var(--menu-border)] px-1.5 py-0.5 rounded-sm">Esc</kbd>
           </div>
 
           {/* Scope toggle */}
           {showScopeToggle && (
-            <div className="flex items-center gap-1 px-4 py-2 border-b border-border">
+            <div className="flex items-center gap-1 px-4 py-2 border-b border-[var(--menu-border)]">
               <button
                 onClick={() => { setScope('this'); setActiveIdx(0) }}
                 className={cn(
                   'px-3 py-0.5 rounded-full text-sm transition-colors border',
                   scope === 'this'
                     ? 'bg-foreground text-background border-foreground'
-                    : 'text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground',
+                    : 'text-muted-foreground border-[var(--menu-border)] hover:border-foreground/40 hover:text-[var(--menu-text)]',
                 )}
               >
                 This board
@@ -183,7 +183,7 @@ export function CommandPalette({
                   'px-3 py-0.5 rounded-full text-sm transition-colors border',
                   scope === 'all'
                     ? 'bg-foreground text-background border-foreground'
-                    : 'text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground',
+                    : 'text-muted-foreground border-[var(--menu-border)] hover:border-foreground/40 hover:text-[var(--menu-text)]',
                 )}
               >
                 All boards
@@ -193,7 +193,7 @@ export function CommandPalette({
 
           {/* Row 1: type filters (this board only) */}
           {scope === 'this' && presentTypes.length > 1 && (
-            <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border flex-wrap">
+            <div className="flex items-center gap-1.5 px-4 py-2 border-b border-[var(--menu-border)] flex-wrap">
               {presentTypes.map(t => (
                 <button
                   key={t}
@@ -209,7 +209,7 @@ export function CommandPalette({
                     'flex items-center gap-1.5 px-2.5 py-0.5 rounded-full text-sm capitalize transition-colors border',
                     typeFilter.has(t)
                       ? 'bg-foreground text-background border-foreground'
-                      : 'text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground',
+                      : 'text-muted-foreground border-[var(--menu-border)] hover:border-foreground/40 hover:text-[var(--menu-text)]',
                   )}
                 >
                   <span className={cn('w-1.5 h-1.5 rounded-full shrink-0', TYPE_DOT[t])} />
@@ -221,14 +221,14 @@ export function CommandPalette({
 
           {/* Row 2: status filters (this board only) */}
           {scope === 'this' && (
-            <div className="flex items-center gap-1.5 px-4 py-2 border-b border-border flex-wrap">
+            <div className="flex items-center gap-1.5 px-4 py-2 border-b border-[var(--menu-border)] flex-wrap">
               <button
                 onClick={() => { setThumbFilter(f => f === 'up' ? null : 'up'); setActiveIdx(0) }}
                 className={cn(
                   'flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm transition-colors border',
                   thumbFilter === 'up'
-                    ? 'text-white border-[#00ae60] bg-[#00ae60]'
-                    : 'text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground',
+                    ? 'text-white border-[var(--thonk-answer)] bg-[var(--thonk-answer)]'
+                    : 'text-muted-foreground border-[var(--menu-border)] hover:border-foreground/40 hover:text-[var(--menu-text)]',
                 )}
               >
                 <ThumbsUp className="w-3.5 h-3.5" />
@@ -239,8 +239,8 @@ export function CommandPalette({
                 className={cn(
                   'flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm transition-colors border',
                   thumbFilter === 'down'
-                    ? 'text-white border-[#e95a32] bg-[#e95a32]'
-                    : 'text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground',
+                    ? 'text-white border-[var(--thonk-problem)] bg-[var(--thonk-problem)]'
+                    : 'text-muted-foreground border-[var(--menu-border)] hover:border-foreground/40 hover:text-[var(--menu-text)]',
                 )}
               >
                 <ThumbsDown className="w-3.5 h-3.5" />
@@ -252,7 +252,7 @@ export function CommandPalette({
                   'flex items-center gap-1 px-2.5 py-0.5 rounded-full text-sm transition-colors border',
                   undecidedFilter
                     ? 'text-white border-foreground bg-foreground'
-                    : 'text-muted-foreground border-border hover:border-foreground/40 hover:text-foreground',
+                    : 'text-muted-foreground border-[var(--menu-border)] hover:border-foreground/40 hover:text-[var(--menu-text)]',
                 )}
               >
                 Undecided
@@ -278,7 +278,7 @@ export function CommandPalette({
                 className={cn(
                   'w-full flex items-center gap-3 px-4 py-2.5 text-left transition-colors',
                   node.resolved && 'opacity-40',
-                  i === activeIdx ? 'bg-accent' : 'hover:bg-muted',
+                  i === activeIdx ? 'bg-[var(--menu-item-hover)]' : 'hover:bg-[var(--menu-item-hover)]/60',
                 )}
               >
                 <span className={cn('w-2 h-2 rounded-full shrink-0', TYPE_DOT[node.type] ?? 'bg-muted')} />

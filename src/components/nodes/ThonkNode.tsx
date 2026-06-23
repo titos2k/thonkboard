@@ -45,6 +45,10 @@ import {
   FileInput,
 } from 'lucide-react'
 import { BulbIcon } from '@/components/icons/BulbIcon'
+import { IdeaIcon } from '@/components/icons/IdeaIcon'
+import { ProblemIcon } from '@/components/icons/ProblemIcon'
+import { QuestionIcon } from '@/components/icons/QuestionIcon'
+import { AnswerIcon } from '@/components/icons/AnswerIcon'
 
 function ThumbUpIcon({ className }: { className?: string }) {
   return (
@@ -800,7 +804,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} dimmed={thonk.thumb === 'down'} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); d.onContextMenuSelect(thonk.id) }} resizable={true} nodeWidth={thonk.nodeWidth} onResized={(w) => d.onUpdate(thonk.id, { nodeWidth: w })} minWidth={120} minHeight={40}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
       <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !d.isMultiSelected && !thonk.placeholder && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !isPushing && !editing} position={Position.Top} offset={8}>
-        <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
+        <div className="nodrag flex items-center gap-0.5 rounded-lg px-1.5 py-1 shadow-xl" style={{ backgroundColor: 'var(--toolbar-bg)', border: '1px solid var(--toolbar-border)' }}>
 
           <>
             {/* Primary action button — Answer for questions, Reply for problems */}
@@ -808,7 +812,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               <>
                 <button
                   onClick={() => thonk.title.trim() ? setActionState('answering') : enterEdit()}
-                  className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-[#00cc6e] hover:bg-[#00b860] text-emerald-950 transition-colors cursor-pointer"
+                  className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-[var(--thonk-answer-light)] hover:bg-[var(--thonk-answer)] text-emerald-950 transition-colors cursor-pointer"
                 >
                   <MessageCircleReply className="w-5 h-5" />
                   {thonk.type === 'problem' ? 'Reply' : 'Answer'}
@@ -816,11 +820,11 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 {thonk.type === 'question' && thonk.meta.yesNo && !d.hasAnswer && (
                   <>
                     <button onClick={() => handleQuickAnswer('Yes')}
-                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-[#00cc6e] hover:bg-[#00b860] text-emerald-950 transition-colors cursor-pointer">
+                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-[var(--thonk-answer-light)] hover:bg-[var(--thonk-answer)] text-emerald-950 transition-colors cursor-pointer">
                       Yes
                     </button>
                     <button onClick={() => handleQuickAnswer('No')}
-                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-[#00cc6e] hover:bg-[#00b860] text-emerald-950 transition-colors cursor-pointer">
+                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-[var(--thonk-answer-light)] hover:bg-[var(--thonk-answer)] text-emerald-950 transition-colors cursor-pointer">
                       No
                     </button>
                   </>
@@ -832,27 +836,27 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             {/* Section 1: AI */}
             {(thonk.type === 'core' || thonk.type === 'idea') && (
               <>
-                <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Push Thinking..." onClick={() => setActionState('pushing')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-purple-400" />
-                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[#00cc6e]" />
-                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
-                <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
-                <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-yellow-400" />
+                <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Push Thinking..." onClick={() => setActionState('pushing')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-thinking)]" />
+                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-answer-light)]" />
+                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-source-light)]" />
+                <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-problem)]" heat={depthHeat} />
+                <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-idea)]" />
               </>
             )}
             {thonk.type === 'problem' && (
               <>
-                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
-                <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" heat={depthHeat} />
+                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-source-light)]" />
+                <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-answer-light)]" heat={depthHeat} />
               </>
             )}
             {thonk.type === 'question' && (
-              <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-[#00cc6e]" />
+              <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-[var(--thonk-answer-light)]" />
             )}
             {thonk.type === 'answer' && (
               <>
-                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[#00cc6e]" />
-                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
-                <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
+                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-answer-light)]" />
+                <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-source-light)]" />
+                <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[var(--thonk-problem)]" heat={depthHeat} />
                 {thonk.meta.aiGenerated && <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This..." onClick={() => setActionState('correcting')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-orange-400" />}
               </>
             )}
@@ -870,8 +874,8 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 <Sep />
                 {(thonk.type === 'idea' || thonk.type === 'problem' || thonk.type === 'question' || thonk.type === 'answer') && (
                   <>
-                    <ToolBtn icon={<ThumbUpIcon className="w-5 h-5" />} label="Love it" onClick={handleThumbUp} className={thonk.thumb === 'up' ? 'text-[#00ae60]' : ''} />
-                    <ToolBtn icon={<ThumbDownIcon className="w-5 h-5" />} label="Drop it" onClick={handleThumbDown} className={thonk.thumb === 'down' ? 'text-[#e95a32]' : ''} />
+                    <ToolBtn icon={<ThumbUpIcon className="w-5 h-5" />} label="Love it" onClick={handleThumbUp} className={thonk.thumb === 'up' ? 'text-[var(--thonk-answer)]' : ''} />
+                    <ToolBtn icon={<ThumbDownIcon className="w-5 h-5" />} label="Drop it" onClick={handleThumbDown} className={thonk.thumb === 'down' ? 'text-[var(--thonk-problem)]' : ''} />
                     <Sep />
                   </>
                 )}
@@ -1116,7 +1120,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
       </Tooltip>
     )}
     {thonk.thumb && (
-      <div className={`absolute -top-3 -left-3 w-7 h-7 rounded-full flex items-center justify-center shadow-lg nodrag select-none ring-2 ring-(--background) ${thonk.thumb === 'up' ? 'bg-[#00ae60]' : 'bg-[#e95a32]'}`}>
+      <div className={`absolute -top-3 -left-3 w-7 h-7 rounded-full flex items-center justify-center shadow-lg nodrag select-none ring-2 ring-(--background) ${thonk.thumb === 'up' ? 'bg-[var(--thonk-answer)]' : 'bg-[var(--thonk-problem)]'}`}>
         {thonk.thumb === 'up'
           ? <ThumbUpIcon className="w-4 h-4 text-white" />
           : <ThumbDownIcon className="w-4 h-4 text-white" />
@@ -1169,7 +1173,7 @@ export const ThonkNodeComponent = React.memo(
 )
 
 function Sep() {
-  return <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
+  return <div className="w-px h-4 mx-0.5 shrink-0" style={{ backgroundColor: 'var(--toolbar-sep)' }} />
 }
 
 type AddAction = { label: string; icon: React.ReactNode; onClick: () => void; shortcut?: string }
@@ -1184,14 +1188,14 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
 
   if (nodeType === 'core' || nodeType === 'idea' || nodeType === 'answer') {
     items.push(
-      { label: 'Add Idea',     icon: <><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" /><BulbIcon className="w-4 h-4 text-muted-foreground" /></>,                                    onClick: onAddIdea,     shortcut: '(I)' },
-      { label: 'Add Question', icon: <><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" /><MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /></>, onClick: onAddQuestion, shortcut: '(Q)' },
-      { label: 'Add Problem',  icon: <><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" /><TriangleAlert className="w-4 h-4 text-muted-foreground" /></>,                                onClick: onAddProblem,  shortcut: '(P)' },
+      { label: 'Add Idea',     icon: <IdeaIcon className="w-4 h-4" />,  onClick: onAddIdea,     shortcut: '(I)' },
+      { label: 'Add Question', icon: <QuestionIcon className="w-4 h-4" />, onClick: onAddQuestion, shortcut: '(Q)' },
+      { label: 'Add Problem',  icon: <ProblemIcon className="w-4 h-4" />,  onClick: onAddProblem,  shortcut: '(P)' },
     )
   }
   if (nodeType === 'problem' || nodeType === 'question') {
     items.push(
-      { label: 'Add Question', icon: <><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" /><MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /></>, onClick: onAddQuestion, shortcut: '(Q)' },
+      { label: 'Add Question', icon: <QuestionIcon className="w-4 h-4" />, onClick: onAddQuestion, shortcut: '(Q)' },
     )
   }
 
@@ -1202,7 +1206,7 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
       <DropdownMenu>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
+            <button className="toolbar-btn">
               <GitBranchPlus className="w-5 h-5" />
             </button>
           </DropdownMenuTrigger>
@@ -1222,11 +1226,11 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
 }
 
 const NODE_TYPE_LABELS: Record<string, { label: string; color: string; dot: React.ReactNode; icon: React.ReactNode }> = {
-  core:     { label: 'Core',     color: '#392946', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#392946]" />,                                icon: <Brain className="w-4 h-4 text-muted-foreground" /> },
-  idea:     { label: 'Idea',     color: '#f5c44a', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" />,                                icon: <BulbIcon className="w-4 h-4 text-muted-foreground" /> },
-  problem:  { label: 'Problem',  color: '#e95a32', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" />,                                icon: <TriangleAlert className="w-4 h-4 text-muted-foreground" /> },
-  question: { label: 'Question', color: '#c8cac8', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" />,         icon: <MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /> },
-  answer:   { label: 'Answer',   color: '#00ae60', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#00ae60]" />,                                icon: <MessageCircle className="w-4 h-4 text-muted-foreground" /> },
+  core:     { label: 'Core',     color: '#392946', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[var(--thonk-core)]" />,                                icon: <Brain className="w-4 h-4 text-muted-foreground" /> },
+  idea:     { label: 'Idea',     color: '#f5c44a', dot: null,                                icon: <IdeaIcon className="w-4 h-4" /> },
+  problem:  { label: 'Problem',  color: '#e95a32', dot: null,                                icon: <ProblemIcon className="w-4 h-4" /> },
+  question: { label: 'Question', color: '#c8cac8', dot: null,         icon: <QuestionIcon className="w-4 h-4" /> },
+  answer:   { label: 'Answer',   color: '#00ae60', dot: null,                                icon: <AnswerIcon className="w-4 h-4" /> },
 }
 
 function TransformBtn({ currentType, onTransform }: { currentType: string; onTransform: (t: import('@/store/types').NodeType) => void }) {
@@ -1235,7 +1239,7 @@ function TransformBtn({ currentType, onTransform }: { currentType: string; onTra
       <DropdownMenu>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <button className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
+            <button className="toolbar-btn">
               <ArrowDownUp className="w-5 h-5" />
             </button>
           </DropdownMenuTrigger>
@@ -1276,7 +1280,7 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
       <DropdownMenu onOpenChange={open => { if (!open) setConfirmReset(false) }}>
         <TooltipTrigger asChild>
           <DropdownMenuTrigger asChild>
-            <button ref={triggerRef} className="nodrag w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer">
+            <button ref={triggerRef} className="nodrag toolbar-btn">
               <MoreHorizontal className="w-5 h-5" />
             </button>
           </DropdownMenuTrigger>
@@ -1286,17 +1290,17 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
           {nodeType !== 'core' && (
             <>
               <DropdownMenuItem onClick={onCopyNode}>
-                <Copy className="w-4 h-4" />
+                <Copy className="w-4 h-4 opacity-60" />
                 Copy
               </DropdownMenuItem>
               <DropdownMenuItem onClick={onDuplicateNode}>
-                <CopyPlus className="w-4 h-4" />
+                <CopyPlus className="w-4 h-4 opacity-60" />
                 Duplicate
               </DropdownMenuItem>
             </>
           )}
           <DropdownMenuItem onClick={onCopyText} disabled={!hasContent}>
-            <FileText className="w-4 h-4" />
+            <FileText className="w-4 h-4 opacity-60" />
             Copy Text
           </DropdownMenuItem>
           {nodeType !== 'core' && (
@@ -1305,12 +1309,12 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
             </>
           )}
           <DropdownMenuItem onClick={onFixGrammar} disabled={!hasContent}>
-            <SpellCheck className="w-4 h-4" />
+            <SpellCheck className="w-4 h-4 opacity-60" />
             Fix Grammar
           </DropdownMenuItem>
           {onSetIcon && (
             <DropdownMenuItem onClick={() => triggerRef.current && onSetIcon(triggerRef.current.getBoundingClientRect())}>
-              <Smile className="w-4 h-4" />
+              <Smile className="w-4 h-4 opacity-60" />
               Set Icon
             </DropdownMenuItem>
           )}
@@ -1318,7 +1322,7 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onOpenAsNewBoard}>
-                <ExternalLink className="w-4 h-4" />
+                <ExternalLink className="w-4 h-4 opacity-60" />
                 Open as new board
               </DropdownMenuItem>
             </>
@@ -1327,7 +1331,7 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={() => window.dispatchEvent(new CustomEvent('thonk:open-source-import'))}>
-                <FileInput className="w-4 h-4" />
+                <FileInput className="w-4 h-4 opacity-60" />
                 Import source…
               </DropdownMenuItem>
             </>
@@ -1336,7 +1340,7 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
             <>
               <DropdownMenuSeparator />
               <DropdownMenuItem onSelect={e => { e.preventDefault(); setConfirmReset(true) }} className="text-destructive focus:text-destructive focus:bg-destructive/10">
-                <Trash2 className="w-4 h-4" />
+                <Trash2 className="w-4 h-4 opacity-60" />
                 Reset Core & Board
               </DropdownMenuItem>
             </>
@@ -1385,9 +1389,9 @@ function ToolBtn({
           onClick={onClick}
           disabled={isDisabled}
           className={cn(
-            'w-8 h-8 flex items-center justify-center rounded text-white/80 transition-colors relative',
+            'w-8 h-8 flex items-center justify-center rounded transition-colors relative text-[var(--toolbar-icon)]',
             isDisabled      ? 'opacity-25 cursor-not-allowed' :
-                              'hover:bg-white/15 hover:text-white cursor-pointer',
+                              'cursor-pointer hover:bg-white/[0.08] hover:text-white',
             active && 'bg-white/20 text-white',
             className,
           )}

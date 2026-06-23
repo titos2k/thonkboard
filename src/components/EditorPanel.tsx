@@ -19,11 +19,11 @@ interface EditorPanelProps {
 }
 
 const TYPE_BADGE: Record<string, string> = {
-  core:     'bg-[#392946] text-white',
-  idea:     'bg-[#f5c44a] text-gray-900',
-  problem:  'bg-[#e95a32] text-white',
-  question: 'bg-[#f4f6f6] text-gray-900 border border-black/10',
-  answer:   'bg-[#00ae60] text-white',
+  core:     'bg-[var(--thonk-core)] text-white',
+  idea:     'bg-[var(--thonk-idea)] text-gray-900',
+  problem:  'bg-[var(--thonk-problem)] text-white',
+  question: 'bg-[var(--thonk-question)] text-gray-900 border border-black/10',
+  answer:   'bg-[var(--thonk-answer)] text-white',
 }
 
 function insertAround(

@@ -199,8 +199,8 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
                   <div className="flex gap-1">
                     {health.questionsTotal > 0 && (() => { const red = health.questionsAnswered / health.questionsTotal < 0.1; return (
                       <div className="flex-1 text-center py-1.5">
-                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><MessageCircleQuestion className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
-                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[#e95a32]' : ''}`}>
+                        <div className="w-11 h-11 rounded-xl bg-black/[0.06] dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><MessageCircleQuestion className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[var(--thonk-problem)]' : ''}`}>
                           {health.questionsAnswered}<span className={red ? '' : 'text-muted-foreground'}>/{health.questionsTotal}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">questions<br/>answered</div>
@@ -208,8 +208,8 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
                     )})()}
                     {health.problemsTotal > 0 && (() => { const red = health.problemsAddressed / health.problemsTotal < 0.1; return (
                       <div className="flex-1 text-center py-1.5">
-                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><AlertTriangle className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
-                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[#e95a32]' : ''}`}>
+                        <div className="w-11 h-11 rounded-xl bg-black/[0.06] dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><AlertTriangle className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[var(--thonk-problem)]' : ''}`}>
                           {health.problemsAddressed}<span className={red ? '' : 'text-muted-foreground'}>/{health.problemsTotal}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">problems<br/>addressed</div>
@@ -217,15 +217,15 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
                     )})()}
                     {health.conflicts > 0 && (
                       <div className="flex-1 text-center py-1.5">
-                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><Swords className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className="w-11 h-11 rounded-xl bg-black/[0.06] dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><Swords className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
                         <div className="text-xl font-semibold tabular-nums leading-none">{health.conflicts}</div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">active<br/>conflicts</div>
                       </div>
                     )}
                     {health.ideasTotal > 0 && (() => { const red = health.ideasExplored / health.ideasTotal < 0.1; return (
                       <div className="flex-1 text-center py-1.5">
-                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><BulbIcon className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
-                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[#e95a32]' : ''}`}>
+                        <div className="w-11 h-11 rounded-xl bg-black/[0.06] dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><BulbIcon className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[var(--thonk-problem)]' : ''}`}>
                           {health.ideasExplored}<span className={red ? '' : 'text-muted-foreground'}>/{health.ideasTotal}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">ideas<br/>explored</div>
@@ -233,8 +233,8 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
                     )})()}
                     {health.answersTotal > 0 && (
                       <div className="flex-1 text-center py-1.5">
-                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><User className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
-                        <div className={`text-xl font-semibold tabular-nums leading-none ${health.answersHumanPct < 20 ? 'text-[#e95a32]' : ''}`}>
+                        <div className="w-11 h-11 rounded-xl bg-black/[0.06] dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><User className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${health.answersHumanPct < 20 ? 'text-[var(--thonk-problem)]' : ''}`}>
                           {health.answersHumanPct}<span className={health.answersHumanPct < 20 ? '' : 'text-muted-foreground'}>%</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">answers<br/>by human</div>
@@ -242,15 +242,15 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
                     )}
                   </div>
                 )}
-                <div className="text-sm font-semibold flex items-center gap-1.5 mt-1"><Sparkles className="w-3.5 h-3.5 text-primary" />Generate a summary</div>
+                <div className="text-base font-semibold flex items-center gap-1.5 mt-5"><Sparkles className="w-4 h-4 text-primary" />Generate a summary</div>
                 <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   <button
                     onClick={() => run('list')}
                     className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white dark:bg-white/10 hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-row sm:flex-col items-start gap-3 sm:gap-0"
                   >
                     <div className="shrink-0 sm:mb-3">
-                      <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-400/30 flex items-center justify-center">
-                        <List className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--thonk-source) 18%, transparent)' }}>
+                        <List className="w-6 h-6" style={{ color: 'var(--thonk-source)' }} />
                       </div>
                     </div>
                     <div className="flex-1 flex flex-col">
@@ -267,8 +267,8 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
                     className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white dark:bg-white/10 hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-row sm:flex-col items-start gap-3 sm:gap-0"
                   >
                     <div className="shrink-0 sm:mb-3">
-                      <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-400/30 flex items-center justify-center">
-                        <FlaskConical className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--thonk-answer) 18%, transparent)' }}>
+                        <FlaskConical className="w-6 h-6" style={{ color: 'var(--thonk-answer)' }} />
                       </div>
                     </div>
                     <div className="flex-1 flex flex-col">
@@ -285,8 +285,8 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
                     className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white dark:bg-white/10 hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-row sm:flex-col items-start gap-3 sm:gap-0"
                   >
                     <div className="shrink-0 sm:mb-3">
-                      <div className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-400/30 flex items-center justify-center">
-                        <Microscope className="w-6 h-6 text-pink-600 dark:text-pink-400" />
+                      <div className="w-12 h-12 rounded-xl flex items-center justify-center" style={{ backgroundColor: 'color-mix(in srgb, var(--thonk-problem) 18%, transparent)' }}>
+                        <Microscope className="w-6 h-6" style={{ color: 'var(--thonk-problem)' }} />
                       </div>
                     </div>
                     <div className="flex-1 flex flex-col">
@@ -311,7 +311,7 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
           )}
 
           {status === 'error' && (
-            <div className="text-sm text-[#e95a32] py-4">{error}</div>
+            <div className="text-sm text-[var(--thonk-problem)] py-4">{error}</div>
           )}
 
           {status === 'ready' && (

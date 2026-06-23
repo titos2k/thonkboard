@@ -83,6 +83,70 @@ body {
   color: var(--color-foreground);
 }
 
+#rf-wrap { background: #EEECE8; }
+.dark #rf-wrap { background: #1A191D; }
+
+/* Node type color tokens */
+:root {
+  --thonk-core:             #392946;
+
+  --thonk-idea:             #F5C44A;
+
+  --thonk-problem:          #E95A32;
+  --thonk-problem-light:    #FFDCD2;
+
+  --thonk-question:         #f9f9f4;
+
+  --thonk-answer:           #00AE60;
+  --thonk-answer-light:     #07C36F;
+  --thonk-answer-dark:      #00836D;
+  --thonk-answer-lighter:   #B7E4D0;
+
+  --thonk-source:           #537DCA;
+  --thonk-source-light:     #6C93DB;
+  --thonk-source-lighter:   #D2DFF6;
+
+  --thonk-note:             #F6E49F;
+
+  --thonk-thinking:         #C177FA;
+}
+
+/* Floating node toolbar tokens */
+:root {
+  --toolbar-bg:        #1E1C24;
+  --toolbar-border:    #3C3343;
+  --toolbar-sep:       #4D4255;
+  --toolbar-icon:      #D5D5CC;
+}
+
+/* Dropdown / context menu tokens */
+:root {
+  --menu-bg:         var(--color-popover);
+  --menu-border:     var(--color-border);
+  --menu-text:       var(--color-popover-foreground);
+  --menu-item-hover: var(--color-accent);
+}
+.dark {
+  --menu-bg:         #1E1C24;
+  --menu-border:     #4B4650;
+  --menu-text:       #EEECE8;
+  --menu-item-hover: #373340;
+  --thonk-question:  #e3e3df;
+}
+
+.toolbar-btn {
+  width: 2rem; height: 2rem;
+  display: flex; align-items: center; justify-content: center;
+  border-radius: 0.25rem;
+  color: var(--toolbar-icon);
+  transition: background-color 150ms;
+  cursor: pointer;
+  position: relative;
+}
+.toolbar-btn:hover { background: rgba(255,255,255,0.08); }
+.toolbar-btn:disabled { opacity: 0.25; cursor: not-allowed; }
+.toolbar-sep { width: 1px; height: 1rem; margin: 0 0.125rem; flex-shrink: 0; background: var(--toolbar-sep); }
+
 #root {
   width: 100vw;
   height: 100dvh;
@@ -196,17 +260,17 @@ body {
 .react-flow__node.dragging .react-flow__handle { opacity: 0 !important; }
 
 .react-flow__controls {
-  border: 1px solid var(--color-border);
+  border: 1px solid var(--menu-border);
   border-radius: var(--radius);
   overflow: hidden;
   box-shadow: 0 2px 8px rgba(0,0,0,.08);
   margin: 0 !important;
 }
 .react-flow__controls button {
-  background: var(--color-card);
+  background: var(--menu-bg);
   border: none;
-  border-bottom: 1px solid var(--color-border);
-  color: var(--color-foreground);
+  border-bottom: 1px solid var(--menu-border);
+  color: var(--menu-text);
   width: 36px;
   height: 36px;
   display: flex;
@@ -221,7 +285,7 @@ body {
   max-height: 18px !important;
   fill: none !important;
 }
-.react-flow__controls button:hover { background: var(--color-muted); }
+.react-flow__controls button:hover { background: var(--menu-item-hover); }
 
 .react-flow__minimap {
   border: 1px solid var(--color-border);

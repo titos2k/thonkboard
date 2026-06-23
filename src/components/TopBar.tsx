@@ -1,7 +1,9 @@
 import { useRef, useState, memo, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Astroid, HelpCircle, Map, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search, FileInput } from 'lucide-react'
-import { BulbIcon } from '@/components/icons/BulbIcon'
+import { Astroid, HelpCircle, Map, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search, FileInput } from 'lucide-react'
+import { IdeaIcon } from '@/components/icons/IdeaIcon'
+import { ProblemIcon } from '@/components/icons/ProblemIcon'
+import { QuestionIcon } from '@/components/icons/QuestionIcon'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -242,7 +244,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
 
   return (
     <>
-    <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-card border-b border-border" style={{ boxShadow: '0 1px 2px rgba(0,0,0,0.08)' }}>
+    <div className="absolute top-0 left-0 right-0 z-10 flex items-center gap-2 px-4 py-2 bg-[var(--menu-bg)] text-[var(--menu-text)]" style={{ boxShadow: 'rgba(12, 14, 18, 0.05) 0px 2px 4px 0px' }}>
       <img
         ref={logoRef}
         src="/thonkboard-logo.svg"
@@ -481,21 +483,21 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
       {/* Add Node dropdown */}
       <DropdownMenu>
         <DropdownMenuTrigger asChild>
-          <Button size="sm" variant="outline" className="h-9 text-sm gap-1.5 cursor-pointer bg-card">
+          <Button size="sm" variant="outline" className="h-9 text-sm gap-1.5 cursor-pointer bg-[var(--menu-bg)] border-[var(--menu-border)] hover:bg-[var(--menu-item-hover)]">
             <Plus className="w-4 h-4" /> Add Node <ChevronDown className="w-4 h-4 opacity-50" />
           </Button>
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" onCloseAutoFocus={e => e.preventDefault()}>
           <DropdownMenuItem onClick={onAddIdea} className="justify-between">
-            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" /><BulbIcon className="w-4 h-4 text-muted-foreground" /> Idea</span>
+            <span className="flex items-center gap-2"><IdeaIcon className="w-4 h-4" /> Idea</span>
             <kbd className="text-xs text-muted-foreground/50 font-mono ml-4">(I)</kbd>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onAddQuestion} className="justify-between">
-            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" /><MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /> Question</span>
+            <span className="flex items-center gap-2"><QuestionIcon className="w-4 h-4" /> Question</span>
             <kbd className="text-xs text-muted-foreground/50 font-mono ml-4">(Q)</kbd>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onAddProblem} className="justify-between">
-            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" /><TriangleAlert className="w-4 h-4 text-muted-foreground" /> Problem</span>
+            <span className="flex items-center gap-2"><ProblemIcon className="w-4 h-4" /> Problem</span>
             <kbd className="text-xs text-muted-foreground/50 font-mono ml-4">(P)</kbd>
           </DropdownMenuItem>
         </DropdownMenuContent>
@@ -503,7 +505,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
 
       <Tooltip>
         <TooltipTrigger asChild>
-          <Button size="sm" variant="outline" className="h-9 w-9 p-0 cursor-pointer bg-card" onClick={onAddNote}>
+          <Button size="sm" variant="outline" className="h-9 w-9 p-0 cursor-pointer bg-[var(--menu-bg)] border-[var(--menu-border)] hover:bg-[var(--menu-item-hover)]" onClick={onAddNote}>
             <StickyNote className="w-4 h-4" />
           </Button>
         </TooltipTrigger>
@@ -515,7 +517,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
           <TooltipTrigger asChild>
             <Button
               size="sm" variant="outline"
-              className="h-9 cursor-pointer bg-card"
+              className="h-9 cursor-pointer bg-[var(--menu-bg)] border-[var(--menu-border)] hover:bg-[var(--menu-item-hover)]"
               style={isNarrow ? { width: 36, padding: 0 } : undefined}
               disabled={!hasContent}
               onClick={() => setSummarizeOpen(true)}

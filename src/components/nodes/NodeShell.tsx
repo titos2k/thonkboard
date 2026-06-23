@@ -23,13 +23,13 @@ interface NodeShellProps {
 }
 
 const TYPE_STYLES: Record<NodeType, string> = {
-  core:     'border border-black/20 bg-[#392946] text-white shadow-lg',
-  idea:     'border border-black/10 bg-[#f5c44a] text-gray-900 shadow',
-  problem:  'border border-black/10 bg-[#e95a32] text-white shadow',
-  question: 'border border-black/10 bg-[#f4f6f6] text-gray-900 shadow-md',
-  answer:   'border border-black/10 bg-[#00ae60] text-white shadow',
-  note:     'border-0 bg-[#f7efd0] text-gray-700 shadow-md rounded-[3px]',
-  source:   'border border-black/10 bg-[#4a6fa5] text-white shadow-md',
+  core:     'border border-black/20 bg-[var(--thonk-core)] text-white shadow-lg',
+  idea:     'border border-black/10 bg-[var(--thonk-idea)] text-gray-900 shadow',
+  problem:  'border border-black/10 bg-[var(--thonk-problem)] text-white shadow',
+  question: 'border border-black/10 bg-[var(--thonk-question)] text-gray-900 shadow-md',
+  answer:   'border border-black/10 bg-[var(--thonk-answer)] text-white shadow',
+  note:     'border-0 bg-[var(--thonk-note)] text-gray-700 shadow-md rounded-[3px]',
+  source:   'border border-black/10 bg-[var(--thonk-source)] text-white shadow-md',
 }
 
 const TYPE_SELECTED: Record<NodeType, string> = {
@@ -49,8 +49,8 @@ function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGe
     : '!bg-white/60 !border-white/40 !w-2 !h-2'
 
   const baseStyle =
-    aiGenerated && nodeType === 'answer'   ? 'border border-black/10 bg-[#00836d] text-white shadow' :
-    aiGenerated && nodeType === 'question' ? 'border border-dashed border-black/20 bg-[#f4f6f6] text-gray-900 shadow-md' :
+    aiGenerated && nodeType === 'answer'   ? 'border border-black/10 bg-[var(--thonk-answer-dark)] text-white shadow' :
+    aiGenerated && nodeType === 'question' ? 'border border-dashed border-black/20 bg-[var(--thonk-question)] text-gray-900 shadow-md' :
     TYPE_STYLES[nodeType]
 
   // Use w-full when resizable (RF wrapper controls width). For unresized thonk nodes,

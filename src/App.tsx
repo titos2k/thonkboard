@@ -157,11 +157,11 @@ migrateToMultiBoard()
 
 const NODE_EDGE_COLOR: Record<string, string> = {
   core:     '#392946',
-  idea:     '#f5c44a',
-  problem:  '#e95a32',
+  idea:     '#F5C44A',
+  problem:  '#E95A32',
   question: '#858783',
-  answer:   '#00ae60',
-  source:   '#4a6fa5',
+  answer:   '#00AE60',
+  source:   '#537DCA',
 }
 
 function loadCollapsed(boardId: string): Set<string> {
@@ -278,7 +278,7 @@ function toRFEdge(
   const source   = nodes.find(n => n.id === e.source)
   const isSourceEdge = e.relation === 'sources'
   const stroke   = isSourceEdge ? '#6b8fc4'
-    : (target?.type === 'answer' && target?.meta.aiGenerated) ? '#00836d'
+    : (target?.type === 'answer' && target?.meta.aiGenerated) ? '#00836D'
     : (NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8')
   const aiDepth  = Math.max(target?.meta.aiDepth ?? 0, source?.meta.aiDepth ?? 0)
   const dash     = isSourceEdge ? undefined : (target?.meta.aiGenerated ? `5 ${3 + aiDepth * 4}` : undefined)
@@ -456,8 +456,8 @@ export default function App() {
       let cx = startVp.x, cy = startVp.y, ivx = vx, ivy = vy
       const { zoom } = startVp
       const step = () => {
-        ivx *= 0.94; ivy *= 0.94
-        if (ivx * ivx + ivy * ivy < 0.01) {
+        ivx *= 0.92; ivy *= 0.92
+        if (ivx * ivx + ivy * ivy < 0.05) {
           inertiaFrameRef.current = null
           saveViewport({ x: cx, y: cy, zoom }, activeBoardIdRef.current)
           return
@@ -833,12 +833,12 @@ export default function App() {
   const miniMapNodeColor = useCallback((n: Node) => {
     const t = (n.data as ThonkNodeData)?.thonk?.type
     if (t === 'core')     return '#392946'
-    if (t === 'problem')  return '#e95a32'
-    if (t === 'question') return '#f4f6f6'
-    if (t === 'answer')   return '#00ae60'
-    if (t === 'note')     return '#ffffff'
-    if (t === 'source')   return '#4a6fa5'
-    return '#f5c44a'
+    if (t === 'problem')  return '#E95A32'
+    if (t === 'question') return '#F9F9EF'
+    if (t === 'answer')   return '#00AE60'
+    if (t === 'note')     return '#F6E49F'
+    if (t === 'source')   return '#537DCA'
+    return '#F5C44A'
   }, [])
 
   const navigateToNode = useCallback((nodeId: string, opts?: { highlight?: boolean }) => {
@@ -1522,20 +1522,20 @@ export default function App() {
         )}
 
         {showLegend && !isMobile && <div
-          className="absolute bg-card border border-border rounded-lg px-4 py-3 text-sm shadow-sm pointer-events-none z-10"
+          className="absolute bg-[var(--menu-bg)] border border-[var(--menu-border)] text-[var(--menu-text)] rounded-lg px-4 py-3 text-sm shadow-sm pointer-events-none z-10"
           style={{ top: 44 + 16, right: 16 }}
         >
           <div className="font-semibold text-sm mb-2">Nodes</div>
           <div className="space-y-1.5 mb-4">
             {[
-              { color: 'bg-[#392946]',                          label: 'Core'         },
-              { color: 'bg-[#f5c44a]',                          label: 'Idea'         },
-              { color: 'bg-[#e95a32]',                          label: 'Problem'      },
-              { color: 'bg-[#f4f6f6] border border-black/10',   label: 'Question'     },
-              { color: 'bg-[#00ae60]',                          label: 'Answer'       },
-              { color: 'bg-[#00836d]',                          label: 'Answer AI'    },
-              { color: 'bg-[#f7efd0] border border-black/10',   label: 'Note'         },
-              { color: 'bg-[#4a6fa5]',                          label: 'Source'       },
+              { color: 'bg-[var(--thonk-core)]',                               label: 'Core'         },
+              { color: 'bg-[var(--thonk-idea)]',                               label: 'Idea'         },
+              { color: 'bg-[var(--thonk-problem)]',                            label: 'Problem'      },
+              { color: 'bg-[var(--thonk-question)] border border-black/10',    label: 'Question'     },
+              { color: 'bg-[var(--thonk-answer)]',                             label: 'Answer'       },
+              { color: 'bg-[var(--thonk-answer-dark)]',                        label: 'Answer AI'    },
+              { color: 'bg-[var(--thonk-note)] border border-black/10',        label: 'Note'         },
+              { color: 'bg-[var(--thonk-source)]',                             label: 'Source'       },
             ].map(({ color, label }) => (
               <div key={label} className="flex items-center gap-2.5">
                 <span className={`inline-block w-3 h-3 rounded shrink-0 ${color}`} />
