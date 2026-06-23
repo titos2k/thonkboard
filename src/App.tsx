@@ -20,6 +20,7 @@ import {
   type Node,
   type Edge,
   type ReactFlowInstance,
+  type Viewport,
 } from '@xyflow/react'
 import { toPng } from 'html-to-image'
 import { Plus, Minus, Scan, LockKeyhole, LockKeyholeOpen, Undo2, Redo2, X, Star } from 'lucide-react'
@@ -402,6 +403,13 @@ export default function App() {
   const [rfEdges, setRfEdges] = useState<Edge[]>([])
   const isDraggingRef = useRef(false)
   const positionUpdateRef = useRef(false)
+  // Canvas navigation
+  const rightClickDownPosRef = useRef<{ x: number; y: number } | null>(null)
+  const panVelocityRef = useRef({ x: 0, y: 0 })
+  const lastVpMoveRef = useRef<{ x: number; y: number; time: number } | null>(null)
+  const inertiaFrameRef = useRef<number | null>(null)
+  const isDragPanRef = useRef(false)
+  const activeBoardIdRef = useRef(activeBoardId)
 
   // Clear autoEditId after one render cycle
   useEffect(() => {
@@ -410,6 +418,8 @@ export default function App() {
       return () => clearTimeout(id)
     }
   }, [autoEditId])
+
+  useEffect(() => { activeBoardIdRef.current = activeBoardId }, [activeBoardId])
 
   useEffect(() => {
     document.documentElement.classList.toggle('dark', darkMode)
@@ -422,6 +432,48 @@ export default function App() {
     window.addEventListener('keydown', down)
     window.addEventListener('keyup',   up)
     return () => { window.removeEventListener('keydown', down); window.removeEventListener('keyup', up) }
+  }, [])
+
+  // Native pan listeners — capture phase ensures they fire before RF's synthetic event handling
+  useEffect(() => {
+    const onMouseDown = (e: MouseEvent) => {
+      if (e.button === 2) rightClickDownPosRef.current = { x: e.clientX, y: e.clientY }
+      if (e.button === 1 || e.button === 2) {
+        isDragPanRef.current = true
+        panVelocityRef.current = { x: 0, y: 0 }
+        lastVpMoveRef.current = null
+        if (inertiaFrameRef.current !== null) { cancelAnimationFrame(inertiaFrameRef.current); inertiaFrameRef.current = null }
+      }
+    }
+    const onPointerUp = (e: PointerEvent) => {
+      if ((e.button !== 1 && e.button !== 2) || !isDragPanRef.current) return
+      isDragPanRef.current = false
+      const { x: vx, y: vy } = panVelocityRef.current
+      if (vx * vx + vy * vy < 0.25) return
+      const startVp = rfInstance.current?.getViewport()
+      if (!startVp) return
+      if (inertiaFrameRef.current !== null) cancelAnimationFrame(inertiaFrameRef.current)
+      let cx = startVp.x, cy = startVp.y, ivx = vx, ivy = vy
+      const { zoom } = startVp
+      const step = () => {
+        ivx *= 0.94; ivy *= 0.94
+        if (ivx * ivx + ivy * ivy < 0.01) {
+          inertiaFrameRef.current = null
+          saveViewport({ x: cx, y: cy, zoom }, activeBoardIdRef.current)
+          return
+        }
+        cx += ivx; cy += ivy
+        rfInstance.current?.setViewport({ x: cx, y: cy, zoom })
+        inertiaFrameRef.current = requestAnimationFrame(step)
+      }
+      inertiaFrameRef.current = requestAnimationFrame(step)
+    }
+    window.addEventListener('mousedown', onMouseDown, true)
+    window.addEventListener('pointerup', onPointerUp)
+    return () => {
+      window.removeEventListener('mousedown', onMouseDown, true)
+      window.removeEventListener('pointerup', onPointerUp)
+    }
   }, [])
 
   const handleCtrlSSave = useCallback(async () => {
@@ -558,8 +610,22 @@ export default function App() {
     selectedIdsRef.current = new Set([id])
   }, [])
 
+  const handleMoveEnd = useCallback((_e: unknown, vp: Viewport) => {
+    document.getElementById('rf-wrap')?.classList.remove('is-panning')
+    canvasPanStore.set(false)
+    // Skip save during inertia — the inertia step function saves when it finishes
+    if (inertiaFrameRef.current === null) saveViewport(vp, activeBoardId)
+  }, [activeBoardId, saveViewport])
+
   const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
+    const start = rightClickDownPosRef.current
+    rightClickDownPosRef.current = null
+    if (start) {
+      const dx = e.clientX - start.x
+      const dy = e.clientY - start.y
+      if (dx * dx + dy * dy > 25) return // dragged >5px — was a pan, not a click
+    }
     if (!rfInstance.current) return
     const flowPos = rfInstance.current.screenToFlowPosition({ x: e.clientX, y: e.clientY })
     setCanvasMenu({ x: e.clientX, y: e.clientY, flowPos })
@@ -1351,8 +1417,23 @@ export default function App() {
             fitViewOptions={{ padding: 0.5, maxZoom: 1 }}
             defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
             onMoveStart={() => { document.getElementById('rf-wrap')?.classList.add('is-panning'); canvasPanStore.set(true) }}
-            onMoveEnd={(_e, vp) => { document.getElementById('rf-wrap')?.classList.remove('is-panning'); canvasPanStore.set(false); saveViewport(vp, activeBoardId) }}
-            panOnDrag={[1]}
+            onMove={(_e, vp) => {
+              if (!isDragPanRef.current) return
+              const now = performance.now()
+              const prev = lastVpMoveRef.current
+              if (prev) {
+                const dt = now - prev.time
+                if (dt > 0 && dt < 100) {
+                  const scale = 16.67 / dt
+                  const vx = (vp.x - prev.x) * scale
+                  const vy = (vp.y - prev.y) * scale
+                  panVelocityRef.current = { x: panVelocityRef.current.x * 0.4 + vx * 0.6, y: panVelocityRef.current.y * 0.4 + vy * 0.6 }
+                }
+              }
+              lastVpMoveRef.current = { x: vp.x, y: vp.y, time: now }
+            }}
+            onMoveEnd={handleMoveEnd}
+            panOnDrag={[1, 2]}
             minZoom={0.1}
             maxZoom={2}
             zoomOnDoubleClick={false}

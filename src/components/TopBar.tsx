@@ -384,21 +384,15 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-w-[50vw]">
                   {EXAMPLES.filter(ex => !ex.isTemplate).map(ex => (
-                    <DropdownMenuItem key={ex.id} className="group" onClick={() => onLoadExample(ex.raw, ex.name)}>
-                      <div className="flex flex-col gap-0.5">
-                        <span>{ex.name}</span>
-                        <span className="text-xs text-muted-foreground hidden group-hover:block">{ex.description}</span>
-                      </div>
+                    <DropdownMenuItem key={ex.id} title={ex.description} onClick={() => onLoadExample(ex.raw, ex.name)}>
+                      {ex.name}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
                   <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Templates</div>
                   {EXAMPLES.filter(ex => ex.isTemplate).map(ex => (
-                    <DropdownMenuItem key={ex.id} className="group" onClick={() => onLoadExample(ex.raw, ex.name)}>
-                      <div className="flex flex-col gap-0.5">
-                        <span>{ex.name}</span>
-                        <span className="text-xs text-muted-foreground hidden group-hover:block">{ex.description}</span>
-                      </div>
+                    <DropdownMenuItem key={ex.id} title={ex.description} onClick={() => onLoadExample(ex.raw, ex.name)}>
+                      {ex.name}
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuSubContent>
