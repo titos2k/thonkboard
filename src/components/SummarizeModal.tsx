@@ -197,24 +197,24 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
               <div className="py-2 flex flex-col gap-3">
                 {hasHealth && (
                   <div className="flex gap-1">
-                    {health.questionsTotal > 0 && (
+                    {health.questionsTotal > 0 && (() => { const red = health.questionsAnswered / health.questionsTotal < 0.1; return (
                       <div className="flex-1 text-center py-1.5">
                         <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><MessageCircleQuestion className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
-                        <div className="text-xl font-semibold tabular-nums leading-none">
-                          {health.questionsAnswered}<span className="text-muted-foreground">/{health.questionsTotal}</span>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[#e95a32]' : ''}`}>
+                          {health.questionsAnswered}<span className={red ? '' : 'text-muted-foreground'}>/{health.questionsTotal}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">questions<br/>answered</div>
                       </div>
-                    )}
-                    {health.problemsTotal > 0 && (
+                    )})()}
+                    {health.problemsTotal > 0 && (() => { const red = health.problemsAddressed / health.problemsTotal < 0.1; return (
                       <div className="flex-1 text-center py-1.5">
                         <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><AlertTriangle className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
-                        <div className="text-xl font-semibold tabular-nums leading-none">
-                          {health.problemsAddressed}<span className="text-muted-foreground">/{health.problemsTotal}</span>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[#e95a32]' : ''}`}>
+                          {health.problemsAddressed}<span className={red ? '' : 'text-muted-foreground'}>/{health.problemsTotal}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">problems<br/>addressed</div>
                       </div>
-                    )}
+                    )})()}
                     {health.conflicts > 0 && (
                       <div className="flex-1 text-center py-1.5">
                         <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><Swords className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
@@ -222,20 +222,20 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">active<br/>conflicts</div>
                       </div>
                     )}
-                    {health.ideasTotal > 0 && (
+                    {health.ideasTotal > 0 && (() => { const red = health.ideasExplored / health.ideasTotal < 0.1; return (
                       <div className="flex-1 text-center py-1.5">
                         <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><BulbIcon className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
-                        <div className="text-xl font-semibold tabular-nums leading-none">
-                          {health.ideasExplored}<span className="text-muted-foreground">/{health.ideasTotal}</span>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${red ? 'text-[#e95a32]' : ''}`}>
+                          {health.ideasExplored}<span className={red ? '' : 'text-muted-foreground'}>/{health.ideasTotal}</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">ideas<br/>explored</div>
                       </div>
-                    )}
+                    )})()}
                     {health.answersTotal > 0 && (
                       <div className="flex-1 text-center py-1.5">
                         <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><User className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
-                        <div className={`text-xl font-semibold tabular-nums leading-none ${health.answersHumanPct < 20 ? 'text-red-500' : ''}`}>
-                          {health.answersHumanPct}<span className="text-muted-foreground">%</span>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${health.answersHumanPct < 20 ? 'text-[#e95a32]' : ''}`}>
+                          {health.answersHumanPct}<span className={health.answersHumanPct < 20 ? '' : 'text-muted-foreground'}>%</span>
                         </div>
                         <div className="text-xs text-muted-foreground mt-1 leading-tight">answers<br/>by human</div>
                       </div>
@@ -311,7 +311,7 @@ export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
           )}
 
           {status === 'error' && (
-            <div className="text-sm text-red-500 py-4">{error}</div>
+            <div className="text-sm text-[#e95a32] py-4">{error}</div>
           )}
 
           {status === 'ready' && (
