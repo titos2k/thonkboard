@@ -24,7 +24,6 @@ import { NodeToolbar, Position, useReactFlow, type NodeProps } from '@xyflow/rea
 import {
   Angry,
   MessageCircleQuestionMark,
-  MessageCircle,
   MessageCircleReply,
   Trash2,
   Pencil,
@@ -38,7 +37,6 @@ import {
   Copy,
   CopyPlus,
   FileText,
-  MessageCircleQuestion,
   Sparkles,
   Smile,
   ExternalLink,

@@ -86,8 +86,7 @@ export function MultiSelectToolbar({ selectedIds, graphRef, onBatchStart, onBatc
       {/* Toolbar anchored to top-center of bbox */}
       <div
         className="nodrag fixed z-50 flex items-center gap-0.5 rounded-lg px-1.5 py-1 shadow-xl"
-        style={{ backgroundColor: 'var(--toolbar-bg)', border: '1px solid var(--toolbar-border)' }}
-        style={{ left: rectLeft + rectWidth / 2, top: rectTop - TOOLBAR_GAP, transform: 'translate(-50%, -100%)' }}
+        style={{ backgroundColor: 'var(--toolbar-bg)', border: '1px solid var(--toolbar-border)', left: rectLeft + rectWidth / 2, top: rectTop - TOOLBAR_GAP, transform: 'translate(-50%, -100%)' }}
       >
         {aiConnected && (
           <>

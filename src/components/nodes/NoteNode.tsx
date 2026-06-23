@@ -1,7 +1,6 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { NodeToolbar, Position, type NodeProps } from '@xyflow/react'
-import { Trash2, ArrowDownUp, TriangleAlert, MessageCircleQuestion, MessageCircle, SpellCheck, GripHorizontal, Pencil } from 'lucide-react'
-import { BulbIcon } from '@/components/icons/BulbIcon'
+import { Trash2, ArrowDownUp, SpellCheck, GripHorizontal, Pencil } from 'lucide-react'
 import { IdeaIcon } from '@/components/icons/IdeaIcon'
 import { ProblemIcon } from '@/components/icons/ProblemIcon'
 import { QuestionIcon } from '@/components/icons/QuestionIcon'
