@@ -14,6 +14,7 @@ interface NodeShellProps {
   className?: string
   handles?: boolean
   onPointerDown?: (e: React.PointerEvent) => void
+  onContextMenu?: (e: React.MouseEvent) => void
   resizable?: boolean
   nodeWidth?: number
   onResized?: (w: number, h: number) => void
@@ -41,7 +42,7 @@ const TYPE_SELECTED: Record<NodeType, string> = {
   source:   'ring-2 ring-blue-300 ring-offset-1',
 }
 
-function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGenerated, highlighted, dimmed, className, handles = true, onPointerDown, resizable, nodeWidth: _nodeWidth, onResized, minWidth, minHeight }: NodeShellProps) {
+function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGenerated, highlighted, dimmed, className, handles = true, onPointerDown, onContextMenu, resizable, nodeWidth: _nodeWidth, onResized, minWidth, minHeight }: NodeShellProps) {
   const isLight = nodeType === 'question' || nodeType === 'idea' || nodeType === 'note'
   const handleClass = isLight
     ? '!bg-sky-300 !border-sky-400 !w-2 !h-2'
@@ -64,6 +65,7 @@ function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGe
   return (
     <div
       onPointerDown={onPointerDown}
+      onContextMenu={onContextMenu}
       className={cn(
         'rounded-lg text-sm relative cursor-grab active:cursor-grabbing transition-opacity',
         dimmed && 'opacity-60',

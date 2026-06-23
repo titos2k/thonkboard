@@ -171,13 +171,12 @@ body {
 .edge-rel-expands   .react-flow__edgeupdater { stroke: #94a3b8; }
 .edge-rel-spawns    .react-flow__edgeupdater { stroke: #f59e0b; }
 
-/* Hide connection handles; reveal on node hover or when space is held */
+/* Hide connection handles; reveal on node hover */
 .react-flow__handle {
   opacity: 0;
   transition: opacity 0.12s;
 }
-.react-flow__node:hover .react-flow__handle,
-.space-held .react-flow__handle {
+.react-flow__node:hover .react-flow__handle {
   opacity: 1;
 }
 

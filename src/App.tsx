@@ -54,6 +54,7 @@ import { Button } from '@/components/ui/button'
 import { showToast } from '@/lib/toast'
 import { EXAMPLES } from '@/examples'
 import { MultiSelectToolbar } from '@/components/MultiSelectToolbar'
+import { CanvasContextMenu } from '@/components/CanvasContextMenu'
 
 const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent, source: SourceNodeComponent }
 const EDGE_TYPES = { thonk: ThonkEdgeComponent }
@@ -208,16 +209,19 @@ function getCollapsedAncestors(nodeId: string, edges: ThonkEdge[], collapsedNode
 }
 
 type GraphCallbacks = {
-  onAddNode:         ThonkNodeData['onAddNode']
-  onAddEdge:         ThonkNodeData['onAddEdge']
-  onUpdate:          ThonkNodeData['onUpdate']
-  onDelete:          ThonkNodeData['onDelete']
-  onOpenAsNewBoard?: ThonkNodeData['onOpenAsNewBoard']
-  onResetBoard?:     ThonkNodeData['onResetBoard']
-  onVersionCore:     ThonkNodeData['onVersionCore']
-  onAutoEdit:        ThonkNodeData['onAutoEdit']
-  onBatchStart:      ThonkNodeData['onBatchStart']
-  onBatchEnd:        ThonkNodeData['onBatchEnd']
+  onAddNode:              ThonkNodeData['onAddNode']
+  onAddEdge:              ThonkNodeData['onAddEdge']
+  onUpdate:               ThonkNodeData['onUpdate']
+  onDelete:               ThonkNodeData['onDelete']
+  onOpenAsNewBoard?:      ThonkNodeData['onOpenAsNewBoard']
+  onResetBoard?:          ThonkNodeData['onResetBoard']
+  onVersionCore:          ThonkNodeData['onVersionCore']
+  onAutoEdit:             ThonkNodeData['onAutoEdit']
+  onBatchStart:           ThonkNodeData['onBatchStart']
+  onBatchEnd:             ThonkNodeData['onBatchEnd']
+  onCopyNode:             ThonkNodeData['onCopyNode']
+  onDuplicateNode:        ThonkNodeData['onDuplicateNode']
+  onContextMenuSelect:    ThonkNodeData['onContextMenuSelect']
 }
 
 type CollapseProps = {
@@ -337,6 +341,9 @@ export default function App() {
   const [showLegend, setShowLegend] = useState(true)
   const [darkMode, setDarkMode] = useState(() => localStorage.getItem('thonk.darkmode') === '1')
   const [spaceHeld, setSpaceHeld] = useState(false)
+  const copiedNodeRef = useRef<ThonkNode | null>(null)
+  const [copiedNode, setCopiedNodeState] = useState<ThonkNode | null>(null)
+  const [canvasMenu, setCanvasMenu] = useState<{ x: number; y: number; flowPos: { x: number; y: number } } | null>(null)
   const [replaceConfirm, setReplaceConfirm] = useState<{ board: BoardMeta; graph: ThonkGraph; incomingHandle?: FileSystemFileHandle } | null>(null)
   // eslint-disable-next-line react-hooks/exhaustive-deps
   const savedViewport = useMemo(() => loadViewport(activeBoardId), [])
@@ -521,6 +528,42 @@ export default function App() {
   const handleAddQuestion = useCallback(() => { const n = addNode('question', '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, viewCenter])
   const handleAddNote     = useCallback(() => { const n = addNode('note',     '', '', viewCenter());                    setAutoEditId(n.id) }, [addNode, viewCenter])
 
+  const setCopiedNode = useCallback((node: ThonkNode | null) => {
+    copiedNodeRef.current = node
+    setCopiedNodeState(node)
+  }, [])
+
+  const handleCopyNode = useCallback((node: ThonkNode) => {
+    setCopiedNode({ ...node })
+    showToast('Node copied', 'success')
+  }, [setCopiedNode])
+
+  const handleDuplicateNode = useCallback((node: ThonkNode) => {
+    const extra = node.type === 'problem' ? { severity: node.meta.severity ?? 0.5 } : undefined
+    const newNode = addNode(node.type, node.title, node.body, { x: node.position.x + 30, y: node.position.y + 30 }, extra)
+    if (node.emoji) updateNode(newNode.id, { emoji: node.emoji })
+    setTimeout(() => {
+      const n = rfInstance.current?.getNode(newNode.id)
+      if (n) {
+        const zoom = rfInstance.current?.getZoom() ?? 1
+        rfInstance.current?.setCenter(n.position.x + (n.measured?.width ?? 200) / 2, n.position.y + (n.measured?.height ?? 80) / 2, { duration: 300, zoom })
+      }
+    }, 50)
+  }, [addNode, updateNode])
+
+  const handleContextMenuSelect = useCallback((id: string) => {
+    setRfNodes(prev => prev.map(n => ({ ...n, selected: n.id === id })))
+    setSelectedIds(new Set([id]))
+    selectedIdsRef.current = new Set([id])
+  }, [])
+
+  const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
+    e.preventDefault()
+    if (!rfInstance.current) return
+    const flowPos = rfInstance.current.screenToFlowPosition({ x: e.clientX, y: e.clientY })
+    setCanvasMenu({ x: e.clientX, y: e.clientY, flowPos })
+  }, [])
+
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
       const tag = (e.target as HTMLElement)?.tagName
@@ -561,6 +604,38 @@ export default function App() {
     window.addEventListener('keydown', onKey)
     return () => window.removeEventListener('keydown', onKey)
   }, [undo, redo, handleCtrlSSave, examplePreview, paletteOpen, addNode, addGraphEdge, viewCenter])
+
+  useEffect(() => {
+    const onKey = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement)?.tagName
+      if (tag === 'INPUT' || tag === 'TEXTAREA' || (e.target as HTMLElement)?.isContentEditable) return
+      if (paletteOpen || document.querySelector('[role="dialog"]')) return
+
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'c') {
+        const selId = selectedIdsRef.current.size === 1 ? [...selectedIdsRef.current][0] : null
+        const selNode = selId ? graphRef.current.nodes.find(n => n.id === selId) : null
+        if (selNode && selNode.type !== 'core') { e.preventDefault(); setCopiedNode({ ...selNode }); showToast('Node copied', 'success') }
+      }
+
+      if ((e.ctrlKey || e.metaKey) && !e.shiftKey && e.key === 'v') {
+        e.preventDefault()
+        const node = copiedNodeRef.current
+        if (node) {
+          const extra = node.type === 'problem' ? { severity: node.meta.severity ?? 0.5 } : undefined
+          const n = addNode(node.type, node.title, node.body, viewCenter(), extra)
+          if (node.emoji) updateNode(n.id, { emoji: node.emoji })
+        }
+      }
+
+      if (!e.ctrlKey && !e.metaKey && !e.altKey && !e.shiftKey) {
+        if (e.key === '=' || e.key === '+') { e.preventDefault(); rfInstance.current?.zoomIn({ duration: 200 }) }
+        if (e.key === '-')                  { e.preventDefault(); rfInstance.current?.zoomOut({ duration: 200 }) }
+        if (e.key === '0')                  { e.preventDefault(); rfInstance.current?.fitView({ padding: 0.5, duration: 400 }) }
+      }
+    }
+    window.addEventListener('keydown', onKey)
+    return () => window.removeEventListener('keydown', onKey)
+  }, [paletteOpen, addNode, updateNode, viewCenter, setCopiedNode])
 
   // Update page title to reflect active board name (only once explicitly named)
   useEffect(() => {
@@ -791,18 +866,21 @@ export default function App() {
 
   const callbacks: GraphCallbacks = useMemo(
     () => ({
-      onAddNode:         addNode,
-      onAddEdge:         addGraphEdge,
-      onUpdate:          handleUpdateNode,
-      onDelete:          deleteNode,
-      onOpenAsNewBoard:  handleOpenAsNewBoard,
-      onResetBoard:      handleResetBoard,
-      onVersionCore:     versionCore,
-      onAutoEdit:        setAutoEditId,
+      onAddNode:            addNode,
+      onAddEdge:            addGraphEdge,
+      onUpdate:             handleUpdateNode,
+      onDelete:             deleteNode,
+      onOpenAsNewBoard:     handleOpenAsNewBoard,
+      onResetBoard:         handleResetBoard,
+      onVersionCore:        versionCore,
+      onAutoEdit:           setAutoEditId,
       onBatchStart,
       onBatchEnd,
+      onCopyNode:           handleCopyNode,
+      onDuplicateNode:      handleDuplicateNode,
+      onContextMenuSelect:  handleContextMenuSelect,
     }),
-    [addNode, addGraphEdge, handleUpdateNode, deleteNode, handleOpenAsNewBoard, handleResetBoard, versionCore, onBatchStart, onBatchEnd],
+    [addNode, addGraphEdge, handleUpdateNode, deleteNode, handleOpenAsNewBoard, handleResetBoard, versionCore, onBatchStart, onBatchEnd, handleCopyNode, handleDuplicateNode, handleContextMenuSelect],
   )
 
   const conflictCount = useMemo(() => {
@@ -1247,7 +1325,7 @@ export default function App() {
           onOpenPaletteAllBoards={() => { setPaletteScope('all'); setPaletteOpen(true) }}
           conflictCount={conflictCount}
         />
-        <div style={{ width: '100%', height: '100%', paddingTop: 53 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap">
+        <div style={{ width: '100%', height: '100%', paddingTop: 53 }} className={[spaceHeld ? 'space-held' : '', 'rf-wrap'].filter(Boolean).join(' ')} id="rf-wrap" onContextMenu={handleCanvasContextMenu}>
         {examplePreview && (
           <div className="absolute top-[60px] left-2 z-50 flex items-center gap-2 bg-foreground text-background rounded-md px-3 py-2 shadow-md nodrag">
             <Star className="w-4 h-4 text-background/60 shrink-0" />
@@ -1274,7 +1352,7 @@ export default function App() {
             defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
             onMoveStart={() => { document.getElementById('rf-wrap')?.classList.add('is-panning'); canvasPanStore.set(true) }}
             onMoveEnd={(_e, vp) => { document.getElementById('rf-wrap')?.classList.remove('is-panning'); canvasPanStore.set(false); saveViewport(vp, activeBoardId) }}
-            panOnDrag={[1, 2]}
+            panOnDrag={[1]}
             minZoom={0.1}
             maxZoom={2}
             zoomOnDoubleClick={false}
@@ -1313,6 +1391,30 @@ export default function App() {
             )}
           </ReactFlow>
         </div>
+
+        {canvasMenu && (
+          <CanvasContextMenu
+            x={canvasMenu.x}
+            y={canvasMenu.y}
+            copiedNode={copiedNode}
+            onClose={() => setCanvasMenu(null)}
+            onAddIdea={() => { const n = addNode('idea', '', '', canvasMenu.flowPos); setAutoEditId(n.id) }}
+            onAddQuestion={() => { const n = addNode('question', '', '', canvasMenu.flowPos); setAutoEditId(n.id) }}
+            onAddProblem={() => { const n = addNode('problem', '', '', canvasMenu.flowPos, { severity: 0.5 }); setAutoEditId(n.id) }}
+            onAddNote={() => { const n = addNode('note', '', '', canvasMenu.flowPos); setAutoEditId(n.id) }}
+            onPaste={() => {
+              const node = copiedNode
+              if (!node) return
+              const extra = node.type === 'problem' ? { severity: node.meta.severity ?? 0.5 } : undefined
+              const n = addNode(node.type, node.title, node.body, canvasMenu.flowPos, extra)
+              if (node.emoji) updateNode(n.id, { emoji: node.emoji })
+            }}
+            onSearch={() => setPaletteOpen(true)}
+            onZoomIn={() => rfInstance.current?.zoomIn({ duration: 200 })}
+            onZoomOut={() => rfInstance.current?.zoomOut({ duration: 200 })}
+            onFitView={() => rfInstance.current?.fitView({ padding: 0.5, duration: 400 })}
+          />
+        )}
 
         <CommandPalette
           open={paletteOpen}

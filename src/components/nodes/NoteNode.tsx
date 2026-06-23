@@ -1,6 +1,7 @@
 import React, { useState, useEffect, useLayoutEffect, useRef } from 'react'
 import { NodeToolbar, Position, type NodeProps } from '@xyflow/react'
-import { Trash2, ArrowDownUp, Brain, Lightbulb, TriangleAlert, MessageCircleQuestion, MessageCircle, SpellCheck, GripHorizontal, Pencil } from 'lucide-react'
+import { Trash2, ArrowDownUp, TriangleAlert, MessageCircleQuestion, MessageCircle, SpellCheck, GripHorizontal, Pencil } from 'lucide-react'
+import { BulbIcon } from '@/components/icons/BulbIcon'
 import { Spinner } from '@/components/ui/spinner'
 import { NodeShell } from './NodeShell'
 import { DropdownMenu, DropdownMenuContent, DropdownMenuItem, DropdownMenuTrigger } from '@/components/ui/dropdown-menu'
@@ -11,12 +12,11 @@ import type { NodeType } from '@/store/types'
 import { fixGrammar } from '@/ai/gemini'
 import { showToast } from '@/lib/toast'
 
-const NOTE_TRANSFORM_TARGETS: { type: NodeType; label: string; icon: React.ReactNode }[] = [
-  { type: 'core',     label: 'Core',     icon: <Brain className="w-4 h-4" /> },
-  { type: 'idea',     label: 'Idea',     icon: <Lightbulb className="w-4 h-4 text-yellow-400" /> },
-  { type: 'problem',  label: 'Problem',  icon: <TriangleAlert className="w-4 h-4 text-red-400" /> },
-  { type: 'question', label: 'Question', icon: <MessageCircleQuestion className="w-4 h-4 text-gray-400" /> },
-  { type: 'answer',   label: 'Answer',   icon: <MessageCircle className="w-4 h-4 text-emerald-400" /> },
+const NOTE_TRANSFORM_TARGETS: { type: NodeType; label: string; dot: React.ReactNode; icon: React.ReactNode }[] = [
+  { type: 'idea',     label: 'Idea',     dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" />,                                    icon: <BulbIcon className="w-4 h-4 text-muted-foreground" /> },
+  { type: 'problem',  label: 'Problem',  dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" />,                                    icon: <TriangleAlert className="w-4 h-4 text-muted-foreground" /> },
+  { type: 'question', label: 'Question', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" />,             icon: <MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /> },
+  { type: 'answer',   label: 'Answer',   dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#00ae60]" />,                                    icon: <MessageCircle className="w-4 h-4 text-muted-foreground" /> },
 ]
 
 function stopDeletePropagation(e: React.KeyboardEvent) {
@@ -121,6 +121,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
       resizable={true}
       nodeWidth={thonk.nodeWidth}
       onResized={(w) => d.onUpdate(thonk.id, { nodeWidth: w })}
+      onContextMenu={e => { e.preventDefault(); e.stopPropagation(); d.onContextMenuSelect(thonk.id) }}
       minWidth={80}
       minHeight={40}
     >
@@ -149,9 +150,9 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={10} className="text-sm">Convert to…</TooltipContent>
               <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[120px]" onCloseAutoFocus={e => e.preventDefault()}>
-                {NOTE_TRANSFORM_TARGETS.map(({ type, label, icon }) => (
+                {NOTE_TRANSFORM_TARGETS.map(({ type, label, dot, icon }) => (
                   <DropdownMenuItem key={type} onClick={() => handleTransform(type)}>
-                    {icon}
+                    <span className="flex items-center gap-2">{dot}{icon}</span>
                     {label}
                   </DropdownMenuItem>
                 ))}

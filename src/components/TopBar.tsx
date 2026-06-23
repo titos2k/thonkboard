@@ -1,6 +1,7 @@
 import { useRef, useState, memo, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Astroid, HelpCircle, Map, Lightbulb, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search, FileInput } from 'lucide-react'
+import { Astroid, HelpCircle, Map, TriangleAlert, MessageCircleQuestion, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search, FileInput } from 'lucide-react'
+import { BulbIcon } from '@/components/icons/BulbIcon'
 import { Button } from './ui/button'
 import { Input } from './ui/input'
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from './ui/dialog'
@@ -487,7 +488,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
         </DropdownMenuTrigger>
         <DropdownMenuContent align="start" onCloseAutoFocus={e => e.preventDefault()}>
           <DropdownMenuItem onClick={onAddIdea} className="justify-between">
-            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" /><Lightbulb className="w-4 h-4 text-muted-foreground" /> Idea</span>
+            <span className="flex items-center gap-2"><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" /><BulbIcon className="w-4 h-4 text-muted-foreground" /> Idea</span>
             <kbd className="text-xs text-muted-foreground/50 font-mono ml-4">(I)</kbd>
           </DropdownMenuItem>
           <DropdownMenuItem onClick={onAddQuestion} className="justify-between">

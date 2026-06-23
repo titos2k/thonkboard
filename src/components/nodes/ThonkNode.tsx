@@ -25,7 +25,6 @@ import {
   Angry,
   MessageCircleQuestionMark,
   MessageCirclePlus,
-  Lightbulb,
   MessageCircle,
   MessageCircleReply,
   Trash2,
@@ -38,11 +37,16 @@ import {
   MoreHorizontal,
   SpellCheck,
   Copy,
+  CopyPlus,
+  Clipboard,
+  FileText,
+  MessageCircleQuestion,
   Sparkles,
   Smile,
   ExternalLink,
   FileInput,
 } from 'lucide-react'
+import { BulbIcon } from '@/components/icons/BulbIcon'
 
 function ThumbUpIcon({ className }: { className?: string }) {
   return (
@@ -110,6 +114,9 @@ export interface ThonkNodeData extends Record<string, unknown> {
   onAutoEdit: (id: string) => void
   onBatchStart: () => void
   onBatchEnd: () => void
+  onCopyNode: (node: TNode) => void
+  onDuplicateNode: (node: TNode) => void
+  onContextMenuSelect: (id: string) => void
   isMultiSelected?: boolean
   highlighted?: boolean
 }
@@ -792,7 +799,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
 
   return (
     <>
-    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} dimmed={thonk.thumb === 'down'} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }} resizable={true} nodeWidth={thonk.nodeWidth} onResized={(w) => d.onUpdate(thonk.id, { nodeWidth: w })} minWidth={120} minHeight={40}>
+    <NodeShell nodeType={thonk.type} selected={selected} resolved={thonk.resolved} aiGenerated={thonk.meta.aiGenerated} highlighted={d.highlighted} dimmed={thonk.thumb === 'down'} onPointerDown={e => { if (e.pointerType === 'touch') touchStore.set(thonk.id) }} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); d.onContextMenuSelect(thonk.id) }} resizable={true} nodeWidth={thonk.nodeWidth} onResized={(w) => d.onUpdate(thonk.id, { nodeWidth: w })} minWidth={120} minHeight={40}>
       {/* Floating toolbar above node — inside NodeShell so RF drag registration stays on NodeShell root */}
       <NodeToolbar isVisible={(activeTouchId === null ? selected : activeTouchId === thonk.id) && !d.isMultiSelected && !thonk.placeholder && !dragging && !isLoading && !isAnswering && !isCorrecting && !isAsking && !isPushing && !editing} position={Position.Top} offset={8}>
         <div className="nodrag flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10">
@@ -827,21 +834,21 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             {/* Section 1: AI */}
             {(thonk.type === 'core' || thonk.type === 'idea') && (
               <>
-                <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Push Thinking" onClick={() => setActionState('pushing')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-purple-400" />
+                <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Push Thinking..." onClick={() => setActionState('pushing')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-purple-400" />
                 <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
                 <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
                 <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
-                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-yellow-400" />
+                <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-yellow-400" />
               </>
             )}
             {thonk.type === 'problem' && (
               <>
                 <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
-                <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" heat={depthHeat} />
+                <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label={fixLabel} onClick={handleGenerateFix} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" heat={depthHeat} />
               </>
             )}
             {thonk.type === 'question' && (
-              <ToolBtn icon={<Lightbulb className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-emerald-300" />
+              <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-emerald-300" />
             )}
             {thonk.type === 'answer' && (
               <>
@@ -857,7 +864,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             {showEdit && <ToolBtn icon={<Pencil className="w-5 h-5" />} label="Edit" onClick={enterEdit} />}
             <AddDropdown nodeType={thonk.type} onAddQuestion={handleAddQuestion} onAddIdea={handleAddIdea} onAddProblem={handleAddProblem} />
             {thonk.type !== 'core' && <TransformBtn currentType={thonk.type} onTransform={handleTransform} />}
-            <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} onSetIcon={canSetEmoji ? setEmojiAnchor : undefined} nodeType={thonk.type} onOpenAsNewBoard={d.onOpenAsNewBoard ? () => d.onOpenAsNewBoard!(thonk) : undefined} onResetBoard={d.onResetBoard} />
+            <NodeMoreMenu onFixGrammar={handleFixGrammar} onCopyText={handleCopyText} hasContent={hasContent} onSetIcon={canSetEmoji ? setEmojiAnchor : undefined} nodeType={thonk.type} onOpenAsNewBoard={d.onOpenAsNewBoard ? () => d.onOpenAsNewBoard!(thonk) : undefined} onResetBoard={d.onResetBoard} onCopyNode={() => d.onCopyNode(thonk)} onDuplicateNode={() => d.onDuplicateNode(thonk)} />
 
             {/* Section 3: Vote + Delete (not shown for core) */}
             {thonk.type !== 'core' && (
@@ -1179,14 +1186,14 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
 
   if (nodeType === 'core' || nodeType === 'idea' || nodeType === 'answer') {
     items.push(
-      { label: 'Add Idea',     icon: <Lightbulb className="w-4 h-4 text-yellow-400" />,       onClick: onAddIdea,     shortcut: '(I)' },
-      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion, shortcut: '(Q)' },
-      { label: 'Add Problem',  icon: <TriangleAlert className="w-4 h-4 text-red-400" />,      onClick: onAddProblem,  shortcut: '(P)' },
+      { label: 'Add Idea',     icon: <><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" /><BulbIcon className="w-4 h-4 text-muted-foreground" /></>,                                    onClick: onAddIdea,     shortcut: '(I)' },
+      { label: 'Add Question', icon: <><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" /><MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /></>, onClick: onAddQuestion, shortcut: '(Q)' },
+      { label: 'Add Problem',  icon: <><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" /><TriangleAlert className="w-4 h-4 text-muted-foreground" /></>,                                onClick: onAddProblem,  shortcut: '(P)' },
     )
   }
   if (nodeType === 'problem' || nodeType === 'question') {
     items.push(
-      { label: 'Add Question', icon: <MessageCirclePlus className="w-4 h-4 text-gray-400" />, onClick: onAddQuestion, shortcut: '(Q)' },
+      { label: 'Add Question', icon: <><span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" /><MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /></>, onClick: onAddQuestion, shortcut: '(Q)' },
     )
   }
 
@@ -1216,12 +1223,12 @@ function AddDropdown({ nodeType, onAddQuestion, onAddIdea, onAddProblem }: {
   )
 }
 
-const NODE_TYPE_LABELS: Record<string, { label: string; color: string; icon: React.ReactNode }> = {
-  core:     { label: 'Core',     color: '#392946', icon: <Brain className="w-4 h-4" /> },
-  idea:     { label: 'Idea',     color: '#f5c44a', icon: <Lightbulb className="w-4 h-4 text-yellow-400" /> },
-  problem:  { label: 'Problem',  color: '#e95a32', icon: <TriangleAlert className="w-4 h-4 text-red-400" /> },
-  question: { label: 'Question', color: '#c8cac8', icon: <MessageCircleQuestionMark className="w-4 h-4 text-gray-400" /> },
-  answer:   { label: 'Answer',   color: '#00ae60', icon: <MessageCircle className="w-4 h-4 text-emerald-400" /> },
+const NODE_TYPE_LABELS: Record<string, { label: string; color: string; dot: React.ReactNode; icon: React.ReactNode }> = {
+  core:     { label: 'Core',     color: '#392946', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#392946]" />,                                icon: <Brain className="w-4 h-4 text-muted-foreground" /> },
+  idea:     { label: 'Idea',     color: '#f5c44a', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#f5c44a]" />,                                icon: <BulbIcon className="w-4 h-4 text-muted-foreground" /> },
+  problem:  { label: 'Problem',  color: '#e95a32', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e95a32]" />,                                icon: <TriangleAlert className="w-4 h-4 text-muted-foreground" /> },
+  question: { label: 'Question', color: '#c8cac8', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#e2e4e4] border border-black/10" />,         icon: <MessageCircleQuestion className="w-4 h-4 text-muted-foreground" /> },
+  answer:   { label: 'Answer',   color: '#00ae60', dot: <span className="w-2.5 h-2.5 rounded-full shrink-0 bg-[#00ae60]" />,                                icon: <MessageCircle className="w-4 h-4 text-muted-foreground" /> },
 }
 
 function TransformBtn({ currentType, onTransform }: { currentType: string; onTransform: (t: import('@/store/types').NodeType) => void }) {
@@ -1243,7 +1250,7 @@ function TransformBtn({ currentType, onTransform }: { currentType: string; onTra
               onClick={() => onTransform(type)}
               className={type === currentType ? 'opacity-30 pointer-events-none' : ''}
             >
-              {NODE_TYPE_LABELS[type].icon}
+              <span className="flex items-center gap-2">{NODE_TYPE_LABELS[type].dot}{NODE_TYPE_LABELS[type].icon}</span>
               {NODE_TYPE_LABELS[type].label}
             </DropdownMenuItem>
           ))}
@@ -1253,7 +1260,7 @@ function TransformBtn({ currentType, onTransform }: { currentType: string; onTra
   )
 }
 
-function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeType, onOpenAsNewBoard, onResetBoard }: {
+function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeType, onOpenAsNewBoard, onResetBoard, onCopyNode, onDuplicateNode }: {
   onFixGrammar: () => void
   onCopyText: () => void
   hasContent: boolean
@@ -1261,6 +1268,8 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
   nodeType: import('@/store/types').NodeType
   onOpenAsNewBoard?: () => void
   onResetBoard?: () => void
+  onCopyNode: () => void
+  onDuplicateNode: () => void
 }) {
   const triggerRef = React.useRef<HTMLButtonElement>(null)
   const [confirmReset, setConfirmReset] = useState(false)
@@ -1276,10 +1285,27 @@ function NodeMoreMenu({ onFixGrammar, onCopyText, hasContent, onSetIcon, nodeTyp
         </TooltipTrigger>
         <TooltipContent side="top" sideOffset={10} className="text-sm">More options</TooltipContent>
         <DropdownMenuContent side="top" align="center" sideOffset={10} className="min-w-[160px]" onCloseAutoFocus={e => e.preventDefault()}>
+          {nodeType !== 'core' && (
+            <>
+              <DropdownMenuItem onClick={onCopyNode}>
+                <Copy className="w-4 h-4" />
+                Copy
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onDuplicateNode}>
+                <CopyPlus className="w-4 h-4" />
+                Duplicate
+              </DropdownMenuItem>
+            </>
+          )}
           <DropdownMenuItem onClick={onCopyText} disabled={!hasContent}>
-            <Copy className="w-4 h-4" />
+            <FileText className="w-4 h-4" />
             Copy Text
           </DropdownMenuItem>
+          {nodeType !== 'core' && (
+            <>
+              <DropdownMenuSeparator />
+            </>
+          )}
           <DropdownMenuItem onClick={onFixGrammar} disabled={!hasContent}>
             <SpellCheck className="w-4 h-4" />
             Fix Grammar
@@ -1376,7 +1402,7 @@ function ToolBtn({
         </button>
       </TooltipTrigger>
       <TooltipContent side="top" sideOffset={10} className="text-sm">
-        {aiDisabled ? 'Connect AI in the top bar' : disabled ? `${label} — add content first` : label}
+        {aiDisabled ? 'Connect AI in the top bar' : disabled ? `${label} - add content first` : label}
       </TooltipContent>
     </Tooltip>
   )
