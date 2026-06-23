@@ -644,7 +644,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
               src="/thonk-wizard.png"
               alt=""
               aria-hidden="true"
-              className="absolute bottom-[30px] -left-[96px] h-[410px] w-auto pointer-events-none select-none"
+              className="absolute top-1/2 -translate-y-1/2 -left-[96px] h-[410px] w-auto pointer-events-none select-none"
             />
           )}
           <div className={`flex flex-col gap-5 p-8${!isMobile ? ' pl-[200px]' : ''}`}>
@@ -679,7 +679,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
 
           {/* Trust banner — hidden for Ollama local */}
           {dialogProvider !== 'ollama' && (
-            <div className="flex items-start gap-2 bg-muted rounded px-3 py-3">
+            <div className="flex items-start gap-2 bg-muted/50 dark:bg-muted rounded px-3 py-3">
               <Lock className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
               <p className="text-sm text-muted-foreground">
                 Your key is stored only in this browser's localStorage. It goes directly to{' '}
