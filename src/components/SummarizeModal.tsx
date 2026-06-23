@@ -1,33 +1,71 @@
 import { useEffect, useRef, useState } from 'react'
 import ReactMarkdown from 'react-markdown'
 import remarkGfm from 'remark-gfm'
-import { Copy, RefreshCw, Download, FileText } from 'lucide-react'
+import { Copy, RefreshCw, Download, FileText, List, FlaskConical, Check, AlertTriangle, Microscope, Sparkles, MessageCircleQuestion, Swords, User, MoveRight, History } from 'lucide-react'
+import { BulbIcon } from '@/components/icons/BulbIcon'
 import { Spinner } from '@/components/ui/spinner'
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from './ui/dialog'
 import { Button } from './ui/button'
-import { generateBrief, generateReport } from '@/ai/gemini'
+import { generateBrief, generateGaps, generateReport } from '@/ai/gemini'
 import type { ThonkGraph } from '@/store/types'
 
-export interface SummarizeCache {
+interface PersistedCache {
   fingerprint: string
   title: string
   markdown: string
-  mode: 'list' | 'analysis'
+  mode: 'list' | 'analysis' | 'gaps'
+  savedAt: string
 }
 
 interface Props {
   open: boolean
   onClose: () => void
   graph: ThonkGraph
-  cache: React.MutableRefObject<SummarizeCache | null>
+  boardId: string
 }
 
-function fingerprint(graph: ThonkGraph, mode: 'list' | 'analysis'): string {
+function storageKey(boardId: string, mode: 'list' | 'analysis' | 'gaps') {
+  return `thonk.summary-${boardId}-${mode}`
+}
+
+function loadCache(boardId: string, mode: 'list' | 'analysis' | 'gaps'): PersistedCache | null {
+  try {
+    const raw = localStorage.getItem(storageKey(boardId, mode))
+    return raw ? (JSON.parse(raw) as PersistedCache) : null
+  } catch {
+    return null
+  }
+}
+
+function saveCache(boardId: string, entry: PersistedCache) {
+  try {
+    localStorage.setItem(storageKey(boardId, entry.mode), JSON.stringify(entry))
+  } catch {}
+}
+
+function fingerprint(graph: ThonkGraph, mode: 'list' | 'analysis' | 'gaps'): string {
   return mode + '|' + graph.nodes
-    .filter(n => n.type === 'core' || n.type === 'idea')
-    .map(n => `${n.id}:${n.title}:${n.body}`)
+    .map(n => `${n.id}:${n.type}:${n.title}:${n.body}:${n.thumb ?? ''}:${n.resolved ?? ''}`)
     .sort()
     .join('|')
+}
+
+function computeHealth(graph: ThonkGraph) {
+  const questions = graph.nodes.filter(n => n.type === 'question')
+  const problems  = graph.nodes.filter(n => n.type === 'problem')
+  const answeredIds  = new Set(graph.edges.filter(e => e.relation === 'answers').map(e => e.source))
+  const hasOutgoing  = new Set(graph.edges.map(e => e.source))
+  return {
+    questionsAnswered:  questions.filter(n => !!n.resolvedAs || answeredIds.has(n.id)).length,
+    questionsTotal:     questions.length,
+    problemsAddressed:  problems.filter(n => !!n.thumb || hasOutgoing.has(n.id)).length,
+    problemsTotal:      problems.length,
+    conflicts:          graph.nodes.filter(n => n.conflicts?.some(c => !c.ignored)).length,
+    ideasExplored:      graph.nodes.filter(n => n.type === 'idea' && !!n.thumb).length,
+    ideasTotal:         graph.nodes.filter(n => n.type === 'idea').length,
+    answersTotal:       graph.nodes.filter(n => n.type === 'answer').length,
+    answersHumanPct:    (() => { const a = graph.nodes.filter(n => n.type === 'answer'); return a.length ? Math.round(a.filter(n => !n.meta?.aiGenerated).length / a.length * 100) : 0 })(),
+  }
 }
 
 function mdToHtml(md: string): string {
@@ -77,36 +115,56 @@ function downloadPdf(title: string, md: string) {
   win.print()
 }
 
+function formatDate(iso: string): string {
+  try {
+    return new Date(iso).toLocaleString('en-GB', { dateStyle: 'medium', timeStyle: 'short' })
+  } catch {
+    return iso
+  }
+}
+
 type Status = 'idle' | 'loading' | 'ready' | 'error'
 
-export function SummarizeModal({ open, onClose, graph, cache }: Props) {
+export function SummarizeModal({ open, onClose, graph, boardId }: Props) {
   const [status, setStatus] = useState<Status>('idle')
-  const [mode, setMode] = useState<'list' | 'analysis' | null>(null)
+  const [mode, setMode] = useState<'list' | 'analysis' | 'gaps' | null>(null)
   const [title, setTitle] = useState('')
   const [markdown, setMarkdown] = useState('')
   const [error, setError] = useState('')
+  const [stale, setStale] = useState(false)
+  const [savedAt, setSavedAt] = useState<string | null>(null)
+  const [copied, setCopied] = useState(false)
   const abortRef = useRef<AbortController | null>(null)
 
-  const run = async (m: 'list' | 'analysis', force = false) => {
+  const run = async (m: 'list' | 'analysis' | 'gaps', force = false) => {
     const fp = fingerprint(graph, m)
 
-    if (!force && cache.current?.fingerprint === fp) {
-      setTitle(cache.current.title)
-      setMarkdown(cache.current.markdown)
-      setMode(m)
-      setStatus('ready')
-      return
+    if (!force) {
+      const cached = loadCache(boardId, m)
+      if (cached) {
+        setTitle(cached.title)
+        setMarkdown(cached.markdown)
+        setMode(m)
+        setSavedAt(cached.savedAt)
+        setStale(cached.fingerprint !== fp)
+        setStatus('ready')
+        return
+      }
     }
 
     setMode(m)
     setStatus('loading')
     setError('')
+    setStale(false)
 
     try {
-      const result = m === 'analysis' ? await generateReport(graph) : await generateBrief(graph)
-      cache.current = { fingerprint: fp, title: result.title, markdown: result.markdown, mode: m }
+      const result = m === 'analysis' ? await generateReport(graph) : m === 'gaps' ? await generateGaps(graph) : await generateBrief(graph)
+      const now = new Date().toISOString()
+      saveCache(boardId, { fingerprint: fp, title: result.title, markdown: result.markdown, mode: m, savedAt: now })
       setTitle(result.title)
       setMarkdown(result.markdown)
+      setSavedAt(now)
+      setStale(false)
       setStatus('ready')
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Something went wrong.')
@@ -115,44 +173,135 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
   }
 
   useEffect(() => {
-    if (!open) { setStatus('idle'); setMode(null) }
+    if (!open) { setStatus('idle'); setMode(null); setStale(false); setSavedAt(null) }
     return () => { abortRef.current?.abort() }
   }, [open])
 
   return (
     <Dialog open={open} onOpenChange={v => { if (!v) onClose() }}>
       <DialogContent aria-describedby={undefined} className="max-w-2xl max-h-[80vh] flex flex-col gap-0 p-0 overflow-hidden">
-        <DialogHeader className="px-6 pr-12 pt-5 pb-3 shrink-0">
+        <DialogHeader className="px-6 pr-12 pt-5 pb-1 shrink-0">
           <DialogTitle className="text-2xl font-semibold leading-tight">
-            {status === 'ready' ? title || 'Summary' : 'How do you want to summarize this board?'}
+            {status === 'ready' ? title || 'Summary' : 'How\'s the thinking?'}
           </DialogTitle>
         </DialogHeader>
 
-        <div className="flex-1 overflow-y-auto px-6 py-4 min-h-0">
-          {status === 'idle' && (
-            <div className="grid grid-cols-2 gap-3 pb-2">
-              <button
-                onClick={() => run('list')}
-                className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-col"
-              >
-                <div className="h-24 flex items-end mb-3">
-                  <img src="/wizard-head1.png" alt="" className="w-28 h-auto" />
+        <div className="flex-1 overflow-y-auto px-6 pt-0 pb-4 min-h-0">
+          {status === 'idle' && (() => {
+            const health = computeHealth(graph)
+            const hasHealth = health.questionsTotal + health.problemsTotal + health.conflicts + health.ideasTotal + health.answersTotal > 0
+            const cachedList     = !!loadCache(boardId, 'list')
+            const cachedAnalysis = !!loadCache(boardId, 'analysis')
+            const cachedGaps     = !!loadCache(boardId, 'gaps')
+            return (
+              <div className="py-2 flex flex-col gap-3">
+                {hasHealth && (
+                  <div className="flex gap-1">
+                    {health.questionsTotal > 0 && (
+                      <div className="flex-1 text-center py-1.5">
+                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><MessageCircleQuestion className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className="text-xl font-semibold tabular-nums leading-none">
+                          {health.questionsAnswered}<span className="text-muted-foreground">/{health.questionsTotal}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 leading-tight">questions<br/>answered</div>
+                      </div>
+                    )}
+                    {health.problemsTotal > 0 && (
+                      <div className="flex-1 text-center py-1.5">
+                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><AlertTriangle className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className="text-xl font-semibold tabular-nums leading-none">
+                          {health.problemsAddressed}<span className="text-muted-foreground">/{health.problemsTotal}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 leading-tight">problems<br/>addressed</div>
+                      </div>
+                    )}
+                    {health.conflicts > 0 && (
+                      <div className="flex-1 text-center py-1.5">
+                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><Swords className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className="text-xl font-semibold tabular-nums leading-none">{health.conflicts}</div>
+                        <div className="text-xs text-muted-foreground mt-1 leading-tight">active<br/>conflicts</div>
+                      </div>
+                    )}
+                    {health.ideasTotal > 0 && (
+                      <div className="flex-1 text-center py-1.5">
+                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><BulbIcon className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className="text-xl font-semibold tabular-nums leading-none">
+                          {health.ideasExplored}<span className="text-muted-foreground">/{health.ideasTotal}</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 leading-tight">ideas<br/>explored</div>
+                      </div>
+                    )}
+                    {health.answersTotal > 0 && (
+                      <div className="flex-1 text-center py-1.5">
+                        <div className="w-11 h-11 rounded-xl bg-white dark:bg-white/25 flex items-center justify-center mx-auto mb-2.5"><User className="w-5 h-5 text-muted-foreground dark:text-foreground/70" /></div>
+                        <div className={`text-xl font-semibold tabular-nums leading-none ${health.answersHumanPct < 20 ? 'text-red-500' : ''}`}>
+                          {health.answersHumanPct}<span className="text-muted-foreground">%</span>
+                        </div>
+                        <div className="text-xs text-muted-foreground mt-1 leading-tight">answers<br/>by human</div>
+                      </div>
+                    )}
+                  </div>
+                )}
+                <div className="text-sm font-semibold flex items-center gap-1.5 mt-1"><Sparkles className="w-3.5 h-3.5 text-primary" />Generate a summary</div>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <button
+                    onClick={() => run('list')}
+                    className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white dark:bg-white/10 hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-row sm:flex-col items-start gap-3 sm:gap-0"
+                  >
+                    <div className="shrink-0 sm:mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-indigo-100 dark:bg-indigo-400/30 flex items-center justify-center">
+                        <List className="w-6 h-6 text-indigo-600 dark:text-indigo-400" />
+                      </div>
+                    </div>
+                    <div className="flex-1 flex flex-col">
+                      <div className="text-base font-semibold mb-1">List</div>
+                      <div className="text-sm text-muted-foreground mb-auto">Ideas and decisions as bullets, good for sharing a quick overview.</div>
+                      <div className="flex items-center mt-3">
+                        {cachedList && <History className="w-3.5 h-3.5 text-muted-foreground/40" />}
+                        <MoveRight className="w-5 h-5 text-muted-foreground/40 ml-auto" />
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => run('analysis')}
+                    className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white dark:bg-white/10 hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-row sm:flex-col items-start gap-3 sm:gap-0"
+                  >
+                    <div className="shrink-0 sm:mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-emerald-100 dark:bg-emerald-400/30 flex items-center justify-center">
+                        <FlaskConical className="w-6 h-6 text-emerald-600 dark:text-emerald-400" />
+                      </div>
+                    </div>
+                    <div className="flex-1 flex flex-col">
+                      <div className="text-base font-semibold mb-1">Analysis</div>
+                      <div className="text-sm text-muted-foreground mb-auto">What you figured out, what's still open, and the core tension.</div>
+                      <div className="flex items-center mt-3">
+                        {cachedAnalysis && <History className="w-3.5 h-3.5 text-muted-foreground/40" />}
+                        <MoveRight className="w-5 h-5 text-muted-foreground/40 ml-auto" />
+                      </div>
+                    </div>
+                  </button>
+                  <button
+                    onClick={() => run('gaps')}
+                    className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white dark:bg-white/10 hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-row sm:flex-col items-start gap-3 sm:gap-0"
+                  >
+                    <div className="shrink-0 sm:mb-3">
+                      <div className="w-12 h-12 rounded-xl bg-pink-100 dark:bg-pink-400/30 flex items-center justify-center">
+                        <Microscope className="w-6 h-6 text-pink-600 dark:text-pink-400" />
+                      </div>
+                    </div>
+                    <div className="flex-1 flex flex-col">
+                      <div className="text-base font-semibold mb-1">Gaps</div>
+                      <div className="text-sm text-muted-foreground mb-auto">What's assumed, what's missing, and what doesn't connect.</div>
+                      <div className="flex items-center mt-3">
+                        {cachedGaps && <History className="w-3.5 h-3.5 text-muted-foreground/40" />}
+                        <MoveRight className="w-5 h-5 text-muted-foreground/40 ml-auto" />
+                      </div>
+                    </div>
+                  </button>
                 </div>
-                <div className="text-base font-semibold mb-1">List</div>
-                <div className="text-sm text-muted-foreground">Ideas and decisions ordered as bullets, good for sharing a quick overview.</div>
-              </button>
-              <button
-                onClick={() => run('analysis')}
-                className="cursor-pointer text-left px-4 py-4 rounded-xl border border-border bg-white hover:bg-muted/40 hover:border-foreground/20 transition-colors flex flex-col"
-              >
-                <div className="h-24 flex items-end mb-3">
-                  <img src="/wizard-head2.png" alt="" className="w-28 h-auto" />
-                </div>
-                <div className="text-base font-semibold mb-1">Analysis</div>
-                <div className="text-sm text-muted-foreground">What you figured out, what's still uncertain, and what the core tension is.</div>
-              </button>
-            </div>
-          )}
+              </div>
+            )
+          })()}
 
           {status === 'loading' && (
             <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
@@ -166,11 +315,19 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
           )}
 
           {status === 'ready' && (
-            <div className="prose max-w-none leading-relaxed [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-base [&_h3]:font-medium [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5 [&_p]:mb-4 [&_p:last-child]:mb-0">
-              <ReactMarkdown remarkPlugins={[remarkGfm]}>
-                {markdown}
-              </ReactMarkdown>
-            </div>
+            <>
+              {stale && savedAt && (
+                <div className="flex items-start gap-2 mb-4 px-3 py-2.5 rounded-lg bg-amber-100 text-sm text-foreground dark:bg-amber-900/40">
+                  <AlertTriangle className="w-4 h-4 shrink-0 mt-0.5" />
+                  <span>Generated {formatDate(savedAt)} · Board has changed since then.</span>
+                </div>
+              )}
+              <div className="prose max-w-none leading-relaxed [&_h1]:text-lg [&_h1]:font-semibold [&_h2]:text-base [&_h2]:font-semibold [&_h3]:text-base [&_h3]:font-medium [&_ul]:my-1 [&_ul]:list-disc [&_ul]:pl-5 [&_li]:my-0.5 [&_p]:mb-4 [&_p:last-child]:mb-0">
+                <ReactMarkdown remarkPlugins={[remarkGfm]}>
+                  {markdown}
+                </ReactMarkdown>
+              </div>
+            </>
           )}
         </div>
 
@@ -200,10 +357,10 @@ export function SummarizeModal({ open, onClose, graph, cache }: Props) {
               <Button
                 size="sm" variant="outline"
                 className="h-8 text-sm gap-1.5 cursor-pointer"
-                onClick={() => navigator.clipboard.writeText(markdown)}
+                onClick={() => { navigator.clipboard.writeText(markdown); setCopied(true); setTimeout(() => setCopied(false), 2000) }}
                 disabled={status !== 'ready'}
               >
-                <Copy className="w-3.5 h-3.5" /> Copy
+                {copied ? <><Check className="w-3.5 h-3.5" /> Copied!</> : <><Copy className="w-3.5 h-3.5" /> Copy</>}
               </Button>
               <Button
                 size="sm" variant="outline"

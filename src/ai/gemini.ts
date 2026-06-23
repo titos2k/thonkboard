@@ -1029,3 +1029,69 @@ export async function generateReport(graph: ThonkGraph): Promise<{ title: string
   result.markdown = result.markdown.replace(/\s*—\s*/g, ' - ')
   return result
 }
+
+// ── Gaps analysis ─────────────────────────────────────────────────────────────
+
+const GAPS_SYSTEM = `You are a critical thinker reviewing a thinking canvas. Your job is NOT to summarize what's there — find what's MISSING or WEAK.
+
+Identify up to 3 items in each category. Be specific — quote actual node titles from the input. If you can't find something genuine, return fewer items or an empty array.
+
+assumptions: things taken for granted that could break the reasoning if wrong. Name the assumption itself, not the node it's embedded in.
+missing: important counterarguments, alternatives, or perspectives the thinking hasn't engaged with.
+orphans: thoughts that appear disconnected from the main thread.
+
+One sentence per item. No generic advice. No business words.
+${NO_DISCLAIMER_BLOCK}`
+
+export async function generateGaps(graph: ThonkGraph): Promise<{ title: string; markdown: string }> {
+  const nodes = graph.nodes.filter(n => n.type !== 'source' && n.type !== 'note')
+
+  if (!hasActiveKey() || !nodes.length) {
+    return { title: 'Gaps', markdown: '*Connect AI to find gaps in your thinking.*' }
+  }
+
+  const nodeLines = nodes
+    .map(n => {
+      const tags = [n.type, n.resolved ? 'resolved' : null, n.thumb === 'up' ? 'accepted' : n.thumb === 'down' ? 'dropped' : null].filter(Boolean).join(', ')
+      return `[${tags}] "${n.title}"${n.body ? `\n${n.body}` : ''}`
+    })
+    .join('\n\n')
+
+  const nodeIds = new Set(nodes.map(n => n.id))
+  const edgeLines = graph.edges
+    .filter(e => nodeIds.has(e.source) && nodeIds.has(e.target))
+    .map(e => {
+      const src = nodes.find(n => n.id === e.source)?.title ?? e.source
+      const tgt = nodes.find(n => n.id === e.target)?.title ?? e.target
+      return `"${src}" --${e.relation}--> "${tgt}"`
+    })
+    .join('\n')
+
+  const result = await callAI<{ title: string; assumptions: string[]; missing: string[]; orphans: string[] }>({
+    systemInstruction: GAPS_SYSTEM,
+    userPrompt: `NODES:\n${nodeLines}${edgeLines ? `\n\nCONNECTIONS:\n${edgeLines}` : ''}`,
+    responseSchema: {
+      type: 'object',
+      properties: {
+        title:       { type: 'string' },
+        assumptions: { type: 'array', items: { type: 'string' } },
+        missing:     { type: 'array', items: { type: 'string' } },
+        orphans:     { type: 'array', items: { type: 'string' } },
+      },
+      required: ['title', 'assumptions', 'missing', 'orphans'],
+    },
+  })
+
+  const sections: string[] = []
+  if (result.assumptions.length) {
+    sections.push('## Unquestioned Assumptions\n' + result.assumptions.map(a => `- ${a}`).join('\n'))
+  }
+  if (result.missing.length) {
+    sections.push('## Missing Angles\n' + result.missing.map(m => `- ${m}`).join('\n'))
+  }
+  if (result.orphans.length) {
+    sections.push('## Disconnected Ideas\n' + result.orphans.map(o => `- ${o}`).join('\n'))
+  }
+
+  return { title: result.title || 'Gaps', markdown: sections.join('\n\n') }
+}

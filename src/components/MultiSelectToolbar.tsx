@@ -88,21 +88,8 @@ export function MultiSelectToolbar({ selectedIds, graphRef, onBatchStart, onBatc
         className="nodrag fixed z-50 flex items-center gap-0.5 bg-gray-900 rounded-lg px-1.5 py-1 shadow-xl border border-white/10"
         style={{ left: rectLeft + rectWidth / 2, top: rectTop - TOOLBAR_GAP, transform: 'translate(-50%, -100%)' }}
       >
-        <Tooltip>
-          <TooltipTrigger asChild>
-            <button
-              onClick={handleDelete}
-              className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
-            >
-              <Trash2 className="w-5 h-5" />
-            </button>
-          </TooltipTrigger>
-          <TooltipContent side="top" sideOffset={10} className="text-sm">Delete all ({selectedIds.size})</TooltipContent>
-        </Tooltip>
-
         {aiConnected && (
           <>
-            <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
             <Tooltip>
               <TooltipTrigger asChild>
                 <button
@@ -115,8 +102,21 @@ export function MultiSelectToolbar({ selectedIds, graphRef, onBatchStart, onBatc
               </TooltipTrigger>
               <TooltipContent side="top" sideOffset={10} className="text-sm">Fix grammar ({selectedIds.size})</TooltipContent>
             </Tooltip>
+            <div className="w-px h-4 bg-white/20 mx-0.5 shrink-0" />
           </>
         )}
+
+        <Tooltip>
+          <TooltipTrigger asChild>
+            <button
+              onClick={handleDelete}
+              className="w-8 h-8 flex items-center justify-center rounded text-white/80 hover:bg-white/15 hover:text-white transition-colors cursor-pointer"
+            >
+              <Trash2 className="w-5 h-5" />
+            </button>
+          </TooltipTrigger>
+          <TooltipContent side="top" sideOffset={10} className="text-sm">Delete all ({selectedIds.size})</TooltipContent>
+        </Tooltip>
       </div>
     </>
   )

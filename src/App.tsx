@@ -46,6 +46,7 @@ import { deleteSource } from '@/store/sourceDb'
 import { CommandPalette } from '@/components/CommandPalette'
 import { TopBar } from '@/components/TopBar'
 import { WelcomeModal } from '@/components/WelcomeModal'
+import { OnboardingPopover } from '@/components/OnboardingPopover'
 import { Toaster } from '@/components/Toaster'
 import { hasActiveKey } from '@/ai/gemini'
 import { Tooltip, TooltipContent, TooltipProvider, TooltipTrigger } from '@/components/ui/tooltip'
@@ -1291,9 +1292,8 @@ export default function App() {
           onConnectAI={handleWelcomeConnectAI}
           onSkip={handleWelcomeSkip}
           onSeeExample={EXAMPLES.length ? () => { handleWelcomeSkip(); handleLoadExample(EXAMPLES[0].raw, EXAMPLES[0].name) } : undefined}
-          templates={EXAMPLES.filter(ex => ex.isTemplate)}
-          onLoadTemplate={(raw, name) => { handleWelcomeSkip(); handleLoadExample(raw, name) }}
         />
+        {welcomed && !keyOpen && !examplePreview && <OnboardingPopover />}
         <TopBar
           onAddIdea={handleAddIdea}
           onAddProblem={handleAddProblem}

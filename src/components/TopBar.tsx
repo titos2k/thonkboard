@@ -14,7 +14,7 @@ import {
 } from '@/ai/gemini'
 import { getOllamaBaseUrl, getOllamaModel, setOllamaConfig, PROVIDER_MODEL_LITE, PROVIDER_MODEL_SMART } from '@/ai/openai-compat'
 import { MODEL_LITE as ANTHROPIC_LITE, MODEL_SMART as ANTHROPIC_SMART } from '@/ai/anthropic'
-import { SummarizeModal, type SummarizeCache } from './SummarizeModal'
+import { SummarizeModal } from './SummarizeModal'
 import type { ThonkGraph, BoardMeta } from '@/store/types'
 import type { Provider } from '@/ai/types'
 import { useIsMobile, useIsNarrow } from '@/hooks/useIsMobile'
@@ -87,7 +87,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
   const fileInputRef = useRef<HTMLInputElement>(null)
   const sourceInputRef = useRef<HTMLInputElement>(null)
 
-  useEffect(() => { new Image().src = '/thonk-wizard.png' }, [])
+  useEffect(() => { ['/thonk-wizard.png', '/wizard-head1.png', '/wizard-head2.png'].forEach(src => { new Image().src = src }) }, [])
 
   // Committed provider (drives button label + Turbo Thonking visibility)
   const [committedProvider, setCommittedProvider] = useState<Provider>(getProvider)
@@ -120,7 +120,6 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
     window.addEventListener('thonk:open-source-import', handler)
     return () => window.removeEventListener('thonk:open-source-import', handler)
   }, [])
-  const summarizeCache = useRef<SummarizeCache | null>(null)
   const isMobile = useIsMobile()
   const isNarrow = useIsNarrow()
   const [deleteConfirmId, setDeleteConfirmId] = useState<string | null>(null)
@@ -256,7 +255,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
 
       {/* Hamburger menu */}
       <div>
-      <DropdownMenu>
+      <DropdownMenu onOpenChange={open => { if (open) window.dispatchEvent(new CustomEvent('thonk:hamburger-open')) }}>
         <DropdownMenuTrigger asChild>
           <Button size="sm" variant="ghost" className="h-9 w-9 p-0 cursor-pointer relative">
             <Menu className="w-5 h-5" />
@@ -385,15 +384,21 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                 </DropdownMenuSubTrigger>
                 <DropdownMenuSubContent className="max-w-[50vw]">
                   {EXAMPLES.filter(ex => !ex.isTemplate).map(ex => (
-                    <DropdownMenuItem key={ex.id} onClick={() => onLoadExample(ex.raw, ex.name)}>
-                      {ex.name}
+                    <DropdownMenuItem key={ex.id} className="group" onClick={() => onLoadExample(ex.raw, ex.name)}>
+                      <div className="flex flex-col gap-0.5">
+                        <span>{ex.name}</span>
+                        <span className="text-xs text-muted-foreground hidden group-hover:block">{ex.description}</span>
+                      </div>
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />
                   <div className="px-2 py-1 text-xs font-semibold uppercase tracking-wide text-muted-foreground">Templates</div>
                   {EXAMPLES.filter(ex => ex.isTemplate).map(ex => (
-                    <DropdownMenuItem key={ex.id} onClick={() => onLoadExample(ex.raw, ex.name)}>
-                      {ex.name}
+                    <DropdownMenuItem key={ex.id} className="group" onClick={() => onLoadExample(ex.raw, ex.name)}>
+                      <div className="flex flex-col gap-0.5">
+                        <span>{ex.name}</span>
+                        <span className="text-xs text-muted-foreground hidden group-hover:block">{ex.description}</span>
+                      </div>
                     </DropdownMenuItem>
                   ))}
                 </DropdownMenuSubContent>
@@ -637,7 +642,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
 
       {/* ── API Key dialog ──────────────────────────────────────────────────────── */}
       <Dialog open={keyOpen} onOpenChange={handleDialogClose}>
-        <DialogContent className={isMobile ? 'max-w-md' : 'max-w-[580px]'}>
+        <DialogContent className={`${isMobile ? 'max-w-md' : 'max-w-[580px]'} p-0`}>
           {!isMobile && (
             <img
               src="/thonk-wizard.png"
@@ -646,10 +651,10 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
               className="absolute bottom-[30px] -left-[96px] h-[410px] w-auto pointer-events-none select-none"
             />
           )}
-          <div className={`flex flex-col gap-4${!isMobile ? ' pl-[200px]' : ''}`}>
+          <div className={`flex flex-col gap-5 p-8${!isMobile ? ' pl-[200px]' : ''}`}>
           <DialogHeader>
             <DialogTitle className="pb-2">Connect Your AI</DialogTitle>
-            <DialogDescription className="text-sm text-muted-foreground leading-snug">
+            <DialogDescription className="text-sm text-muted-foreground">
               <span className="text-foreground font-semibold">ThonkBoard</span>{' '}uses AI to critique your ideas, ask sharp questions, and generate answers. Pick a provider you already have access to - most have a free tier and take under a minute to set up.
             </DialogDescription>
           </DialogHeader>
@@ -678,9 +683,9 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
 
           {/* Trust banner — hidden for Ollama local */}
           {dialogProvider !== 'ollama' && (
-            <div className="flex items-start gap-2 bg-secondary rounded px-3 py-3">
+            <div className="flex items-start gap-2 bg-muted rounded px-3 py-3">
               <Lock className="w-4 h-4 shrink-0 mt-0.5 text-primary" />
-              <p className="text-sm text-muted-foreground leading-snug">
+              <p className="text-sm text-muted-foreground">
                 Your key is stored only in this browser's localStorage. It goes directly to{' '}
                 {PROVIDER_SERVER[dialogProvider]}'s servers - never ours.
               </p>
@@ -698,7 +703,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   autoComplete="off"
                   value={geminiKey}
                   onChange={e => handleKeyChange(e.target.value, 'gemini')}
-                  className="text-sm font-mono bg-background"
+                  className="text-base font-mono bg-white dark:bg-background h-11"
                   autoFocus
                 />
                 <a
@@ -720,7 +725,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   autoComplete="off"
                   value={openaiKey}
                   onChange={e => handleKeyChange(e.target.value, 'openai')}
-                  className="text-sm font-mono bg-background"
+                  className="text-base font-mono bg-white dark:bg-background h-11"
                   autoFocus
                 />
                 <a
@@ -742,7 +747,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   autoComplete="off"
                   value={anthropicKey}
                   onChange={e => handleKeyChange(e.target.value, 'anthropic')}
-                  className="text-sm font-mono bg-background"
+                  className="text-base font-mono bg-white dark:bg-background h-11"
                   autoFocus
                 />
                 <a
@@ -764,7 +769,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   autoComplete="off"
                   value={deepseekKey}
                   onChange={e => handleKeyChange(e.target.value, 'deepseek')}
-                  className="text-sm font-mono bg-background"
+                  className="text-base font-mono bg-white dark:bg-background h-11"
                   autoFocus
                 />
                 <a
@@ -828,7 +833,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                     placeholder="gemma4"
                     value={ollamaModel}
                     onChange={e => setOllamaModel(e.target.value)}
-                    className="text-sm font-mono bg-background"
+                    className="text-base font-mono bg-white dark:bg-background h-11"
                     autoFocus
                   />
                 </div>
@@ -912,7 +917,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
         open={summarizeOpen}
         onClose={() => setSummarizeOpen(false)}
         graph={graph}
-        cache={summarizeCache}
+        boardId={activeBoardId}
       />
 
       {/* Delete board confirm dialog */}
@@ -970,14 +975,19 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
           <div className="text-sm text-muted-foreground space-y-4 max-h-[70vh] overflow-y-auto pr-1">
             <section>
               <strong className="text-foreground">Privacy Policy</strong>
-              <p className="mt-1">ThonkBoard does not collect, store, or transmit any personal data. Your boards and API keys are stored exclusively in your browser's localStorage and never leave your device.</p>
-              <p className="mt-1">AI API calls are made directly from your browser to your chosen provider using your own key. We have no visibility into these requests. When using Ollama (local), all AI processing happens on your device - no data leaves your machine at all.</p>
+              <p className="mt-3">ThonkBoard does not collect, store, or transmit any personal data. Your boards and API keys are stored exclusively in your browser's localStorage and never leave your device.</p>
+              <p className="mt-3">AI API calls are made directly from your browser to your chosen provider using your own key. We have no visibility into these requests. When using Ollama (local), all AI processing happens on your device - no data leaves your machine at all.</p>
             </section>
             <section>
               <strong className="text-foreground">Terms of Service</strong>
-              <p className="mt-1">ThonkBoard is provided free of charge, as-is, with no warranties of any kind. Use at your own risk. We are not liable for any loss of data or damages arising from use of this tool.</p>
-              <p className="mt-1">You are responsible for your own API keys and any costs associated with their use.</p>
-              <p className="mt-1">ThonkBoard uses AI to assist with thinking and ideation. AI-generated content may be inaccurate, incomplete, or misleading. You are solely responsible for evaluating AI output and any decisions, actions, or consequences that follow from it. Misuse of AI features is governed by your AI provider's terms. We accept no liability for harm arising from reliance on AI-generated content.</p>
+              <p className="mt-3">ThonkBoard is provided free of charge, as-is, with no warranties of any kind. Use at your own risk. We are not liable for any loss of data or damages arising from use of this tool.</p>
+              <p className="mt-3">You are responsible for your own API keys and any costs associated with their use.</p>
+              <p className="mt-3">ThonkBoard uses AI to assist with thinking and ideation. AI-generated content may be inaccurate, incomplete, or misleading. You are solely responsible for evaluating AI output and any decisions, actions, or consequences that follow from it. Misuse of AI features is governed by your AI provider's terms. We accept no liability for harm arising from reliance on AI-generated content.</p>
+            </section>
+            <section>
+              <strong className="text-foreground">License</strong>
+              <p className="mt-3">ThonkBoard is released under the <a href="https://polyformproject.org/licenses/noncommercial/1.0.0" target="_blank" rel="noopener noreferrer" className="underline text-foreground hover:text-primary">Polyform Noncommercial License 1.0.0</a>. You are free to use, modify, and distribute it for personal and internal organisational purposes.</p>
+              <p className="mt-3">Commercial use is not permitted - you may not offer ThonkBoard (or a product whose value derives substantially from it) as a service to others. Copyright © 2026 Tomasz Zych.</p>
             </section>
           </div>
         </DialogContent>
