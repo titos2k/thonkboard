@@ -808,7 +808,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               <>
                 <button
                   onClick={() => thonk.title.trim() ? setActionState('answering') : enterEdit()}
-                  className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer"
+                  className="nodrag flex items-center gap-1.5 h-8 px-3 rounded-sm text-sm font-medium bg-[#00cc6e] hover:bg-[#00b860] text-emerald-950 transition-colors cursor-pointer"
                 >
                   <MessageCircleReply className="w-5 h-5" />
                   {thonk.type === 'problem' ? 'Reply' : 'Answer'}
@@ -816,11 +816,11 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 {thonk.type === 'question' && thonk.meta.yesNo && !d.hasAnswer && (
                   <>
                     <button onClick={() => handleQuickAnswer('Yes')}
-                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer">
+                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-[#00cc6e] hover:bg-[#00b860] text-emerald-950 transition-colors cursor-pointer">
                       Yes
                     </button>
                     <button onClick={() => handleQuickAnswer('No')}
-                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-emerald-400 hover:bg-emerald-500 text-emerald-950 transition-colors cursor-pointer">
+                      className="nodrag h-8 px-2.5 rounded-sm text-sm font-medium bg-[#00cc6e] hover:bg-[#00b860] text-emerald-950 transition-colors cursor-pointer">
                       No
                     </button>
                   </>
@@ -833,7 +833,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
             {(thonk.type === 'core' || thonk.type === 'idea') && (
               <>
                 <ToolBtn icon={<Sparkles className="w-5 h-5" />} label="Push Thinking..." onClick={() => setActionState('pushing')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-purple-400" />
-                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
+                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[#00cc6e]" />
                 <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
                 <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
                 <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Ideas" onClick={handlePropose} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-yellow-400" />
@@ -846,11 +846,11 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               </>
             )}
             {thonk.type === 'question' && (
-              <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-emerald-300" />
+              <ToolBtn icon={<BulbIcon className="w-5 h-5" />} label="Generate Answer" onClick={handleIdeateAnswer} aiDisabled={!d.aiConnected} className="text-[#00cc6e]" />
             )}
             {thonk.type === 'answer' && (
               <>
-                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-green-400" />
+                <ToolBtn icon={<MessageCircleQuestionMark className="w-5 h-5" />} label="Ask me" onClick={handleQuestion} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-[#00cc6e]" />
                 <ToolBtn icon={<MessagesSquare className="w-5 h-5" />} label="Answer me..." onClick={() => setActionState('asking')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-blue-300" />
                 <ToolBtn icon={<Angry className="w-5 h-5" />} label={argueLabel} onClick={handleArgue} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-red-400" heat={depthHeat} />
                 {thonk.meta.aiGenerated && <ToolBtn icon={<TriangleAlert className="w-5 h-5" />} label="Correct This..." onClick={() => setActionState('correcting')} disabled={!hasContent} aiDisabled={!d.aiConnected} className="text-orange-400" />}
