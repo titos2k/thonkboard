@@ -1,10 +1,9 @@
-import React, { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect } from 'react'
+import React, { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import {
   ReactFlow,
   Background,
   Controls,
   ControlButton,
-  useViewport,
   useReactFlow,
   useStore,
   useStoreApi,
@@ -57,6 +56,73 @@ import { showToast } from '@/lib/toast'
 import { EXAMPLES } from '@/examples'
 import { MultiSelectToolbar } from '@/components/MultiSelectToolbar'
 import { CanvasContextMenu } from '@/components/CanvasContextMenu'
+
+function TrackpadPanHandler() {
+  const { getViewport, setViewport } = useReactFlow()
+  useEffect(() => {
+    const rfEl = document.getElementById('rf-wrap')
+    // panActive: true while a pan gesture is in progress (debounced off after 300ms silence)
+    let panActive = false
+    let panTimer: ReturnType<typeof setTimeout> | null = null
+
+    const onWheel = (e: WheelEvent) => {
+      if (!rfEl?.contains(e.target as unknown as globalThis.Node)) return
+
+      if (e.ctrlKey) {
+        // Always own pinch events — RF must never see them so it can't zoom behind our back
+        e.preventDefault()
+        e.stopPropagation()
+        if (panActive) return // suppress accidental pinch during active pan
+
+        // Deliberate pinch: zoom at cursor
+        const vp = getViewport()
+        const rect = rfEl.getBoundingClientRect()
+        const mx = e.clientX - rect.left
+        const my = e.clientY - rect.top
+        const factor = Math.pow(0.999, e.deltaY)
+        const newZoom = Math.max(0.1, Math.min(2, vp.zoom * factor))
+        const r = newZoom / vp.zoom
+        setViewport({ x: mx - (mx - vp.x) * r, y: my - (my - vp.y) * r, zoom: newZoom }, { duration: 0 })
+        return
+      }
+
+      // Mouse scroll (line mode, Windows) → zoom at cursor, don't count as pan gesture
+      if (e.deltaMode === 1) {
+        e.preventDefault()
+        e.stopPropagation()
+        const vp = getViewport()
+        const rect = rfEl.getBoundingClientRect()
+        const mx = e.clientX - rect.left
+        const my = e.clientY - rect.top
+        const factor = Math.pow(0.999, e.deltaY * 20)
+        const newZoom = Math.max(0.1, Math.min(2, vp.zoom * factor))
+        const r = newZoom / vp.zoom
+        setViewport({ x: mx - (mx - vp.x) * r, y: my - (my - vp.y) * r, zoom: newZoom }, { duration: 0 })
+        return
+      }
+
+      // Trackpad pan (pixel mode) — mark gesture active, let RF handle via panOnScroll
+      panActive = true
+      if (panTimer !== null) clearTimeout(panTimer)
+      panTimer = setTimeout(() => { panActive = false }, 300)
+    }
+
+    document.addEventListener('wheel', onWheel, { passive: false, capture: true })
+    return () => {
+      document.removeEventListener('wheel', onWheel, { capture: true })
+      if (panTimer !== null) clearTimeout(panTimer)
+    }
+  }, [getViewport, setViewport])
+  return null
+}
+
+// Unmounts the Background entirely while panning so its viewport subscription
+// and SVG patternTransform setAttribute call don't run on every wheel event.
+function PanAwareBackground(props: React.ComponentProps<typeof Background>) {
+  const isPanning = useSyncExternalStore(canvasPanStore.subscribe, canvasPanStore.getSnapshot)
+  if (isPanning) return null
+  return <Background {...props} />
+}
 
 const NODE_TYPES = { thonk: ThonkNodeComponent, note: NoteNodeComponent, source: SourceNodeComponent }
 const EDGE_TYPES = { thonk: ThonkEdgeComponent }
@@ -137,7 +203,7 @@ const RedoButton = React.memo(function RedoButton({ onClick, disabled }: { onCli
 })
 
 const ZoomDisplay = React.memo(function ZoomDisplay() {
-  const { zoom } = useViewport()
+  const zoom = useStore(s => s.transform[2])
   const { zoomTo } = useReactFlow()
   return (
     <Tooltip>
@@ -265,7 +331,7 @@ function toRFNode(
 
 function toRFEdge(
   e: ThonkEdge,
-  nodes: ThonkNode[],
+  nodeById: Map<string, ThonkNode>,
   isTargetCollapsed: boolean,
   targetHasChildren: boolean,
   isSourceSelected: boolean,
@@ -274,8 +340,8 @@ function toRFEdge(
   onCollapse: (id: string) => void,
   onExpand: (id: string) => void,
 ): Edge {
-  const target   = nodes.find(n => n.id === e.target)
-  const source   = nodes.find(n => n.id === e.source)
+  const target   = nodeById.get(e.target)
+  const source   = nodeById.get(e.source)
   const isSourceEdge = e.relation === 'sources'
   const stroke   = isSourceEdge ? '#6b8fc4'
     : (target?.type === 'answer' && target?.meta.aiGenerated) ? '#00836D'
@@ -425,6 +491,7 @@ export default function App() {
     document.documentElement.classList.toggle('dark', darkMode)
     localStorage.setItem('thonk.darkmode', darkMode ? '1' : '0')
   }, [darkMode])
+
 
   useEffect(() => {
     const down = (e: KeyboardEvent) => { if (e.code === 'Space' && e.target === document.body) setSpaceHeld(true) }
@@ -1011,6 +1078,20 @@ export default function App() {
     })
   }, [])
 
+  // Pre-built indexes — O(1) lookups replace O(edges) scans inside storeNodes/setRfEdges
+  const nodeById = useMemo(
+    () => new Map(graph.nodes.map(n => [n.id, n])),
+    [graph.nodes],
+  )
+  const edgeSources = useMemo(
+    () => new Set(graph.edges.map(e => e.source)),
+    [graph.edges],
+  )
+  const answerSources = useMemo(
+    () => new Set(graph.edges.filter(e => e.relation === 'answers').map(e => e.source)),
+    [graph.edges],
+  )
+
   const storeNodes = useMemo(() => {
     const isMultiSelected = selectedIds.size > 1
     return graph.nodes.map(n => {
@@ -1022,23 +1103,22 @@ export default function App() {
         hiddenDescendantCount = descs.size
         const conflictPairs = new Set<string>()
         for (const descId of descs) {
-          const descNode = graph.nodes.find(nd => nd.id === descId)
+          const descNode = nodeById.get(descId)
           for (const c of descNode?.conflicts ?? []) {
             if (!c.ignored) conflictPairs.add([descId, c.nodeId].sort().join('|'))
           }
         }
         hiddenConflictCount = conflictPairs.size
       }
-      const hasChildren = graph.edges.some(e => e.source === n.id)
       return toRFNode(
         n, selectedIds.has(n.id), n.id === autoEditId,
-        graph.edges.some(e => e.source === n.id && e.relation === 'answers'),
+        answerSources.has(n.id),
         graphRef, callbacks, aiConnected, isMultiSelected,
         n.id === highlightedNodeId,
-        { isCollapsed, hasChildren, hiddenDescendantCount, hiddenConflictCount, hiddenNodeIds, onExpand: handleExpand, onCollapse: handleCollapse },
+        { isCollapsed, hasChildren: edgeSources.has(n.id), hiddenDescendantCount, hiddenConflictCount, hiddenNodeIds, onExpand: handleExpand, onCollapse: handleCollapse },
       )
     })
-  }, [graph.nodes, selectedIds, autoEditId, graph.edges, callbacks, aiConnected, highlightedNodeId, collapsedNodeIds, hiddenNodeIds, handleExpand, handleCollapse])
+  }, [graph.nodes, selectedIds, autoEditId, graph.edges, callbacks, aiConnected, highlightedNodeId, collapsedNodeIds, hiddenNodeIds, handleExpand, handleCollapse, nodeById, edgeSources, answerSources])
 
   // Sync store → local RF state whenever it changes, but only when not mid-drag.
   // Skip when the only change was a position persistence update — rfNodes already
@@ -1073,11 +1153,11 @@ export default function App() {
         .map(e => {
           const existing = prevById.get(e.id)
           const isTargetCollapsed = collapsedNodeIds.has(e.target)
-          const targetHasChildren = graph.edges.some(e2 => e2.source === e.target)
+          const targetHasChildren = edgeSources.has(e.target)
           const hiddenCount = isTargetCollapsed ? 1 + getDescendants(e.target, graph.edges).size : 0
           return {
             ...toRFEdge(
-              e, graph.nodes,
+              e, nodeById,
               isTargetCollapsed,
               targetHasChildren,
               selectedIds.has(e.source),
@@ -1089,7 +1169,7 @@ export default function App() {
           }
         })
     })
-  }, [graph.edges, graph.nodes, hiddenNodeIds, collapsedNodeIds, selectedIds, handleCollapse, handleExpand])
+  }, [graph.edges, nodeById, edgeSources, hiddenNodeIds, collapsedNodeIds, selectedIds, handleCollapse, handleExpand])
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
@@ -1434,6 +1514,8 @@ export default function App() {
             }}
             onMoveEnd={handleMoveEnd}
             panOnDrag={[1, 2]}
+            panOnScroll={true}
+            zoomOnScroll={false}
             minZoom={0.1}
             maxZoom={2}
             zoomOnDoubleClick={false}
@@ -1454,7 +1536,8 @@ export default function App() {
                 aiConnected={aiConnected}
               />
             )}
-            <Background variant={BackgroundVariant.Dots} gap={20} size={1} color={darkMode ? 'hsl(240, 8%, 38%)' : undefined} />
+            <TrackpadPanHandler />
+            <PanAwareBackground variant={BackgroundVariant.Dots} gap={20} size={1} color={darkMode ? 'hsl(240, 8%, 38%)' : undefined} />
             <Controls showZoom={false} showFitView={false} showInteractive={false} style={isMobile ? { bottom: 4, left: 4 } : { bottom: 24, left: 16 }}>
               <UndoButton onClick={undo} disabled={!canUndo} />
               <RedoButton onClick={redo} disabled={!canRedo} />

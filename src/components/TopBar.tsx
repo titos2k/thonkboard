@@ -699,7 +699,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   autoComplete="off"
                   value={geminiKey}
                   onChange={e => handleKeyChange(e.target.value, 'gemini')}
-                  className="text-base font-mono bg-white dark:bg-background h-11"
+                  className="text-base bg-white dark:bg-background h-11"
                   autoFocus
                 />
                 <a
@@ -721,7 +721,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   autoComplete="off"
                   value={openaiKey}
                   onChange={e => handleKeyChange(e.target.value, 'openai')}
-                  className="text-base font-mono bg-white dark:bg-background h-11"
+                  className="text-base bg-white dark:bg-background h-11"
                   autoFocus
                 />
                 <a
@@ -743,7 +743,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   autoComplete="off"
                   value={anthropicKey}
                   onChange={e => handleKeyChange(e.target.value, 'anthropic')}
-                  className="text-base font-mono bg-white dark:bg-background h-11"
+                  className="text-base bg-white dark:bg-background h-11"
                   autoFocus
                 />
                 <a
@@ -765,7 +765,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                   autoComplete="off"
                   value={deepseekKey}
                   onChange={e => handleKeyChange(e.target.value, 'deepseek')}
-                  className="text-base font-mono bg-white dark:bg-background h-11"
+                  className="text-base bg-white dark:bg-background h-11"
                   autoFocus
                 />
                 <a
@@ -796,7 +796,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                       placeholder="11434"
                       value={ollamaPort}
                       onChange={e => { setOllamaPort(e.target.value); setOllamaTestStatus('idle') }}
-                      className="text-sm font-mono bg-white w-24"
+                      className="text-sm bg-white w-24"
                     />
                     <Button
                       type="button"
@@ -829,7 +829,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                     placeholder="gemma4"
                     value={ollamaModel}
                     onChange={e => setOllamaModel(e.target.value)}
-                    className="text-base font-mono bg-white dark:bg-background h-11"
+                    className="text-base bg-white dark:bg-background h-11"
                     autoFocus
                   />
                 </div>

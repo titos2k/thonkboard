@@ -254,8 +254,13 @@ body {
 }
 
 /* ── Pan / drag optimisations ──────────────────────────────────── */
+/* Pre-promote viewport to a GPU compositor layer so pan transforms
+   bypass Layerize and run entirely on the compositor thread. */
+.react-flow__viewport { will-change: transform; }
 .is-panning .react-flow__edges { shape-rendering: optimizeSpeed; }
 .is-panning .react-flow__node > div { box-shadow: none !important; }
+/* No pointer events on nodes during pan */
+#rf-wrap.is-panning .react-flow__node { pointer-events: none; }
 .react-flow__node.dragging > div { box-shadow: none !important; }
 .react-flow__node.dragging .react-flow__handle { opacity: 0 !important; }
 
