@@ -61,7 +61,7 @@ function computeHealth(graph: ThonkGraph) {
     problemsAddressed:  problems.filter(n => !!n.thumb || hasOutgoing.has(n.id)).length,
     problemsTotal:      problems.length,
     conflicts:          graph.nodes.filter(n => n.conflicts?.some(c => !c.ignored)).length,
-    ideasExplored:      graph.nodes.filter(n => n.type === 'idea' && !!n.thumb).length,
+    ideasExplored:      graph.nodes.filter(n => n.type === 'idea' && (!!n.thumb || hasOutgoing.has(n.id))).length,
     ideasTotal:         graph.nodes.filter(n => n.type === 'idea').length,
     answersTotal:       graph.nodes.filter(n => n.type === 'answer').length,
     answersHumanPct:    (() => { const a = graph.nodes.filter(n => n.type === 'answer'); return a.length ? Math.round(a.filter(n => !n.meta?.aiGenerated).length / a.length * 100) : 0 })(),
