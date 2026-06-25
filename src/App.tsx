@@ -1,4 +1,4 @@
-import React, { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
+﻿import React, { useCallback, useMemo, useState, useRef, useEffect, useLayoutEffect, useSyncExternalStore } from 'react'
 import {
   ReactFlow,
   Background,
@@ -364,6 +364,30 @@ function toRFEdge(
   }
 }
 
+// External RF state stores — drag-frame setRfNodes no longer touches App state,
+// so App/TopBar/CommandPalette never re-render during drag.
+function makeExternalStore<T>(initial: T) {
+  let state = initial
+  const listeners = new Set<() => void>()
+  return {
+    set(val: T | ((prev: T) => T)) {
+      state = typeof val === 'function' ? (val as (p: T) => T)(state) : val
+      listeners.forEach(fn => fn())
+    },
+    subscribe(fn: () => void) { listeners.add(fn); return () => listeners.delete(fn) },
+    getSnapshot() { return state },
+  }
+}
+const rfNodesStore = makeExternalStore<Node[]>([])
+const rfEdgesStore = makeExternalStore<Edge[]>([])
+
+type FlowCanvasProps = Omit<React.ComponentPropsWithoutRef<typeof ReactFlow>, 'nodes' | 'edges'>
+function FlowCanvas(props: FlowCanvasProps) {
+  const rfNodes = useSyncExternalStore(rfNodesStore.subscribe, rfNodesStore.getSnapshot)
+  const rfEdges = useSyncExternalStore(rfEdgesStore.subscribe, rfEdgesStore.getSnapshot)
+  return <ReactFlow nodes={rfNodes} edges={rfEdges} {...props} />
+}
+
 export default function App() {
   const [boards, setBoards] = useState<BoardMeta[]>(loadBoards)
   const [activeBoardId, setActiveBoardIdState] = useState<string>(getActiveBoardId)
@@ -464,9 +488,6 @@ export default function App() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [graph, linkedFileName, activeBoardId])
 
-  // Local RF node/edge state — lets React Flow manage selection/drag internally.
-  const [rfNodes, setRfNodes] = useState<Node[]>([])
-  const [rfEdges, setRfEdges] = useState<Edge[]>([])
   const isDraggingRef = useRef(false)
   const positionUpdateRef = useRef(false)
   // Canvas navigation
@@ -672,7 +693,7 @@ export default function App() {
   }, [addNode, updateNode])
 
   const handleContextMenuSelect = useCallback((id: string) => {
-    setRfNodes(prev => prev.map(n => ({ ...n, selected: n.id === id })))
+    rfNodesStore.set((prev: Node[]) => prev.map(n => ({ ...n, selected: n.id === id })))
     setSelectedIds(new Set([id]))
     selectedIdsRef.current = new Set([id])
   }, [])
@@ -683,6 +704,39 @@ export default function App() {
     // Skip save during inertia — the inertia step function saves when it finishes
     if (inertiaFrameRef.current === null) saveViewport(vp, activeBoardId)
   }, [activeBoardId, saveViewport])
+
+  const handleMoveStart = useCallback(() => {
+    document.getElementById('rf-wrap')?.classList.add('is-panning')
+    canvasPanStore.set(true)
+  }, [])
+
+  const handleMove = useCallback((_e: unknown, vp: Viewport) => {
+    if (!isDragPanRef.current) return
+    const now = performance.now()
+    const prev = lastVpMoveRef.current
+    if (prev) {
+      const dt = now - prev.time
+      if (dt > 0 && dt < 100) {
+        const scale = 16.67 / dt
+        const vx = (vp.x - prev.x) * scale
+        const vy = (vp.y - prev.y) * scale
+        panVelocityRef.current = { x: panVelocityRef.current.x * 0.4 + vx * 0.6, y: panVelocityRef.current.y * 0.4 + vy * 0.6 }
+      }
+    }
+    lastVpMoveRef.current = { x: vp.x, y: vp.y, time: now }
+  }, [])
+
+  const handleReconnectStart = useCallback(() => {
+    document.getElementById('rf-wrap')?.classList.add('edge-dragging')
+  }, [])
+
+  const handleReconnectEnd = useCallback(() => {
+    document.getElementById('rf-wrap')?.classList.remove('edge-dragging')
+  }, [])
+
+  const handleFlowInit = useCallback((inst: ReactFlowInstance) => {
+    rfInstance.current = inst
+  }, [])
 
   const handleCanvasContextMenu = useCallback((e: React.MouseEvent) => {
     e.preventDefault()
@@ -727,7 +781,7 @@ export default function App() {
           const n = addNode(typeKey, '', '', pos, extra)
           if (attachId) {
             addGraphEdge(attachId, n.id, 'spawns')
-            setRfNodes(prev => prev.map(nd => nd.id === attachId ? { ...nd, selected: false } : nd))
+            rfNodesStore.set((prev: Node[]) => prev.map(nd => nd.id === attachId ? { ...nd, selected: false } : nd))
             setSelectedIds(new Set())
             selectedIdsRef.current = new Set()
           }
@@ -1133,7 +1187,7 @@ export default function App() {
     if (!isDraggingRef.current) {
       // Collapsed nodes stay in rfNodes as invisible real nodes — this keeps their
       // handle positions intact so edges compute the same labelX/labelY in both states.
-      setRfNodes(
+      rfNodesStore.set(
         hiddenNodeIds.size === 0
           ? storeNodes
           : storeNodes.filter(n => !hiddenNodeIds.has(n.id) || collapsedNodeIds.has(n.id)),
@@ -1143,7 +1197,7 @@ export default function App() {
 
   // Sync graph edges → local RF state (preserve selection state of existing edges)
   useEffect(() => {
-    setRfEdges(prev => {
+    rfEdgesStore.set((prev: Edge[]) => {
       const prevById = new Map(prev.map(e => [e.id, e]))
       return graph.edges
         .filter(e =>
@@ -1179,7 +1233,7 @@ export default function App() {
       }
 
       // Apply to local RF state immediately — smooth drag with no store re-renders
-      setRfNodes(prev => applyNodeChanges(changes, prev))
+      rfNodesStore.set((prev: Node[]) => applyNodeChanges(changes, prev))
 
       // Persist to store only on drag end + handle remove
       changes.forEach(change => {
@@ -1224,7 +1278,7 @@ export default function App() {
 
   const onEdgesChange = useCallback(
     (changes: EdgeChange[]) => {
-      setRfEdges(prev => applyEdgeChanges(changes, prev))
+      rfEdgesStore.set((prev: Edge[]) => applyEdgeChanges(changes, prev))
       for (const c of changes) {
         if (c.type === 'remove') deleteGraphEdge(c.id)
       }
@@ -1481,37 +1535,21 @@ export default function App() {
             <Button size="icon" variant="ghost" className="h-9 w-9 text-background/70 hover:text-background hover:bg-white/10 cursor-pointer" onClick={handleExitExample}><X className="w-4 h-4" /></Button>
           </div>
         )}
-          <ReactFlow
-            nodes={rfNodes}
-            edges={rfEdges}
+          <FlowCanvas
             nodeTypes={NODE_TYPES}
             edgeTypes={EDGE_TYPES}
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
             onReconnect={onReconnect}
-            onReconnectStart={() => document.getElementById('rf-wrap')?.classList.add('edge-dragging')}
-            onReconnectEnd={() => document.getElementById('rf-wrap')?.classList.remove('edge-dragging')}
-            onInit={inst => { rfInstance.current = inst }}
+            onReconnectStart={handleReconnectStart}
+            onReconnectEnd={handleReconnectEnd}
+            onInit={handleFlowInit}
             fitView={!savedViewport && graph.nodes.length > 0}
             fitViewOptions={{ padding: 0.5, maxZoom: 1 }}
             defaultViewport={savedViewport ?? { x: 0, y: 0, zoom: 1 }}
-            onMoveStart={() => { document.getElementById('rf-wrap')?.classList.add('is-panning'); canvasPanStore.set(true) }}
-            onMove={(_e, vp) => {
-              if (!isDragPanRef.current) return
-              const now = performance.now()
-              const prev = lastVpMoveRef.current
-              if (prev) {
-                const dt = now - prev.time
-                if (dt > 0 && dt < 100) {
-                  const scale = 16.67 / dt
-                  const vx = (vp.x - prev.x) * scale
-                  const vy = (vp.y - prev.y) * scale
-                  panVelocityRef.current = { x: panVelocityRef.current.x * 0.4 + vx * 0.6, y: panVelocityRef.current.y * 0.4 + vy * 0.6 }
-                }
-              }
-              lastVpMoveRef.current = { x: vp.x, y: vp.y, time: now }
-            }}
+            onMoveStart={handleMoveStart}
+            onMove={handleMove}
             onMoveEnd={handleMoveEnd}
             panOnDrag={[1, 2]}
             panOnScroll={true}
@@ -1553,7 +1591,7 @@ export default function App() {
                 maskColor={darkMode ? 'rgba(10,12,20,0.5)' : 'rgba(200,195,190,0.3)'}
               />
             )}
-          </ReactFlow>
+          </FlowCanvas>
         </div>
 
         {canvasMenu && (
