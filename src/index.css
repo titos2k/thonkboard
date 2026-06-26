@@ -254,9 +254,9 @@ body {
 }
 
 /* ── Pan / drag optimisations ──────────────────────────────────── */
-/* Pre-promote viewport to a GPU compositor layer so pan transforms
-   bypass Layerize and run entirely on the compositor thread. */
-.react-flow__viewport { will-change: transform; }
+/* Promote viewport to GPU layer only while panning — avoids blurry text at
+   high zoom (will-change causes rasterization at layer-creation resolution). */
+#rf-wrap.is-panning .react-flow__viewport { will-change: transform; }
 .is-panning .react-flow__edges { shape-rendering: optimizeSpeed; }
 .is-panning .react-flow__node > div { box-shadow: none !important; }
 /* No pointer events on nodes during pan */
