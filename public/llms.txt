@@ -1,56 +1,56 @@
 # ThonkBoard
 
-> ThonkBoard is a browser-based spatial thinking canvas where users build directed graphs of ideas and pressure-test them with AI. No backend, no accounts — everything runs locally, AI calls go directly to the user's chosen provider with their own API key, and all data is stored in localStorage/IndexedDB.
+> ThonkBoard is a browser-based spatial thinking canvas where users build directed graphs of ideas and pressure-test them with AI. No backend, no accounts - everything runs locally, AI calls go directly to the user's chosen provider with their own API key, and all data is stored in localStorage/IndexedDB.
 
 ## Purpose
 
-ThonkBoard is for individuals working through complex problems — ideation, research, decisions, argument stress-testing. The core metaphor: plant a central idea, branch it into related thoughts, let AI ask hard questions, find problems, and generate new angles. The graph grows as thinking deepens.
+ThonkBoard is for individuals working through complex problems - ideation, research, decisions, argument stress-testing. The core metaphor: plant a central idea, branch it into related thoughts, let AI ask hard questions, find problems, and generate new angles. The graph grows as thinking deepens.
 
 ## Node Types
 
 Every board has exactly one **Core** node (the central thesis; cannot be deleted). From it, users build a graph of:
 
-- **Idea** — a branch, variant, or proposed direction (yellow)
-- **Problem** — a flaw, risk, or constraint with a severity score 0–1 (orange)
-- **Question** — an open inquiry or assumption to test; can be yes/no (gray)
-- **Answer** — response to a question or solution to a problem; tracks whether AI-generated (green)
-- **Note** — freeform sticky; no structure, minimal AI interaction (tan)
-- **Source** — an attached markdown or text document digested by AI; full text stored in IndexedDB; silently informs all AI actions on the board (blue)
+- **Idea** - a branch, variant, or proposed direction (yellow)
+- **Problem** - a flaw, risk, or constraint with a severity score 0-1 (orange)
+- **Question** - an open inquiry or assumption to test; can be yes/no (gray)
+- **Answer** - response to a question or solution to a problem; tracks whether AI-generated (green)
+- **Note** - freeform sticky; no structure, minimal AI interaction (tan)
+- **Source** - an attached markdown or text document digested by AI; full text stored in IndexedDB; silently informs all AI actions on the board (blue)
 
 ## Edge Relations
 
-Directed edges carry semantic meaning: **spawns** (idea → child idea), **questions** (node → question about it), **answers** (question → answer), **argues** (node critiques another), **fixes** (problem → solution), **expands** (old core → forked core), **sources** (node → source document).
+Directed edges carry semantic meaning: **spawns** (idea -> child idea), **questions** (node -> question about it), **answers** (question -> answer), **argues** (node critiques another), **fixes** (problem -> solution), **expands** (old core -> forked core), **sources** (node -> source document).
 
 ## AI Features
 
-All AI actions appear in a floating toolbar above the selected node. AI depth is tracked: nodes with `aiDepth ≥ 3` get an "AI Fatigue" warning and actions are disabled to discourage chaining AI output too far from human reasoning.
+All AI actions appear in a floating toolbar above the selected node. AI depth is tracked: nodes with aiDepth >= 3 get an "AI Fatigue" warning and actions are disabled to discourage chaining AI output too far from human reasoning.
 
 **Per-node actions:**
-- **Push Thinking** (Core/Idea) — generates 3–5 mixed starter nodes (ideas + questions + problems) from different angles to kick off exploration
-- **Ask me** (Core/Idea/Answer) — AI generates one sharp question about the node; spawns a Question node
-- **Answer me…** (Core/Idea/Problem/Answer) — user types a custom question; AI answers with optional web search; spawns Question + Answer nodes
-- **Find Problems** (Core/Idea/Answer) — AI critiques the node; spawns Problem nodes with severity scores
-- **Generate Ideas** (Core/Idea) — AI proposes new directions; spawns child Idea nodes
-- **Suggest Solution** (Problem) — AI generates a practical fix; spawns an Answer node with a "fixes" relation
-- **Generate Answer** (Question) — AI answers the question; spawns an Answer node
-- **Correct This…** (AI-generated Answer) — user describes the mistake; AI revises the answer in-place
+- **Push Thinking** (Core/Idea) - generates 3-5 mixed starter nodes (ideas + questions + problems) from different angles to kick off exploration
+- **Ask me** (Core/Idea/Answer) - AI generates one sharp question about the node; spawns a Question node
+- **Answer me...** (Core/Idea/Problem/Answer) - user types a custom question; AI answers with optional web search; spawns Question + Answer nodes
+- **Find Problems** (Core/Idea/Answer) - AI critiques the node; spawns Problem nodes with severity scores
+- **Generate Ideas** (Core/Idea) - AI proposes new directions; spawns child Idea nodes
+- **Suggest Solution** (Problem) - AI generates a practical fix; spawns an Answer node with a "fixes" relation
+- **Generate Answer** (Question) - AI answers the question; spawns an Answer node
+- **Correct This...** (AI-generated Answer) - user describes the mistake; AI revises the answer in-place
 
 **Board-level actions:**
-- **Summarize** — three modes: *List* (curated bullet summary of accepted ideas), *Analysis* (3–4 paragraph critical review), *Gaps* (unquestioned assumptions and missing angles). Cached by graph fingerprint.
-- **Fix Grammar** — batch action on multi-selected nodes; cleans spelling, applies sentence case, adds punctuation to titles
+- **Summarize** - three modes: List (curated bullet summary of accepted ideas), Analysis (3-4 paragraph critical review), Gaps (unquestioned assumptions and missing angles). Cached by graph fingerprint.
+- **Fix Grammar** - batch action on multi-selected nodes; cleans spelling, applies sentence case, adds punctuation to titles
 
 **Behind the scenes:**
-- **Conflict Detection** — after any title change, AI checks the node against all others for contradictions; cooldown 30 s; conflicts shown in editor panel with resolution options
-- **Conflict Resolution** — two paths: new direction wins, or existing direction preserved; AI rewrites node body for chosen path
-- **Propagation** — after approving a Q&A answer, AI identifies up to 3 other nodes that would benefit from the same insight
-- **Source Digestion** — on import, AI extracts title and ~1024-char summary from source documents
+- **Conflict Detection** - after any title change, AI checks the node against all others for contradictions; cooldown 30s; conflicts shown in editor panel with resolution options
+- **Conflict Resolution** - two paths: new direction wins, or existing direction preserved; AI rewrites node body for chosen path
+- **Propagation** - after approving a Q&A answer, AI identifies up to 3 other nodes that would benefit from the same insight
+- **Source Digestion** - on import, AI extracts title and ~1024-char summary from source documents
 
 **Supported AI providers:** Google Gemini (default, free tier available), OpenAI, Anthropic, DeepSeek, Ollama (local). Toggle **Turbo Thonking** in settings to switch to the smarter model for each provider. Toggle **Web Search** to enrich AI answers with live facts (Gemini, OpenAI, Anthropic only).
 
 ## Canvas Interactions
 
 - Pan: drag background, middle-click drag, or right-click drag
-- Zoom: scroll, pinch (Ctrl+scroll), or toolbar +/−/0/fit-view buttons
+- Zoom: scroll, pinch (Ctrl+scroll), or toolbar +/-/0/fit-view buttons
 - Select: click node; shift-click for multi-select; bounding box appears for batch actions
 - Move: drag any node; edges reattach automatically
 - Connect: drag from a node's output handle to another's input handle
@@ -72,19 +72,19 @@ All AI actions appear in a floating toolbar above the selected node. AI depth is
 | Ctrl/Cmd+C | Copy selected node |
 | Ctrl/Cmd+V | Paste node |
 | Ctrl/Cmd+K | Open command palette / search |
-| +/−/0 | Zoom in / out / reset |
+| +/-/0 | Zoom in / out / reset |
 
 ## Boards & Persistence
 
-Multiple boards are supported; each stored separately in localStorage. Board metadata (name, emoji, last used) listed in the hamburger menu with minimap previews on hover. Auto-save runs on every graph change (500 ms debounce). Undo/redo operates within the active board session only.
+Multiple boards are supported; each stored separately in localStorage. Board metadata (name, emoji, last used) listed in the hamburger menu with minimap previews on hover. Auto-save runs on every graph change (500ms debounce). Undo/redo operates within the active board session only.
 
 ## Export & Import
 
-- **Save / Save As** — downloads `.thonk` JSON; on Chrome with File System Access API, Ctrl+S saves silently to the linked file
-- **Load Board** — imports `.thonk` or `.json` files
-- **Import Source** — adds a `.md` or `.txt` document as a Source node; text stored in IndexedDB
-- **Export PNG** — renders the full canvas as a downloadable image
-- **Export Mermaid** — converts the graph to a `.mmd` flowchart file (shapes and colors match node types; Source nodes excluded)
+- **Save / Save As** - downloads `.thonk` JSON; on Chrome with File System Access API, Ctrl+S saves silently to the linked file
+- **Load Board** - imports `.thonk` or `.json` files
+- **Import Source** - adds a `.md` or `.txt` document as a Source node; text stored in IndexedDB
+- **Export PNG** - renders the full canvas as a downloadable image
+- **Export Mermaid** - converts the graph to a `.mmd` flowchart file (shapes and colors match node types; Source nodes excluded)
 
 ## Editor Panel
 
