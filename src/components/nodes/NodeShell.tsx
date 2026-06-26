@@ -3,6 +3,9 @@ import { Handle, Position, NodeResizeControl } from '@xyflow/react'
 import { cn } from '@/lib/utils'
 import type { NodeType } from '@/store/types'
 
+document.addEventListener('keydown', e => { if (e.key === 'Shift') document.body.classList.add('is-shift') })
+document.addEventListener('keyup',   e => { if (e.key === 'Shift') document.body.classList.remove('is-shift') })
+
 interface NodeShellProps {
   nodeType: NodeType
   children: React.ReactNode
@@ -32,22 +35,10 @@ const TYPE_STYLES: Record<NodeType, string> = {
   source:   'border border-black/10 bg-[var(--thonk-source)] text-white shadow-md',
 }
 
-const TYPE_SELECTED: Record<NodeType, string> = {
-  core:     'ring-2 ring-purple-300 ring-offset-1',
-  idea:     'ring-2 ring-yellow-400 ring-offset-1',
-  problem:  'ring-2 ring-orange-300 ring-offset-1',
-  question: 'ring-2 ring-sky-400 ring-offset-1',
-  answer:   'ring-2 ring-emerald-300 ring-offset-1',
-  note:     'ring-2 ring-yellow-400 ring-offset-1',
-  source:   'ring-2 ring-blue-300 ring-offset-1',
-}
+const SELECTED    = 'ring-2 ring-[#1E1C24] dark:ring-[#EEECE8] ring-offset-1'
+const HANDLE_CLASS = '!bg-white !border-0 !w-2 !h-2 !shadow-md'
 
 function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGenerated, highlighted, dimmed, className, handles = true, onPointerDown, onContextMenu, resizable, nodeWidth: _nodeWidth, onResized, minWidth, minHeight }: NodeShellProps) {
-  const isLight = nodeType === 'question' || nodeType === 'idea' || nodeType === 'note'
-  const handleClass = isLight
-    ? '!bg-sky-300 !border-sky-400 !w-2 !h-2'
-    : '!bg-white/60 !border-white/40 !w-2 !h-2'
-
   const baseStyle =
     aiGenerated && nodeType === 'answer'   ? 'border border-black/10 bg-[var(--thonk-answer-dark)] text-white shadow' :
     aiGenerated && nodeType === 'question' ? 'border border-dashed border-black/20 bg-[var(--thonk-question)] text-gray-900 shadow-md' :
@@ -71,7 +62,7 @@ function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGe
         dimmed && 'opacity-60',
         widthClass,
         baseStyle,
-        highlighted ? 'ring-4 ring-purple-400 ring-offset-1' : (selected && TYPE_SELECTED[nodeType]),
+        highlighted ? 'ring-4 ring-purple-400 ring-offset-1' : (selected && SELECTED),
         className,
       )}
     >
@@ -94,15 +85,15 @@ function NodeShellBase({ nodeType, children, selected, resolved: _resolved, aiGe
       {handles && (
         <>
           {/* Primary handles — listed first so unspecified edges route bottom→top by default */}
-          <Handle id="s-bottom" type="source" position={Position.Bottom} className={handleClass} />
-          <Handle id="t-top"    type="target" position={Position.Top}    className={handleClass} />
+          <Handle id="s-bottom" type="source" position={Position.Bottom} className={HANDLE_CLASS} />
+          <Handle id="t-top"    type="target" position={Position.Top}    className={HANDLE_CLASS} />
           {/* Secondary handles — enable reconnecting to any side */}
-          <Handle id="s-top"    type="source" position={Position.Top}    className={handleClass} />
-          <Handle id="s-left"   type="source" position={Position.Left}   className={handleClass} />
-          <Handle id="s-right"  type="source" position={Position.Right}  className={handleClass} />
-          <Handle id="t-bottom" type="target" position={Position.Bottom} className={handleClass} />
-          <Handle id="t-left"   type="target" position={Position.Left}   className={handleClass} />
-          <Handle id="t-right"  type="target" position={Position.Right}  className={handleClass} />
+          <Handle id="s-top"    type="source" position={Position.Top}    className={HANDLE_CLASS} />
+          <Handle id="s-left"   type="source" position={Position.Left}   className={HANDLE_CLASS} />
+          <Handle id="s-right"  type="source" position={Position.Right}  className={HANDLE_CLASS} />
+          <Handle id="t-bottom" type="target" position={Position.Bottom} className={HANDLE_CLASS} />
+          <Handle id="t-left"   type="target" position={Position.Left}   className={HANDLE_CLASS} />
+          <Handle id="t-right"  type="target" position={Position.Right}  className={HANDLE_CLASS} />
         </>
       )}
       {children}

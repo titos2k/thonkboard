@@ -408,7 +408,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
     if (isPushing) requestAnimationFrame(() => pushRef.current?.focus())
   }, [isPushing])
 
-  const hasContent = thonk.body.trim().length > 0 || thonk.title.trim().length > 0
+  const hasContent = (thonk.body ?? '').trim().length > 0 || (thonk.title ?? '').trim().length > 0
 
   // Read position from graphRef (always reflects latest store) rather than thonk.position
   // (data prop), which can lag after a drag due to the positionUpdateRef skip in App.tsx.

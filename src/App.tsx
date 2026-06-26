@@ -1589,6 +1589,7 @@ export default function App() {
               <MiniMap
                 nodeColor={miniMapNodeColor}
                 maskColor={darkMode ? 'rgba(10,12,20,0.5)' : 'rgba(200,195,190,0.3)'}
+                style={{ backgroundColor: darkMode ? '#1A191D' : undefined }}
               />
             )}
           </FlowCanvas>

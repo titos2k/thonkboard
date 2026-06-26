@@ -132,6 +132,7 @@ body {
   --menu-text:       #EEECE8;
   --menu-item-hover: #373340;
   --thonk-question:  #e3e3df;
+  --toolbar-border:  #6B6475;
 }
 
 .toolbar-btn {
@@ -242,6 +243,10 @@ body {
 }
 .react-flow__node:hover .react-flow__handle {
   opacity: 1;
+}
+body.is-shift .react-flow__handle {
+  opacity: 0 !important;
+  pointer-events: none !important;
 }
 
 .react-flow__edge-path {

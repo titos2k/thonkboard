@@ -66,6 +66,7 @@ export function setActiveBoardId(id: string): void {
 export function deleteBoard(boardId: string): void {
   localStorage.removeItem(graphKey(boardId))
   localStorage.removeItem(viewportKey(boardId))
+  localStorage.removeItem(`thonk.minimap.${boardId}`)
 }
 
 // ── Graph persistence ──────────────────────────────────────────────────────────
@@ -109,6 +110,8 @@ export async function saveGraphToFileHandle(
 function migrateNode(n: ThonkNode): ThonkNode {
   const base = {
     ...(n.summary == null ? { ...n, summary: '' } : n),
+    body:      n.body      ?? '',
+    title:     n.title     ?? '',
     resolved:  (n as ThonkNode & { resolved?: boolean }).resolved  ?? false,
     conflicts: (n as ThonkNode & { conflicts?: ThonkNode['conflicts'] }).conflicts ?? [],
   }

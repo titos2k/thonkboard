@@ -79,8 +79,8 @@ export function MultiSelectToolbar({ selectedIds, graphRef, onBatchStart, onBatc
     <>
       {/* Bounding box outline */}
       <div
-        className="fixed pointer-events-none z-40 rounded-xl border-dashed border-gray-400/80"
-        style={{ left: rectLeft, top: rectTop, width: rectWidth, height: rectHeight, borderWidth: 1.5 }}
+        className="fixed pointer-events-none z-40 rounded-xl border-dashed border-[#1E1C24]/70 dark:border-[#EEECE8]/70"
+        style={{ left: rectLeft, top: rectTop, width: rectWidth, height: rectHeight, borderWidth: 2 }}
       />
 
       {/* Toolbar anchored to top-center of bbox */}
