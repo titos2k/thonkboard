@@ -28,7 +28,7 @@ import '@xyflow/react/dist/style.css'
 import { useGraph } from '@/store/useGraph'
 import { useIsMobile } from '@/hooks/useIsMobile'
 import {
-  exportGraphToFile, parseImportedGraph, saveGraph, loadGraph, makeInitialGraph,
+  exportGraphToFile, exportGraphToMermaid, parseImportedGraph, saveGraph, loadGraph, makeInitialGraph,
   migrateToMultiBoard,
   loadBoards, saveBoards, getActiveBoardId, setActiveBoardId as persistActiveBoardId, deleteBoard,
   loadViewport, saveViewport,
@@ -1482,6 +1482,11 @@ export default function App() {
     })
   }, [boards, activeBoardId])
 
+  const handleExportMermaid = useCallback(() => {
+    const boardName = boards.find(b => b.id === activeBoardId)?.name ?? 'Board'
+    exportGraphToMermaid(graph, boardName)
+  }, [graph, boards, activeBoardId])
+
   const handleToggleLegend = useCallback(() => setShowLegend(v => !v), [])
 
   return (
@@ -1504,6 +1509,7 @@ export default function App() {
           onExport={handleCtrlSSave}
           onExportAs={handleSaveAs}
           onExportPng={handleExportPng}
+          onExportMermaid={handleExportMermaid}
           onImport={handleImport}
           onImportSource={handleImportSource}
           linkedFileName={linkedFileName}

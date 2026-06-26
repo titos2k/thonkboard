@@ -83,6 +83,54 @@ declare global {
 
 export const fsaSupported = 'showSaveFilePicker' in window
 
+export function exportGraphToMermaid(graph: ThonkGraph, boardName: string): void {
+  const slug = boardName.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 40) || 'board'
+  const date = new Date().toISOString().slice(0, 10)
+
+  const shapeOpen:  Record<string, string> = {
+    core: '["', idea: '("', problem: '(["', question: '{"', answer: '["', note: '["',
+  }
+  const shapeClose: Record<string, string> = {
+    core: '"]', idea: '")', problem: '"])', question: '"}', answer: '"]', note: '"]',
+  }
+
+  const idMap = new Map<string, string>()
+  const visibleNodes = graph.nodes.filter(n => n.type !== 'source')
+  visibleNodes.forEach((n, i) => idMap.set(n.id, `n${i}`))
+
+  const lines: string[] = [
+    'graph TD',
+    '  classDef core fill:#392946,color:#fff,stroke:#00000033',
+    '  classDef idea fill:#F5C44A,color:#1a1a1a,stroke:#00000020',
+    '  classDef problem fill:#E95A32,color:#fff,stroke:#00000020',
+    '  classDef question fill:#f9f9f4,color:#1a1a1a,stroke:#00000020',
+    '  classDef answer fill:#00AE60,color:#fff,stroke:#00000020',
+    '  classDef note fill:#F6E49F,color:#374151,stroke:#00000020',
+  ]
+
+  for (const node of visibleNodes) {
+    const mId = idMap.get(node.id)!
+    const open  = shapeOpen[node.type]  ?? '["'
+    const close = shapeClose[node.type] ?? '"]'
+    const label = (node.title || node.type).replace(/"/g, "'")
+    lines.push(`  ${mId}${open}${label}${close}:::${node.type}`)
+  }
+
+  for (const edge of graph.edges) {
+    const src = idMap.get(edge.source)
+    const tgt = idMap.get(edge.target)
+    if (!src || !tgt) continue
+    lines.push(`  ${src} --> ${tgt}`)
+  }
+
+  const blob = new Blob([lines.join('\n')], { type: 'text/plain' })
+  const url = URL.createObjectURL(blob)
+  const a = document.createElement('a')
+  a.href = url; a.download = `thonk-${slug}-${date}.mmd`
+  a.click()
+  URL.revokeObjectURL(url)
+}
+
 export function exportGraphToFile(graph: ThonkGraph, boardId: string, boardName: string): void {
   const slug = boardName.replace(/[^a-z0-9]/gi, '-').toLowerCase().slice(0, 40) || 'board'
   const date = new Date().toISOString().slice(0, 10)

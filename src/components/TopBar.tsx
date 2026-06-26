@@ -1,6 +1,6 @@
 import { useRef, useState, memo, useEffect } from 'react'
 import { createPortal } from 'react-dom'
-import { Astroid, HelpCircle, Map, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search, FileInput } from 'lucide-react'
+import { Astroid, HelpCircle, Map, ChevronDown, Plus, Menu, Save, FolderOpen, File, Sparkles, Zap, StickyNote, Check, Trash2, Coffee, ImageDown, Scale, Lock, Moon, Sun, Star, Globe, Settings, Search, FileInput, FileCode } from 'lucide-react'
 import { IdeaIcon } from '@/components/icons/IdeaIcon'
 import { ProblemIcon } from '@/components/icons/ProblemIcon'
 import { QuestionIcon } from '@/components/icons/QuestionIcon'
@@ -31,6 +31,7 @@ interface TopBarProps {
   onExport: () => void
   onExportAs: () => void
   onExportPng: () => void
+  onExportMermaid: () => void
   linkedFileName: string | null
   fileDirty: boolean
   onImport: (file: File) => void
@@ -83,7 +84,7 @@ function apiKeyButtonLabel(provider: Provider): string {
   return hasActiveKey() ? PROVIDER_LABELS[provider] : 'Set AI key'
 }
 
-function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onImport, onImportSource, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, onOpenPaletteAllBoards, conflictCount }: TopBarProps) {
+function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegend, onToggleLegend, onExport, onExportAs, onExportPng, onExportMermaid, onImport, onImportSource, linkedFileName, fileDirty, graph, boards, activeBoardId, onSwitchBoard, onCreateBoard, onDeleteBoard, keyOpen, onKeyOpenChange, onAiConnected, darkMode, onToggleDarkMode, onLoadExample, exampleMode, onOpenPalette, onOpenPaletteAllBoards, conflictCount }: TopBarProps) {
   const toastExampleBlocked = () => window.dispatchEvent(new CustomEvent('thonk:toast', { detail: 'Keep or exit the example before loading a board' }))
   const fsaSupported = 'showSaveFilePicker' in window
   const fileInputRef = useRef<HTMLInputElement>(null)
@@ -367,6 +368,9 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
               <DropdownMenuSeparator />
               <DropdownMenuItem onClick={onExportPng}>
                 <ImageDown className="w-4 h-4 text-muted-foreground" /> Export as PNG
+              </DropdownMenuItem>
+              <DropdownMenuItem onClick={onExportMermaid}>
+                <FileCode className="w-4 h-4 text-muted-foreground" /> Export as Mermaid
               </DropdownMenuItem>
             </DropdownMenuSubContent>
           </DropdownMenuSub>
