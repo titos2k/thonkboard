@@ -920,7 +920,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 className={cn(
                   'nodrag w-full bg-transparent outline-none border-none font-medium text-sm leading-snug text-inherit p-0 m-0 resize-none overflow-hidden break-words',
                   thonk.type === 'core' && 'text-[20px] text-center',
-                  isLight ? 'placeholder:text-gray-400/60' : 'placeholder:text-white/40',
+                  'placeholder:text-current placeholder:opacity-40',
                 )}
               />
             ) : (
@@ -954,7 +954,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 stopDeletePropagation(e)
                 if (e.key === 'Escape') { setAnswerText(''); setActionState('idle') }
               }}
-              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 py-1 rounded-sm shadow-none"
+              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-current placeholder:opacity-40 px-2 py-1 rounded-sm shadow-none"
               rows={3}
             />
             <div className="mt-1 flex gap-1">
@@ -984,7 +984,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
               value={correctionText}
               onChange={e => setCorrectionText(e.target.value)}
               onKeyDown={stopDeletePropagation}
-              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 py-1 rounded-sm shadow-none"
+              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-current placeholder:opacity-40 px-2 py-1 rounded-sm shadow-none"
               rows={3}
             />
             <div className="mt-1 flex flex-wrap gap-1">
@@ -1018,7 +1018,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handleAskAndAnswer() }
                 if (e.key === 'Escape') { setAskText(''); setActionState('idle') }
               }}
-              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 py-1 rounded-sm shadow-none"
+              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-current placeholder:opacity-40 px-2 py-1 rounded-sm shadow-none"
               rows={3}
             />
             <div className="mt-1 flex gap-1">
@@ -1051,7 +1051,7 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
                 if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); handlePushThinking(pushText.trim() || undefined) }
                 if (e.key === 'Escape') { setPushText(''); setActionState('idle') }
               }}
-              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-gray-400 px-2 py-1 rounded-sm shadow-none"
+              className="nodrag text-sm min-h-[60px] text-gray-800 bg-gray-50 border-gray-300 placeholder:text-current placeholder:opacity-40 px-2 py-1 rounded-sm shadow-none"
               rows={3}
             />
             <div className="mt-1 flex gap-1">

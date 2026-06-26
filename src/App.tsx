@@ -348,7 +348,7 @@ function toRFEdge(
     : (NODE_EDGE_COLOR[target?.type ?? ''] ?? '#94a3b8')
   const aiDepth  = Math.max(target?.meta.aiDepth ?? 0, source?.meta.aiDepth ?? 0)
   const dash     = isSourceEdge ? undefined : (target?.meta.aiGenerated ? `5 ${3 + aiDepth * 4}` : undefined)
-  const width    = isSourceEdge ? 1 : 1.5
+  const width    = 1.5
   return {
     id: e.id,
     type: 'thonk',

@@ -200,7 +200,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
             placeholder="Type a note…"
             className={cn(
               'nodrag w-full bg-transparent outline-none border-none text-sm font-medium leading-snug',
-              'text-gray-700 placeholder:text-gray-400 resize-none overflow-hidden p-0 m-0',
+              'text-gray-700 placeholder:text-current placeholder:opacity-40 resize-none overflow-hidden p-0 m-0',
               'cursor-text text-center break-words',
             )}
           />
@@ -209,7 +209,7 @@ function NoteNodeFn({ data, selected, dragging }: NodeProps) {
             onDoubleClick={enterEdit}
             className="w-full text-sm font-medium leading-snug text-gray-700 text-center select-none cursor-default break-words"
           >
-            {thonk.title || <span className="text-gray-400">Type a note…</span>}
+            {thonk.title || <span className="opacity-40">Type a note…</span>}
           </p>
         )}
       </div>
