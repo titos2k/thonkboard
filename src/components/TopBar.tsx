@@ -18,6 +18,7 @@ import { getOllamaBaseUrl, getOllamaModel, setOllamaConfig, PROVIDER_MODEL_LITE,
 import { MODEL_LITE as ANTHROPIC_LITE, MODEL_SMART as ANTHROPIC_SMART } from '@/ai/anthropic'
 import { SummarizeModal } from './SummarizeModal'
 import type { ThonkGraph, BoardMeta } from '@/store/types'
+import { exportGraphToFile, loadGraph } from '@/store/graph'
 import type { Provider } from '@/ai/types'
 import { useIsMobile, useIsNarrow } from '@/hooks/useIsMobile'
 
@@ -250,6 +251,8 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
         ref={logoRef}
         src="/thonkboard-logo.svg"
         alt="ThonkBoard"
+        width={110}
+        height={28}
         className="h-7 w-auto mr-1"
         style={{ transformOrigin: 'center' }}
         onMouseEnter={() => { logoHoverTimerRef.current = setTimeout(startLogoShake, 1000) }}
@@ -931,6 +934,15 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
+            <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => {
+              if (!deleteConfirmId) return
+              const boardMeta = boards.find(b => b.id === deleteConfirmId)
+              const graph = loadGraph(deleteConfirmId)
+              exportGraphToFile(graph, deleteConfirmId, boardMeta?.name ?? 'board')
+              onDeleteBoard(deleteConfirmId)
+              setDeleteConfirmId(null)
+              setMinimapHover(null)
+            }}>Archive &amp; Delete</Button>
             <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { if (deleteConfirmId) { onDeleteBoard(deleteConfirmId); setDeleteConfirmId(null); setMinimapHover(null) } }}>Delete</Button>
           </div>
         </DialogContent>
