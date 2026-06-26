@@ -48,10 +48,10 @@ function SourceNodeFn({ data, selected, dragging }: NodeProps) {
     <>
       <NodeShell nodeType="source" selected={selected} handles={false} className="cursor-default active:cursor-default" resizable={true} nodeWidth={thonk.nodeWidth} onResized={(w) => d.onUpdate(thonk.id, { nodeWidth: w })} minWidth={160} minHeight={60} onContextMenu={e => { e.preventDefault(); e.stopPropagation(); d.onContextMenuSelect(thonk.id) }}>
         {/* Source-only handles — connect outward to core */}
-        <Handle id="s-bottom" type="source" position={Position.Bottom} className="!bg-blue-300 !border-blue-400 !w-2 !h-2" />
-        <Handle id="s-top"    type="source" position={Position.Top}    className="!bg-blue-300 !border-blue-400 !w-2 !h-2" />
-        <Handle id="s-left"   type="source" position={Position.Left}   className="!bg-blue-300 !border-blue-400 !w-2 !h-2" />
-        <Handle id="s-right"  type="source" position={Position.Right}  className="!bg-blue-300 !border-blue-400 !w-2 !h-2" />
+        <Handle id="s-bottom" type="source" position={Position.Bottom} className="!bg-white !border-0 !w-2 !h-2 !shadow-md" />
+        <Handle id="s-top"    type="source" position={Position.Top}    className="!bg-white !border-0 !w-2 !h-2 !shadow-md" />
+        <Handle id="s-left"   type="source" position={Position.Left}   className="!bg-white !border-0 !w-2 !h-2 !shadow-md" />
+        <Handle id="s-right"  type="source" position={Position.Right}  className="!bg-white !border-0 !w-2 !h-2 !shadow-md" />
 
         <NodeToolbar isVisible={selected && !d.isMultiSelected && !dragging} position={Position.Top} offset={8}>
           <div className="nodrag flex items-center gap-0.5 rounded-lg px-1.5 py-1 shadow-xl" style={{ backgroundColor: 'var(--toolbar-bg)', border: '1px solid var(--toolbar-border)' }}>

@@ -311,7 +311,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
                       <span className="flex items-center gap-0.5 shrink-0">
                           {boards.length > 1 && (
                           <button
-                            onClick={e => { e.stopPropagation(); setDeleteConfirmId(board.id) }}
+                            onClick={e => { e.stopPropagation(); setDeleteConfirmId(board.id); setMinimapHover(null) }}
                             className="w-6 h-6 flex items-center justify-center rounded hover:bg-red-100 transition-colors"
                             title="Delete board"
                           >
@@ -927,7 +927,7 @@ function TopBarFn({ onAddIdea, onAddProblem, onAddQuestion, onAddNote, showLegen
           </DialogHeader>
           <div className="flex justify-end gap-2 mt-4">
             <Button variant="outline" className="h-9 text-sm cursor-pointer" onClick={() => setDeleteConfirmId(null)}>Cancel</Button>
-            <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { if (deleteConfirmId) { onDeleteBoard(deleteConfirmId); setDeleteConfirmId(null) } }}>Delete</Button>
+            <Button variant="destructive" className="h-9 text-sm cursor-pointer" onClick={() => { if (deleteConfirmId) { onDeleteBoard(deleteConfirmId); setDeleteConfirmId(null); setMinimapHover(null) } }}>Delete</Button>
           </div>
         </DialogContent>
       </Dialog>
