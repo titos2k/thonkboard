@@ -776,7 +776,6 @@ function ThonkNodeComponentFn({ data, selected, dragging }: NodeProps) {
   const canSetEmoji = thonk.type === 'core' || thonk.type === 'idea'
 
   const isLoading = actionState === 'loading' || actionState === 'searching'
-  const isLight = thonk.type === 'question' || thonk.type === 'idea'
 
   const aiDepth = thonk.meta.aiDepth ?? 0
   const depthHeat = aiDepth > 0 ? Math.min(aiDepth / MAX_AI_DEPTH, 1) : 0
